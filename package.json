@@ -1,0 +1,18 @@
+{
+  "name": "hexa-backup",
+  "version": "1.0.0",
+  "description": "A distributed and versioned backup tool",
+  "main": "target/hexa-backup.js",
+  "bin": {
+    "hexa-backup": "bin/hexa-backup"
+  },
+  "scripts": {
+    "prepublish": "tsc"
+  },
+  "author": "Arnaud Tournier",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "typescript": "1.8.10"
+  }
+}
