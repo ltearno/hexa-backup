@@ -27,6 +27,17 @@ async function readFile(fd: number, offset: number, length: number) {
     });
 }
 
+async function writeFile(fd: number, data: string) {
+    return new Promise<number>((resolve, reject) => {
+        fs.write(fd, data, 0, 'utf8', (err, written, buffer) => {
+            if (err)
+                reject(err);
+            else
+                resolve(written);
+        });
+    });
+}
+
 async function closeFile(fd: number) {
     return new Promise<void>((resolve, reject) => {
         fs.close(fd, (err) => {
@@ -73,6 +84,7 @@ async function readDir(path: string): Promise<string[]> {
 interface FileDescriptor {
     name: string;
     isDirectory: boolean;
+    size: number,
     lastWrite: number,
     contentSha: string;
 }
@@ -111,7 +123,7 @@ class ShaCache {
 
             if (fullFileName in this.cache) {
                 let cacheInfo = this.cache[fullFileName];
-                if (cacheInfo.lastWrite == stat.mtime.getTime()) {
+                if (cacheInfo.lastWrite == stat.mtime.getTime() && cacheInfo.size == stat.size) {
                     resolve(cacheInfo.contentSha);
                     return;
                 }
@@ -122,6 +134,7 @@ class ShaCache {
             let contentSha = await hashFile(fullFileName);
             let cacheInfo = {
                 lastWrite: stat.mtime.getTime(),
+                size: stat.size,
                 contentSha: contentSha
             };
 
@@ -157,7 +170,8 @@ async function readDirDeep(path: string, shaCache: ShaCache, ignoredNames: strin
                     name: fsPath.relative(path, fullFileName),
                     isDirectory: stat.isDirectory(),
                     lastWrite: stat.mtime.getTime(),
-                    contentSha: null
+                    contentSha: null,
+                    size: 0
                 };
 
                 if (stat.isDirectory()) {
@@ -166,6 +180,7 @@ async function readDirDeep(path: string, shaCache: ShaCache, ignoredNames: strin
                 else {
                     let sha = await shaCache.hashFile(fullFileName);
                     desc.contentSha = sha;
+                    desc.size = stat.size;
                 }
 
                 result.push(desc);
@@ -190,7 +205,7 @@ class HexaBackupReader {
     private shaCache: ShaCache;
     private ignoredNames = ['.hb-cache', '.git'];
 
-    constructor(rootPath: string) {
+    constructor(rootPath: string, private clientId: string) {
         this.rootPath = fsPath.resolve(rootPath);
 
         let cachePath = fsPath.join(this.rootPath, '.hb-cache');
@@ -210,11 +225,15 @@ class HexaBackupReader {
     }
 
     async sendSnapshotToStore(store: HexaBackupStore) {
+        let transactionId = await store.startOrContinueSnapshotTransaction(this.clientId);
+
         let desc = await this.readDirectoryState();
 
         for (let fileDesc of desc.files) {
-            if (fileDesc.isDirectory)
+            if (fileDesc.isDirectory) {
+                await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
                 continue;
+            }
 
             let fullFileName = fsPath.join(this.rootPath, fileDesc.name);
 
@@ -245,16 +264,61 @@ class HexaBackupReader {
                 }
 
                 await closeFile(fd);
-
-                let validated = await store.validateSha(fileDesc.contentSha);
-                if (!validated) {
-                    console.log(`error uploading ${fileDesc.name}, file content might have changed during uploading the content...`);
-                }
             }
 
-            // push file descriptor to store
-            // store checks that SHA is valid after the transfer => file state is committed in a consistent way (name, modifDate, contentSha)
+            await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
+            console.log(`pushed file ${fileDesc.name}`);
         }
+
+        await store.commitTransaction(this.clientId, transactionId);
+    }
+}
+
+class ReferenceRepository {
+    private rootPath: string;
+
+    constructor(rootPath: string) {
+        this.rootPath = fsPath.resolve(rootPath);
+        if (!fs.existsSync(this.rootPath))
+            fs.mkdirSync(this.rootPath);
+    }
+
+    async put(name: string, value: any) {
+        return new Promise<void>(async (resolve, reject) => {
+            let contentFileName = this.contentFileName(name);
+
+            if (value == null) {
+                fs.unlinkSync(contentFileName);
+                resolve();
+            }
+            else {
+                let fd = await openFile(contentFileName, 'w');
+
+                let serializedValue = JSON.stringify(value);
+                await writeFile(fd, serializedValue);
+
+                await closeFile(fd);
+
+                resolve();
+            }
+        });
+    }
+
+    async get(name: string) {
+        return new Promise<any>(async (resolve, reject) => {
+            let contentFileName = this.contentFileName(name);
+            if (fs.existsSync(contentFileName)) {
+                let content = fs.readFileSync(contentFileName, 'utf8');
+                resolve(JSON.parse(content));
+            }
+            else {
+                resolve(null);
+            }
+        });
+    }
+
+    private contentFileName(referenceName: string) {
+        return fsPath.join(this.rootPath, `${referenceName.toLocaleUpperCase()}`);
     }
 }
 
@@ -265,6 +329,38 @@ class ObjectRepository {
         this.rootPath = fsPath.resolve(rootPath);
         if (!fs.existsSync(this.rootPath))
             fs.mkdirSync(this.rootPath);
+    }
+
+    async storePayload(payload: string) {
+        return new Promise<string>(async (resolve, reject) => {
+            let sha = hashString(payload);
+
+            if (await this.hasShaBytes(sha) == 0)
+                await this.putShaBytes(sha, 0, new Buffer(payload, 'utf8'));
+
+            resolve(sha);
+        });
+    }
+
+    async storeObject(object: any) {
+        return this.storePayload(JSON.stringify(object));
+    }
+
+    async readPayload(sha: string) {
+        return new Promise<string>((resolve, reject) => {
+            let contentFileName = this.contentFileName(sha);
+            if (!fs.existsSync(contentFileName)) {
+                resolve(null);
+                return;
+            }
+
+            let content = fs.readFileSync(contentFileName, 'utf8');
+            resolve(content);
+        });
+    }
+
+    async readObject(sha: string) {
+        return await JSON.parse(await this.readPayload(sha));
     }
 
     /**
@@ -303,11 +399,11 @@ class ObjectRepository {
         });
     }
 
-    async validateSha(sha: string) {
+    async validateSha(desc: FileDescriptor) {
         return new Promise<boolean>(async (resolve, reject) => {
-            let contentFileName = this.contentFileName(sha);
+            let contentFileName = this.contentFileName(desc.contentSha);
             let storedContentSha = await hashFile(contentFileName);
-            if (storedContentSha == sha) {
+            if (storedContentSha == desc.contentSha && desc.size == fs.lstatSync(contentFileName).size) {
                 resolve(true);
             }
             else {
@@ -323,19 +419,36 @@ class ObjectRepository {
     }
 }
 
+interface ClientState {
+    currentTransactionId: string;
+    currentTransactionContent: { [key: string]: FileDescriptor };
+    currentCommitSha: string;
+}
+
+interface Commit {
+    parentSha: string;
+    commitDate: number;
+    directoryDescriptorSha: string;
+}
+
 class HexaBackupStore {
     private rootPath: string;
     private objectRepository: ObjectRepository;
+    private referenceRepository: ReferenceRepository;
 
     constructor(rootPath: string) {
         this.rootPath = fsPath.resolve(rootPath);
 
         this.objectRepository = new ObjectRepository(fsPath.join(this.rootPath, '.hb-object'));
+
+        this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'));
     }
 
-    startSnapshotTransaction(): string {
-        // create space for storing the transaction
-        return 'id_tx';
+    async startOrContinueSnapshotTransaction(clientId: string) {
+        return new Promise<string>(async (resolve, reject) => {
+            let clientState: ClientState = await this.getClientState(clientId);
+            resolve(clientState.currentTransactionId);
+        });
     }
 
     async hasShaBytes(sha: string) {
@@ -346,20 +459,122 @@ class HexaBackupStore {
         return this.objectRepository.putShaBytes(sha, offset, data);
     }
 
-    async validateSha(sha: string) {
-        return this.objectRepository.validateSha(sha);
+    async pushFileDescriptor(clientId: string, transactionId: string, fileDesc: FileDescriptor) {
+        return new Promise<void>(async (resolve, reject) => {
+            let clientState = await this.getClientState(clientId);
+            if (clientState.currentTransactionId != transactionId) {
+                console.log(`client is pushing with a bad transaction id !`);
+                return;
+            }
+
+            if (fileDesc.isDirectory) {
+                clientState.currentTransactionContent[fileDesc.name] = fileDesc;
+            }
+            else {
+                let validated = await this.objectRepository.validateSha(fileDesc);
+                if (validated) {
+                    clientState.currentTransactionContent[fileDesc.name] = fileDesc;
+                }
+            }
+
+            await this.storeClientState(clientId, clientState);
+
+            resolve();
+        });
     }
 
-    commitTransaction(idTransaction: string) {
-        // ensure state is consistent
-        // write state info
+    async commitTransaction(clientId: string, transactionId: string) {
+        return new Promise<void>(async (resolve, reject) => {
+            // maybe ensure the current transaction is consistent
+
+            let clientState = await this.getClientState(clientId);
+            if (clientState.currentTransactionId != transactionId) {
+                reject('client is commiting with a bad transaction id !');
+                return;
+            }
+
+            // prepare and store directory descriptor
+            let descriptor = await this.createDirectoryDescriptor(clientState.currentTransactionContent);
+            let descriptorSha = await this.objectRepository.storeObject(descriptor);
+
+            // check if state changed
+            let saveCommit = true;
+            if (clientState.currentCommitSha != null) {
+                let currentCommit: Commit = await this.objectRepository.readObject(clientState.currentCommitSha);
+                if (currentCommit.directoryDescriptorSha == descriptorSha) {
+                    console.log(`transaction ${transactionId} makes no change, ignoring`);
+                    saveCommit = false;
+                }
+            }
+
+            // prepare and store the commit
+            if (saveCommit) {
+                let commit: Commit = {
+                    parentSha: clientState.currentCommitSha,
+                    commitDate: Date.now(),
+                    directoryDescriptorSha: descriptorSha
+                };
+                let commitSha = await this.objectRepository.storeObject(commit);
+
+                clientState.currentCommitSha = commitSha;
+
+                console.log(`commited content : ${descriptorSha} in commit ${commitSha}`);
+            }
+
+            clientState.currentTransactionId = null;
+            clientState.currentTransactionContent = null;
+            await this.storeClientState(clientId, clientState);
+            resolve();
+        });
+    }
+
+    private async createDirectoryDescriptor(content: { [key: string]: FileDescriptor }) {
+        let descriptor: DirectoryDescriptor = {
+            files: []
+        };
+
+        for (let k in content)
+            descriptor.files.push(content[k]);
+
+        return descriptor;
+    }
+
+    private async getClientState(clientId: string) {
+        return new Promise<ClientState>(async (resolve, reject) => {
+            let clientStateReferenceName = `client_${clientId}`;
+            let clientState: ClientState = await this.referenceRepository.get(clientStateReferenceName);
+            if (clientState == null) {
+                clientState = {
+                    currentTransactionId: null,
+                    currentTransactionContent: null,
+                    currentCommitSha: null
+                };
+            }
+
+            if (clientState.currentTransactionId == null) {
+                clientState.currentTransactionId = `tx_${Date.now()}`;
+                clientState.currentTransactionContent = {};
+            }
+
+            await this.storeClientState(clientId, clientState);
+
+            resolve(clientState);
+        });
+    }
+
+    private async storeClientState(clientId: string, clientState: ClientState) {
+        return new Promise<void>(async (resolve, reject) => {
+            let clientStateReferenceName = `client_${clientId}`;
+            await this.referenceRepository.put(clientStateReferenceName, clientState);
+            resolve();
+        });
     }
 }
 
 async function run() {
     console.log("Test load for Hexa-Backup !");
 
-    let fileName = 'package.json'; //'d:\\downloads\\crackstation.txt.gz'
+    /*let fileName = 'package.json'; //'d:\\downloads\\crackstation.txt.gz'
     let hex = await hashFile(fileName);
     console.log(`hash: ${hex}`);
 
@@ -370,11 +585,11 @@ async function run() {
     let shaCache = new ShaCache(`d:\\tmp\\.hb-cache`);
     let shaContent = await shaCache.hashFile('d:\\tmp\\CCF26012016.png');
     shaCache.flushToDisk();
-    console.log(`picture sha : ${shaContent}`);
+    console.log(`picture sha : ${shaContent}`);*/
 
     let backupedDirectory = `D:\\Tmp\\Conseils d'Annelise pour la prochaine AG`;
 
-    let reader = new HexaBackupReader(backupedDirectory);
+    let reader = new HexaBackupReader(backupedDirectory, 'pc-arnaud');
     let desc = await reader.readDirectoryState();
     console.log(`descriptor: ${JSON.stringify(desc)}`);
 
