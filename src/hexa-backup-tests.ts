@@ -2,6 +2,20 @@ import fs = require('fs');
 import crypto = require('crypto');
 import fsPath = require('path');
 
+const EMPTY_PAYLOAD_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+async function lstat(path: string) {
+    return new Promise<fs.Stats>((resolve, reject) => {
+        fs.lstat(path, (err, stats) => {
+            if (err) {
+                console.log(`error lstat on ${path} : err`);
+                reject(err);
+            }
+            else
+                resolve(stats);
+        });
+    });
+}
 
 async function openFile(fileName: string, flags: string) {
     return new Promise<number>((resolve, reject) => {
@@ -50,14 +64,31 @@ async function closeFile(fd: number) {
 }
 
 function hashString(value: string) {
+    if (value === "")
+        return EMPTY_PAYLOAD_SHA;
+
     let hash = crypto.createHash('sha256');
     hash.update(value);
     return hash.digest('hex');
 }
 
 async function hashFile(fileName: string): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<string>(async (resolve, reject) => {
         let hash = crypto.createHash('sha256');
+
+        try {
+            let stat = await lstat(fileName);
+            if (stat.size == 0) {
+                resolve(EMPTY_PAYLOAD_SHA);
+                return;
+            }
+        }
+        catch (error) {
+            console.log(`error reading ${fileName}`);
+            reject(`error reading ${fileName}`);
+            return;
+        }
+
         let input = fs.createReadStream(fileName);
 
         input.on('data', chunk => {
@@ -65,6 +96,7 @@ async function hashFile(fileName: string): Promise<string> {
         }).on('end', () => {
             resolve(hash.digest('hex'));
         }).on('error', () => {
+            console.log(`error reading ${fileName}`);
             reject(`error reading ${fileName}`);
         });
     });
@@ -203,7 +235,7 @@ interface DirectoryDescriptor {
 class HexaBackupReader {
     private rootPath: string;
     private shaCache: ShaCache;
-    private ignoredNames = ['.hb-cache', '.git'];
+    private ignoredNames = ['.hb-cache', '.git', '.metadata'];
 
     constructor(rootPath: string, private clientId: string) {
         this.rootPath = fsPath.resolve(rootPath);
@@ -227,8 +259,10 @@ class HexaBackupReader {
     async sendSnapshotToStore(store: HexaBackupStore) {
         let transactionId = await store.startOrContinueSnapshotTransaction(this.clientId);
 
+        console.log(`reading directory structure ${this.rootPath}`);
         let desc = await this.readDirectoryState();
 
+        console.log('sending files...');
         for (let fileDesc of desc.files) {
             if (fileDesc.isDirectory) {
                 await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
@@ -241,9 +275,7 @@ class HexaBackupReader {
             let stat = fs.lstatSync(fullFileName);
 
             if (currentSize < stat.size) {
-                console.log(`need to send ${stat.size - currentSize} bytes for file ${fileDesc.name}`);
-
-                const maxBlockSize = 4096;
+                const maxBlockSize = 1024 * 1024;
 
                 let fd = await openFile(fullFileName, 'r');
 
@@ -266,11 +298,14 @@ class HexaBackupReader {
                 await closeFile(fd);
             }
 
+            console.log(`push ${fileDesc.name}`);
             await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
-            console.log(`pushed file ${fileDesc.name}`);
         }
 
+        console.log(`commiting ${this.clientId}::${transactionId}...`);
         await store.commitTransaction(this.clientId, transactionId);
+
+        console.log('snapshot sent');
     }
 }
 
@@ -292,11 +327,10 @@ class ReferenceRepository {
                 resolve();
             }
             else {
-                let fd = await openFile(contentFileName, 'w');
-
                 let serializedValue = JSON.stringify(value);
-                await writeFile(fd, serializedValue);
 
+                let fd = await openFile(contentFileName, 'w');
+                await writeFile(fd, serializedValue);
                 await closeFile(fd);
 
                 resolve();
@@ -309,7 +343,12 @@ class ReferenceRepository {
             let contentFileName = this.contentFileName(name);
             if (fs.existsSync(contentFileName)) {
                 let content = fs.readFileSync(contentFileName, 'utf8');
-                resolve(JSON.parse(content));
+                try {
+                    resolve(JSON.parse(content));
+                }
+                catch (error) {
+                    resolve(null);
+                }
             }
             else {
                 resolve(null);
@@ -348,14 +387,23 @@ class ObjectRepository {
 
     async readPayload(sha: string) {
         return new Promise<string>((resolve, reject) => {
+            if (sha == EMPTY_PAYLOAD_SHA) {
+                resolve('');
+                return;
+            }
+
             let contentFileName = this.contentFileName(sha);
             if (!fs.existsSync(contentFileName)) {
                 resolve(null);
                 return;
             }
 
-            let content = fs.readFileSync(contentFileName, 'utf8');
-            resolve(content);
+            try {
+                let content = fs.readFileSync(contentFileName, 'utf8');
+                resolve(content);
+            } catch (error) {
+                reject(error);
+            }
         });
     }
 
@@ -368,6 +416,11 @@ class ObjectRepository {
      */
     async hasShaBytes(sha: string) {
         return new Promise<number>((resolve, reject) => {
+            if (sha == EMPTY_PAYLOAD_SHA) {
+                resolve(0);
+                return;
+            }
+
             let contentFileName = this.contentFileName(sha);
             if (fs.existsSync(contentFileName))
                 resolve(fs.lstatSync(contentFileName).size);
@@ -378,6 +431,11 @@ class ObjectRepository {
 
     async putShaBytes(sha: string, offset: number, data: Buffer): Promise<void> {
         return new Promise<void>((resolve, reject) => {
+            if (sha == EMPTY_PAYLOAD_SHA) {
+                resolve();
+                return;
+            }
+
             let contentFileName = this.contentFileName(sha);
             fs.open(contentFileName, 'a', (err, fd) => {
                 if (err) {
@@ -401,21 +459,35 @@ class ObjectRepository {
 
     async validateSha(desc: FileDescriptor) {
         return new Promise<boolean>(async (resolve, reject) => {
-            let contentFileName = this.contentFileName(desc.contentSha);
-            let storedContentSha = await hashFile(contentFileName);
-            if (storedContentSha == desc.contentSha && desc.size == fs.lstatSync(contentFileName).size) {
+            if (desc.contentSha == EMPTY_PAYLOAD_SHA) {
                 resolve(true);
+                return;
             }
-            else {
-                fs.unlink(contentFileName, (err) => {
-                    resolve(false);
-                });
+
+            try {
+                let contentFileName = this.contentFileName(desc.contentSha);
+                let storedContentSha = await hashFile(contentFileName);
+                if (storedContentSha == desc.contentSha && desc.size == fs.lstatSync(contentFileName).size) {
+                    resolve(true);
+                }
+                else {
+                    fs.unlink(contentFileName, (err) => {
+                        resolve(false);
+                    });
+                }
+            } catch (error) {
+                console.log(`error validating sha of ${desc.name}`);
+                resolve(false);
             }
         });
     }
 
     private contentFileName(sha: string) {
-        return fsPath.join(this.rootPath, `${sha}`);
+        let prefix = sha.substring(0, 3);
+        let directory = fsPath.join(this.rootPath, prefix);
+        if (!fs.existsSync(directory))
+            fs.mkdirSync(directory);
+        return fsPath.join(this.rootPath, prefix, `${sha}`);
     }
 }
 
@@ -467,6 +539,20 @@ class HexaBackupStore {
                 return;
             }
 
+            if (fileDesc.name in clientState.currentTransactionContent) {
+                let current = clientState.currentTransactionContent[fileDesc.name];
+                if (current != null) {
+                    if (current.contentSha == fileDesc.contentSha
+                        && current.isDirectory == fileDesc.isDirectory
+                        && current.lastWrite == fileDesc.lastWrite
+                        && current.name == fileDesc.name
+                        && current.size == fileDesc.size) {
+                        resolve();
+                        return;
+                    }
+                }
+            }
+
             if (fileDesc.isDirectory) {
                 clientState.currentTransactionContent[fileDesc.name] = fileDesc;
             }
@@ -477,7 +563,7 @@ class HexaBackupStore {
                 }
             }
 
-            await this.storeClientState(clientId, clientState);
+            await this.storeClientState(clientId, clientState, false);
 
             resolve();
         });
@@ -523,7 +609,7 @@ class HexaBackupStore {
 
             clientState.currentTransactionId = null;
             clientState.currentTransactionContent = null;
-            await this.storeClientState(clientId, clientState);
+            await this.storeClientState(clientId, clientState, true);
             resolve();
         });
     }
@@ -539,33 +625,54 @@ class HexaBackupStore {
         return descriptor;
     }
 
+    private lastSeenClientState: { [key: string]: ClientState } = {};
+
     private async getClientState(clientId: string) {
         return new Promise<ClientState>(async (resolve, reject) => {
+            if (this.lastSeenClientState != null && clientId in this.lastSeenClientState) {
+                resolve(this.lastSeenClientState[clientId]);
+                return;
+            }
+
             let clientStateReferenceName = `client_${clientId}`;
             let clientState: ClientState = await this.referenceRepository.get(clientStateReferenceName);
+            let save = false;
             if (clientState == null) {
                 clientState = {
                     currentTransactionId: null,
                     currentTransactionContent: null,
                     currentCommitSha: null
                 };
+                save = true;
             }
 
             if (clientState.currentTransactionId == null) {
                 clientState.currentTransactionId = `tx_${Date.now()}`;
                 clientState.currentTransactionContent = {};
+                save = true;
             }
 
-            await this.storeClientState(clientId, clientState);
+            if (save)
+                await this.storeClientState(clientId, clientState, true);
 
+            this.lastSeenClientState[clientId] = clientState;
             resolve(clientState);
         });
     }
 
-    private async storeClientState(clientId: string, clientState: ClientState) {
+    private lastTimeSavedClientState = 0;
+
+    private async storeClientState(clientId: string, clientState: ClientState, force: boolean) {
+        this.lastSeenClientState[clientId] = clientState;
+
         return new Promise<void>(async (resolve, reject) => {
-            let clientStateReferenceName = `client_${clientId}`;
-            await this.referenceRepository.put(clientStateReferenceName, clientState);
+            let now = Date.now();
+            if (force || (now - this.lastTimeSavedClientState > 2000)) {
+                this.lastTimeSavedClientState = now;
+                
+                let clientStateReferenceName = `client_${clientId}`;
+                await this.referenceRepository.put(clientStateReferenceName, clientState);
+            }
             resolve();
         });
     }
@@ -587,11 +694,12 @@ async function run() {
     shaCache.flushToDisk();
     console.log(`picture sha : ${shaContent}`);*/
 
-    let backupedDirectory = `D:\\Tmp\\Conseils d'Annelise pour la prochaine AG`;
+    //let backupedDirectory = `D:\\Tmp\\Conseils d'Annelise pour la prochaine AG`;
+    let backupedDirectory = `D:\\Entreprise`;
 
     let reader = new HexaBackupReader(backupedDirectory, 'pc-arnaud');
-    let desc = await reader.readDirectoryState();
-    console.log(`descriptor: ${JSON.stringify(desc)}`);
+    //let desc = await reader.readDirectoryState();
+    //console.log(`descriptor: ${JSON.stringify(desc)}`);
 
     let store = new HexaBackupStore(`D:\\Tmp\\HexaBackupStore`);
 
