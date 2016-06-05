@@ -8,6 +8,9 @@ export class HexaBackupStore {
     private objectRepository: ObjectRepository;
     private referenceRepository: ReferenceRepository;
 
+    private sourceStateCache: { [key: string]: Model.SourceState } = {};
+    private lastTimeSavedClientState = 0;
+
     constructor(rootPath: string) {
         this.rootPath = fsPath.resolve(rootPath);
 
@@ -19,6 +22,8 @@ export class HexaBackupStore {
     async startOrContinueSnapshotTransaction(clientId: string) {
         return new Promise<string>(async (resolve, reject) => {
             let sourceState: Model.SourceState = await this.getSourceState(clientId);
+            if (sourceState.currentTransactionId == null)
+                sourceState.currentTransactionId = await this.openTransaction(clientId);
             resolve(sourceState.currentTransactionId);
         });
     }
@@ -114,22 +119,9 @@ export class HexaBackupStore {
         });
     }
 
-    private async createDirectoryDescriptor(content: { [key: string]: Model.FileDescriptor }) {
-        let descriptor: Model.DirectoryDescriptor = {
-            files: []
-        };
-
-        for (let k in content)
-            descriptor.files.push(content[k]);
-
-        return descriptor;
-    }
-
-    private lastSeenClientState: { [key: string]: Model.SourceState } = {};
-
-    private async getSourceState(sourceId: string) {
-        if (this.lastSeenClientState != null && sourceId in this.lastSeenClientState)
-            return this.lastSeenClientState[sourceId];
+    async getSourceState(sourceId: string) {
+        if (this.sourceStateCache != null && sourceId in this.sourceStateCache)
+            return this.sourceStateCache[sourceId];
 
         let clientStateReferenceName = `client_${sourceId}`;
         let sourceState: Model.SourceState = await this.referenceRepository.get(clientStateReferenceName);
@@ -143,23 +135,47 @@ export class HexaBackupStore {
             save = true;
         }
 
-        if (sourceState.currentTransactionId == null) {
-            sourceState.currentTransactionId = `tx_${Date.now()}`;
-            sourceState.currentTransactionContent = {};
-            save = true;
-        }
-
         if (save)
             await this.storeClientState(sourceId, sourceState, true);
 
-        this.lastSeenClientState[sourceId] = sourceState;
+        this.sourceStateCache[sourceId] = sourceState;
         return sourceState;
     }
 
-    private lastTimeSavedClientState = 0;
+    async getCommit(sha: string): Promise<Model.Commit> {
+        return await this.objectRepository.readObject(sha);
+    }
+
+    async getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor> {
+        return await this.objectRepository.readObject(sha);
+    }
+
+    private async openTransaction(sourceId: string) {
+        let sourceState = await this.getSourceState(sourceId);
+
+        if (sourceState.currentTransactionId == null) {
+            sourceState.currentTransactionId = `tx_${Date.now()}`;
+            sourceState.currentTransactionContent = {};
+
+            await this.storeClientState(sourceId, sourceState, true);
+        }
+
+        return sourceState.currentTransactionId;
+    }
+
+    private async createDirectoryDescriptor(content: { [key: string]: Model.FileDescriptor }) {
+        let descriptor: Model.DirectoryDescriptor = {
+            files: []
+        };
+
+        for (let k in content)
+            descriptor.files.push(content[k]);
+
+        return descriptor;
+    }
 
     private async storeClientState(clientId: string, sourceState: Model.SourceState, force: boolean) {
-        this.lastSeenClientState[clientId] = sourceState;
+        this.sourceStateCache[clientId] = sourceState;
 
         return new Promise<void>(async (resolve, reject) => {
             let now = Date.now();
