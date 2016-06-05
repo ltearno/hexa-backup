@@ -329,11 +329,16 @@ class ReferenceRepository {
             else {
                 let serializedValue = JSON.stringify(value);
 
-                let fd = await openFile(contentFileName, 'w');
+                let fd = await openFile(contentFileName + '.part', 'w');
                 await writeFile(fd, serializedValue);
                 await closeFile(fd);
 
-                resolve();
+                fs.rename(contentFileName + '.part', contentFileName, (err) => {
+                    if (err)
+                        reject(err);
+                    else
+                        resolve();
+                });
             }
         });
     }
@@ -669,7 +674,7 @@ class HexaBackupStore {
             let now = Date.now();
             if (force || (now - this.lastTimeSavedClientState > 2000)) {
                 this.lastTimeSavedClientState = now;
-                
+
                 let clientStateReferenceName = `client_${clientId}`;
                 await this.referenceRepository.put(clientStateReferenceName, clientState);
             }
