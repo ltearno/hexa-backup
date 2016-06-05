@@ -18,8 +18,8 @@ export class HexaBackupStore {
 
     async startOrContinueSnapshotTransaction(clientId: string) {
         return new Promise<string>(async (resolve, reject) => {
-            let clientState: Model.ClientState = await this.getClientState(clientId);
-            resolve(clientState.currentTransactionId);
+            let sourceState: Model.SourceState = await this.getSourceState(clientId);
+            resolve(sourceState.currentTransactionId);
         });
     }
 
@@ -33,7 +33,7 @@ export class HexaBackupStore {
 
     async pushFileDescriptor(clientId: string, transactionId: string, fileDesc: Model.FileDescriptor) {
         return new Promise<void>(async (resolve, reject) => {
-            let clientState = await this.getClientState(clientId);
+            let clientState = await this.getSourceState(clientId);
             if (clientState.currentTransactionId != transactionId) {
                 console.log(`client is pushing with a bad transaction id !`);
                 return;
@@ -73,7 +73,7 @@ export class HexaBackupStore {
         return new Promise<void>(async (resolve, reject) => {
             // maybe ensure the current transaction is consistent
 
-            let clientState = await this.getClientState(clientId);
+            let clientState = await this.getSourceState(clientId);
             if (clientState.currentTransactionId != transactionId) {
                 reject('client is commiting with a bad transaction id !');
                 return;
@@ -125,45 +125,41 @@ export class HexaBackupStore {
         return descriptor;
     }
 
-    private lastSeenClientState: { [key: string]: Model.ClientState } = {};
+    private lastSeenClientState: { [key: string]: Model.SourceState } = {};
 
-    private async getClientState(clientId: string) {
-        return new Promise<Model.ClientState>(async (resolve, reject) => {
-            if (this.lastSeenClientState != null && clientId in this.lastSeenClientState) {
-                resolve(this.lastSeenClientState[clientId]);
-                return;
-            }
+    private async getSourceState(sourceId: string) {
+        if (this.lastSeenClientState != null && sourceId in this.lastSeenClientState)
+            return this.lastSeenClientState[sourceId];
 
-            let clientStateReferenceName = `client_${clientId}`;
-            let clientState: Model.ClientState = await this.referenceRepository.get(clientStateReferenceName);
-            let save = false;
-            if (clientState == null) {
-                clientState = {
-                    currentTransactionId: null,
-                    currentTransactionContent: null,
-                    currentCommitSha: null
-                };
-                save = true;
-            }
+        let clientStateReferenceName = `client_${sourceId}`;
+        let sourceState: Model.SourceState = await this.referenceRepository.get(clientStateReferenceName);
+        let save = false;
+        if (sourceState == null) {
+            sourceState = {
+                currentTransactionId: null,
+                currentTransactionContent: null,
+                currentCommitSha: null
+            };
+            save = true;
+        }
 
-            if (clientState.currentTransactionId == null) {
-                clientState.currentTransactionId = `tx_${Date.now()}`;
-                clientState.currentTransactionContent = {};
-                save = true;
-            }
+        if (sourceState.currentTransactionId == null) {
+            sourceState.currentTransactionId = `tx_${Date.now()}`;
+            sourceState.currentTransactionContent = {};
+            save = true;
+        }
 
-            if (save)
-                await this.storeClientState(clientId, clientState, true);
+        if (save)
+            await this.storeClientState(sourceId, sourceState, true);
 
-            this.lastSeenClientState[clientId] = clientState;
-            resolve(clientState);
-        });
+        this.lastSeenClientState[sourceId] = sourceState;
+        return sourceState;
     }
 
     private lastTimeSavedClientState = 0;
 
-    private async storeClientState(clientId: string, clientState: Model.ClientState, force: boolean) {
-        this.lastSeenClientState[clientId] = clientState;
+    private async storeClientState(clientId: string, sourceState: Model.SourceState, force: boolean) {
+        this.lastSeenClientState[clientId] = sourceState;
 
         return new Promise<void>(async (resolve, reject) => {
             let now = Date.now();
@@ -171,7 +167,7 @@ export class HexaBackupStore {
                 this.lastTimeSavedClientState = now;
 
                 let clientStateReferenceName = `client_${clientId}`;
-                await this.referenceRepository.put(clientStateReferenceName, clientState);
+                await this.referenceRepository.put(clientStateReferenceName, sourceState);
             }
             resolve();
         });
