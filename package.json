@@ -11,6 +11,8 @@
   },
   "author": "Arnaud Tournier",
   "dependencies": {
+    "engine.io": "1.6.9",
+    "engine.io-client": "1.6.9"
   },
   "devDependencies": {
     "typescript": "1.8.10"
