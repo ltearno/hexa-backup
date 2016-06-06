@@ -148,7 +148,6 @@ function createProxy(socket) {
 }
 
 async function run() {
-
     let source = ["salut poto", { tat: 'titi' }, new Buffer([1, 5, 7, 8])];
     let sourcePayload = serializeToBuffer(source);
     console.log(`sourcePayload : ${sourcePayload.length}`);
@@ -156,14 +155,14 @@ async function run() {
     let received = deserializeFromBuffer(sourcePayload);
     console.log(`received ${received.length} arguments ${JSON.stringify(received)}`);
 
-    //process.exit();
-
     var engine = require('engine.io');
     var server = engine.listen(5005);
 
     let serviceImpl: YoupiService = {
         sayHello: async function (message: string, object: any, buffer?: Buffer): Promise<string> {
-            return `bonjour, ton message '${message}', ton object : '${JSON.stringify(object)}' et ton buffer fait ${buffer.length} octets`;
+            throw "Grossiere erreur !";
+
+            //return `bonjour, ton message '${message}', ton object : '${JSON.stringify(object)}' et ton buffer fait ${buffer.length} octets`;
         }
     };
 
@@ -191,7 +190,13 @@ async function run() {
             promise.then((value) => {
                 console.log(`implementation returned ${value}`);
 
-                let result = [callId, value];
+                let result = [callId, null, value];
+                let resultSerialized = serializeToBuffer(result);
+                socket.send(resultSerialized);
+            }).catch((err) => {
+                console.log(`implementation exception ${err}`);
+
+                let result = [callId, err, null];
                 let resultSerialized = serializeToBuffer(result);
                 socket.send(resultSerialized);
             });
@@ -204,15 +209,18 @@ async function run() {
         socket.on('message', function (data) {
             let response = deserializeFromBuffer(data);
             let callId = response[0];
+            let err = response[1];
             let returnValue = response[1];
 
             let callInfo = callInfos[callId];
-
             delete callInfos[callId];
 
-            console.log(`client received ${JSON.stringify(response)}`);
+            console.log(`client received ${JSON.stringify(err)} ${JSON.stringify(response)}`);
 
-            callInfo.resolver(response);
+            if (err)
+                callInfo.rejecter(err);
+            else
+                callInfo.resolver(response);
         });
         socket.on('close', function () {
             console.log('client connection closed');
@@ -220,41 +228,15 @@ async function run() {
 
         let proxy: YoupiService = createProxy(socket);
 
-        let result = await proxy.sayHello("salut poto", { tat: 'titi' }, new Buffer([1, 5, 7, 8]));
-
-        console.log(`reply: ${result}`);
-
-    });
-}
-
-async function runDnode() {
-    var dnode = require('dnode');
-    var server = dnode({
-        transform: function (s, cb) {
-            cb(s.replace(/[aeiou]{2,}/, 'oo').toUpperCase())
-        },
-
-        putBytes: function (obj, chunk: Buffer, cb) {
-            cb(`ok received ${chunk.length}, obj:${JSON.stringify(obj)}`);
+        try {
+            let result = await proxy.sayHello("salut poto", { tat: 'titi' }, new Buffer([1, 5, 7, 8]));
+            console.log(`reply: ${result}`);
         }
-    });
-    server.listen(5004);
+        catch (error) {
+            console.log(`ERROR! ${error}`);
+        }
 
-    var d = dnode.connect(5004);
-    d.on('remote', async function (remote) {
-        let input = fs.createReadStream("D:\\Tmp\\Conseils d'Annelise pour la prochaine AG\\bilanmoral2013.docx");
 
-        input.on('data', chunk => {
-            console.log(`send ${chunk.length} bytes.`);
-            remote.putBytes({ field: 'toto' }, chunk, function (s) {
-                console.log('putBytes => ' + s);
-                d.end();
-            });
-        }).on('end', () => {
-            console.log("end of file !");
-        }).on('error', () => {
-            console.log("error in file !");
-        });
     });
 }
 
