@@ -1,0 +1,105 @@
+class GrowingBuffer {
+    private buffer: Buffer;
+
+    constructor() {
+        this.buffer = Buffer.alloc(100);
+    }
+
+    extract(size: number) {
+        let result = Buffer.alloc(size);
+        this.buffer.copy(result, 0, 0, size);
+        return result;
+    }
+
+    writeByte(offset: number, byte: number): number {
+        this.checkEnoughBuffer(offset + 1);
+        this.buffer.writeInt8(byte, offset);
+        return 1;
+    }
+
+    writeUInt32(offset: number, value: number): number {
+        this.checkEnoughBuffer(offset + 4);
+        this.buffer.writeUInt32LE(value, offset);
+        return 4;
+    }
+
+    writeBuffer(offset: number, buffer: Buffer): number {
+        this.checkEnoughBuffer(offset + 4 + buffer.length);
+        this.writeUInt32(offset, buffer.length);
+        buffer.copy(this.buffer, offset + 4, 0, buffer.length);
+        return 4 + buffer.length;
+    }
+
+    writeAny(offset: number, value: any): number {
+        let payload = JSON.stringify(value);
+        let buffer = new Buffer(payload, 'utf8');
+
+        return this.writeBuffer(offset, buffer);
+    }
+
+    private checkEnoughBuffer(size: number) {
+        if (this.buffer.length < size) {
+            let newBuffer = Buffer.alloc(size * 2);
+            this.buffer.copy(newBuffer, 0, 0, this.buffer.length);
+            this.buffer = newBuffer;
+        }
+    }
+}
+
+const TYPE_BUFFER = 0;
+const TYPE_ANY = 1;
+
+export function serialize(args: any[]) {
+    let currentOffset = 0;
+    let buffer: GrowingBuffer = new GrowingBuffer();
+    currentOffset += buffer.writeByte(currentOffset, args.length);
+
+    for (let p in args) {
+        let arg = args[p];
+
+        if (arg instanceof Buffer) {
+            currentOffset += buffer.writeByte(currentOffset, TYPE_BUFFER);
+            currentOffset += buffer.writeBuffer(currentOffset, arg);
+        }
+        else {
+            currentOffset += buffer.writeByte(currentOffset, TYPE_ANY);
+            currentOffset += buffer.writeAny(currentOffset, arg);
+        }
+    }
+
+    let result = buffer.extract(currentOffset);
+
+    return result;
+}
+
+export function deserialize(buffer: Buffer): any[] {
+    let currentOffset = 0;
+
+    let nbItems = buffer.readUInt8(currentOffset);
+    currentOffset += 1;
+
+    let result = new Array(nbItems);
+    for (let i = 0; i < nbItems; i++) {
+        let itemType = buffer.readUInt8(currentOffset);
+        currentOffset += 1;
+
+        let chunkSize = buffer.readUInt32LE(currentOffset);
+        currentOffset += 4;
+
+        let param = null;
+
+        if (itemType == TYPE_BUFFER) {
+            param = buffer.slice(currentOffset, currentOffset + chunkSize);
+            currentOffset += chunkSize;
+        }
+        else if (itemType == TYPE_ANY) {
+            param = JSON.parse(buffer.slice(currentOffset, currentOffset + chunkSize).toString('utf8'));
+
+            currentOffset += chunkSize;
+        }
+
+        result[i] = param;
+    }
+
+    return result;
+}
