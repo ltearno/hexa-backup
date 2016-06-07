@@ -3,7 +3,20 @@ import { ReferenceRepository } from './ReferenceRepository';
 import { ObjectRepository } from './ObjectRepository';
 import * as Model from './Model';
 
-export class HexaBackupStore {
+const log = require('./Logger')('HexaBackupStore');
+
+export interface IHexaBackupStore {
+    startOrContinueSnapshotTransaction(sourceId: string): Promise<string>;
+    hasShaBytes(sha: string): Promise<number>;
+    putShaBytes(sha: string, offset: number, data: Buffer): Promise<void>;
+    pushFileDescriptor(sourceId: string, transactionId: string, fileDesc: Model.FileDescriptor): Promise<void>;
+    commitTransaction(sourceId: string, transactionId: string): Promise<void>;
+    getSourceState(sourceId: string): Promise<Model.SourceState>;
+    getCommit(sha: string): Promise<Model.Commit>;
+    getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>;
+}
+
+export class HexaBackupStore implements IHexaBackupStore {
     private rootPath: string;
     private objectRepository: ObjectRepository;
     private referenceRepository: ReferenceRepository;
@@ -19,11 +32,12 @@ export class HexaBackupStore {
         this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'));
     }
 
-    async startOrContinueSnapshotTransaction(clientId: string) {
+    async startOrContinueSnapshotTransaction(sourceId: string): Promise<string> {
         return new Promise<string>(async (resolve, reject) => {
-            let sourceState: Model.SourceState = await this.getSourceState(clientId);
+            let sourceState: Model.SourceState = await this.getSourceState(sourceId);
             if (sourceState.currentTransactionId == null)
-                sourceState.currentTransactionId = await this.openTransaction(clientId);
+                sourceState.currentTransactionId = await this.openTransaction(sourceId);
+            log(`source ${sourceId} starts or continues transaction ${sourceState.currentTransactionId}`);
             resolve(sourceState.currentTransactionId);
         });
     }
@@ -36,49 +50,46 @@ export class HexaBackupStore {
         return this.objectRepository.putShaBytes(sha, offset, data);
     }
 
-    async pushFileDescriptor(clientId: string, transactionId: string, fileDesc: Model.FileDescriptor) {
-        return new Promise<void>(async (resolve, reject) => {
-            let clientState = await this.getSourceState(clientId);
-            if (clientState.currentTransactionId != transactionId) {
-                console.log(`client is pushing with a bad transaction id !`);
-                return;
-            }
+    async pushFileDescriptor(sourceId: string, transactionId: string, fileDesc: Model.FileDescriptor) {
+        let clientState = await this.getSourceState(sourceId);
+        if (clientState.currentTransactionId != transactionId) {
+            log.err(`source is pushing with a bad transaction id !`);
+            return;
+        }
 
-            if (fileDesc.name in clientState.currentTransactionContent) {
-                let current = clientState.currentTransactionContent[fileDesc.name];
-                if (current != null) {
-                    if (current.contentSha == fileDesc.contentSha
-                        && current.isDirectory == fileDesc.isDirectory
-                        && current.lastWrite == fileDesc.lastWrite
-                        && current.name == fileDesc.name
-                        && current.size == fileDesc.size) {
-                        resolve();
-                        return;
-                    }
+        if (fileDesc.name in clientState.currentTransactionContent) {
+            let current = clientState.currentTransactionContent[fileDesc.name];
+            if (current != null) {
+                if (current.contentSha == fileDesc.contentSha
+                    && current.isDirectory == fileDesc.isDirectory
+                    && current.lastWrite == fileDesc.lastWrite
+                    && current.name == fileDesc.name
+                    && current.size == fileDesc.size) {
+                    return;
                 }
             }
+        }
 
-            if (fileDesc.isDirectory) {
+        if (fileDesc.isDirectory) {
+            clientState.currentTransactionContent[fileDesc.name] = fileDesc;
+        }
+        else {
+            let validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
+            if (validated) {
                 clientState.currentTransactionContent[fileDesc.name] = fileDesc;
             }
-            else {
-                let validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
-                if (validated) {
-                    clientState.currentTransactionContent[fileDesc.name] = fileDesc;
-                }
-            }
+        }
 
-            await this.storeClientState(clientId, clientState, false);
+        await this.storeClientState(sourceId, clientState, false);
 
-            resolve();
-        });
+        log(`received ${fileDesc.name} from '${sourceId}'`);
     }
 
-    async commitTransaction(clientId: string, transactionId: string) {
+    async commitTransaction(sourceId: string, transactionId: string) {
         return new Promise<void>(async (resolve, reject) => {
             // maybe ensure the current transaction is consistent
 
-            let clientState = await this.getSourceState(clientId);
+            let clientState = await this.getSourceState(sourceId);
             if (clientState.currentTransactionId != transactionId) {
                 reject('client is commiting with a bad transaction id !');
                 return;
@@ -93,7 +104,7 @@ export class HexaBackupStore {
             if (clientState.currentCommitSha != null) {
                 let currentCommit: Model.Commit = await this.objectRepository.readObject(clientState.currentCommitSha);
                 if (currentCommit.directoryDescriptorSha == descriptorSha) {
-                    console.log(`transaction ${transactionId} makes no change, ignoring`);
+                    log(`transaction ${transactionId} makes no change, ignoring`);
                     saveCommit = false;
                 }
             }
@@ -109,12 +120,12 @@ export class HexaBackupStore {
 
                 clientState.currentCommitSha = commitSha;
 
-                console.log(`commited content : ${descriptorSha} in commit ${commitSha}`);
+                log(`source ${sourceId} commited content : ${descriptorSha} in commit ${commitSha}`);
             }
 
             clientState.currentTransactionId = null;
             clientState.currentTransactionContent = null;
-            await this.storeClientState(clientId, clientState, true);
+            await this.storeClientState(sourceId, clientState, true);
             resolve();
         });
     }
@@ -174,15 +185,15 @@ export class HexaBackupStore {
         return descriptor;
     }
 
-    private async storeClientState(clientId: string, sourceState: Model.SourceState, force: boolean) {
-        this.sourceStateCache[clientId] = sourceState;
+    private async storeClientState(sourceId: string, sourceState: Model.SourceState, force: boolean) {
+        this.sourceStateCache[sourceId] = sourceState;
 
         return new Promise<void>(async (resolve, reject) => {
             let now = Date.now();
             if (force || (now - this.lastTimeSavedClientState > 2000)) {
                 this.lastTimeSavedClientState = now;
 
-                let clientStateReferenceName = `client_${clientId}`;
+                let clientStateReferenceName = `client_${sourceId}`;
                 await this.referenceRepository.put(clientStateReferenceName, sourceState);
             }
             resolve();

@@ -1,8 +1,6 @@
 import { HexaBackupReader } from './HexaBackupReader';
 import { HexaBackupStore } from './HexaBackupStore';
-import * as Serialization from './serialisation';
 import { RPCClient, RPCServer } from './RPC';
-import fs = require('fs');
 
 interface YoupiService {
     sayHello(message: string, object: any, buffer: Buffer): Promise<string>;
@@ -22,8 +20,6 @@ async function run() {
             return `bonjour, ton message '${message}', ton object : '${JSON.stringify(object)}' et ton buffer fait ${buffer.length} octets`;
         }
     };
-
-    let engine = require('engine.io');
 
     console.log('init server');
     let rpcServer = new RPCServer();

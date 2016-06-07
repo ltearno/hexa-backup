@@ -4,7 +4,8 @@
   "description": "A distributed and versioned backup tool",
   "main": "target/hexa-backup.js",
   "bin": {
-    "hexa-backup": "bin/hexa-backup"
+    "hexa-backup-store": "bin/hexa-backup-store",
+    "hexa-backup-push": "bin/hexa-backup-push"
   },
   "scripts": {
     "prepublish": "tsc"

@@ -1,5 +1,5 @@
 import * as Serialization from './serialisation';
-
+const log = require('./Logger')('RPC');
 
 export class RPCServer {
     private engine = require('engine.io');
@@ -7,13 +7,17 @@ export class RPCServer {
     listen(port: number, serviceImpl: any) {
         var server = this.engine.listen(5005);
         server.on('connection', (socket) => {
+            log('client connected');
+
             socket.on('message', (...args) => {
                 if (args == null || args.length != 1) {
-                    console.log(`received corrupted message !`);
+                    log.err(`received corrupted message !`);
                     return;
                 }
 
                 let received = Serialization.deserialize(args[0]);
+
+                //log.dbg(`received ${JSON.stringify(received)}`);
 
                 let callId = received[0];
                 received.shift();
@@ -22,7 +26,7 @@ export class RPCServer {
 
                 let m = serviceImpl[method];
                 if (!m) {
-                    console.log(`trying to call ${method} but it does not exist !`);
+                    log.err(`trying to call ${method} but it does not exist !`);
                     return;
                 }
 
@@ -42,7 +46,7 @@ export class RPCServer {
 }
 
 export class RPCClient {
-    private callInfos: { [key: string]: { resolver; rejecter; } } = {};
+    private callInfos: { [key: string]: { resolver; rejecter; methodName; } } = {};
     private socket;
     private nextCallId = 1;
 
@@ -58,11 +62,11 @@ export class RPCClient {
 
             this.socket = require('engine.io-client')(`ws://${server}:${port}`);
             if (!this.socket) {
-                console.log('connection error');
+                log.err('connection error');
                 reject('cannot connect !');
             }
             this.socket.on('open', () => {
-                console.log('received socket connection');
+                log('connected to server');
                 this.socket.on('message', (data) => {
                     let response = Serialization.deserialize(data);
 
@@ -70,22 +74,27 @@ export class RPCClient {
                     let err = response[1];
                     let returnValue = response[2];
 
+                    log.dbg(`response of call ${callId} : ${returnValue}`);
+
                     let callInfo = this.callInfos[callId];
                     delete this.callInfos[callId];
 
-                    if (err)
+                    if (err) {
+                        log.err(`rpc received error processing method ${callInfo.methodName} : ${err + ''}`);
+
                         callInfo.rejecter(err);
+                    }
                     else
                         callInfo.resolver(returnValue);
                 });
 
                 this.socket.on('close', () => {
-                    console.log('client connection closed');
+                    log('client connection closed');
                     this.socket = null;
                 });
 
                 this.socket.on('error', () => {
-                    console.log('client connection error');
+                    log.err('client connection error');
                     this.socket = null;
                     reject('error');
                 });
@@ -108,14 +117,21 @@ export class RPCClient {
                         let callId = '_id_' + (that.nextCallId++);
                         args.unshift(callId);
 
-                        let payload = Serialization.serialize(args);
+                        log.dbg(`call ${propKey} (${callId})`);
 
-                        that.callInfos[callId] = {
-                            resolver: resolve,
-                            rejecter: reject
-                        };
+                        try {
+                            let payload = Serialization.serialize(args);
+                            that.callInfos[callId] = {
+                                methodName: propKey,
+                                resolver: resolve,
+                                rejecter: reject
+                            };
 
-                        that.socket.send(payload);
+                            that.socket.send(payload);
+                        }
+                        catch (error) {
+                            log.err(`rpc::error serializing ${JSON.stringify(args)} ${error}`);
+                        }
                     });
                 };
             }

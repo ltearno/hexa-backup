@@ -5,7 +5,31 @@
             "name": "Lancer",
             "type": "node",
             "request": "launch",
-            "program": "${workspaceRoot}/target/hexa-backup-tests.js",
+            "program": "${workspaceRoot}/target/cli/hexa-backup-push.js",
+            "stopOnEntry": false,
+            "args": [
+                "pc-arnaud",
+                "d:\\Documents\\APESAC24",
+                "localhost"
+            ],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": null,
+            "runtimeExecutable": null,
+            "runtimeArgs": [
+                "--nolazy"
+            ],
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "externalConsole": false,
+            "sourceMaps": true,
+            "outDir": "${workspaceRoot}/target"
+        },
+        {
+            "name": "Serveur",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceRoot}/target/cli/hexa-backup-store.js",
             "stopOnEntry": false,
             "args": [],
             "cwd": "${workspaceRoot}",

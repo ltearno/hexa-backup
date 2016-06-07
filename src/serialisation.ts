@@ -32,7 +32,7 @@ class GrowingBuffer {
 
     writeAny(offset: number, value: any): number {
         let payload = JSON.stringify(value);
-        let buffer = new Buffer(payload, 'utf8');
+        let buffer = Buffer.from(payload);
 
         return this.writeBuffer(offset, buffer);
     }
@@ -48,6 +48,8 @@ class GrowingBuffer {
 
 const TYPE_BUFFER = 0;
 const TYPE_ANY = 1;
+const TYPE_NULL = 2;
+const TYPE_UNDEFINED = 3;
 
 export function serialize(args: any[]) {
     let currentOffset = 0;
@@ -57,13 +59,24 @@ export function serialize(args: any[]) {
     for (let p in args) {
         let arg = args[p];
 
-        if (arg instanceof Buffer) {
-            currentOffset += buffer.writeByte(currentOffset, TYPE_BUFFER);
-            currentOffset += buffer.writeBuffer(currentOffset, arg);
+        try {
+            if (arg === null) {
+                currentOffset += buffer.writeByte(currentOffset, TYPE_NULL);
+            }
+            else if (arg === undefined) {
+                currentOffset += buffer.writeByte(currentOffset, TYPE_UNDEFINED);
+            }
+            else if (arg instanceof Buffer) {
+                currentOffset += buffer.writeByte(currentOffset, TYPE_BUFFER);
+                currentOffset += buffer.writeBuffer(currentOffset, arg);
+            }
+            else {
+                currentOffset += buffer.writeByte(currentOffset, TYPE_ANY);
+                currentOffset += buffer.writeAny(currentOffset, arg);
+            }
         }
-        else {
-            currentOffset += buffer.writeByte(currentOffset, TYPE_ANY);
-            currentOffset += buffer.writeAny(currentOffset, arg);
+        catch (error) {
+            throw `error serializing param ${p} ${arg} ${JSON.stringify(arg)} in ${JSON.stringify(args)} : ${error}`;
         }
     }
 
@@ -83,19 +96,27 @@ export function deserialize(buffer: Buffer): any[] {
         let itemType = buffer.readUInt8(currentOffset);
         currentOffset += 1;
 
-        let chunkSize = buffer.readUInt32LE(currentOffset);
-        currentOffset += 4;
-
         let param = null;
 
         if (itemType == TYPE_BUFFER) {
+            let chunkSize = buffer.readUInt32LE(currentOffset);
+            currentOffset += 4;
+
             param = buffer.slice(currentOffset, currentOffset + chunkSize);
             currentOffset += chunkSize;
         }
         else if (itemType == TYPE_ANY) {
-            param = JSON.parse(buffer.slice(currentOffset, currentOffset + chunkSize).toString('utf8'));
+            let chunkSize = buffer.readUInt32LE(currentOffset);
+            currentOffset += 4;
 
+            param = JSON.parse(buffer.slice(currentOffset, currentOffset + chunkSize).toString('utf8'));
             currentOffset += chunkSize;
+        }
+        else if (itemType == TYPE_NULL) {
+            param = null;
+        }
+        else if (itemType == TYPE_UNDEFINED) {
+            param = undefined;
         }
 
         result[i] = param;

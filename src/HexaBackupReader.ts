@@ -5,8 +5,10 @@ import * as HashTools from './HashTools';
 import { ReferenceRepository } from './ReferenceRepository';
 import { ObjectRepository } from './ObjectRepository';
 import { ShaCache } from './ShaCache';
-import { HexaBackupStore } from './HexaBackupStore';
+import { IHexaBackupStore } from './HexaBackupStore';
 import * as Model from './Model';
+
+const log = require('./Logger')('HexaBackupReader');
 
 // READER
 // .hb-cache => cache fileName, modif date, sha
@@ -23,10 +25,12 @@ export class HexaBackupReader {
         this.shaCache = new ShaCache(cachePath);
     }
 
-    async sendSnapshotToStore(store: HexaBackupStore) {
-        console.log(`sending directory snapshot ${this.rootPath}`);
+    async sendSnapshotToStore(store: IHexaBackupStore) {
+        log(`sending directory snapshot ${this.rootPath}`);
 
         let transactionId = await store.startOrContinueSnapshotTransaction(this.clientId);
+
+        log.dbg(`beginning transaction ${transactionId}`);
 
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames);
         await directoryLister.readDir(async (fileDesc) => {
@@ -64,14 +68,14 @@ export class HexaBackupReader {
                 await FsTools.closeFile(fd);
             }
 
-            console.log(`push ${fileDesc.name}`);
+            log(`push ${fileDesc.name}`);
             await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
         });
 
-        console.log(`commit transaction ${this.clientId}::${transactionId}...`);
+        log(`commit transaction ${this.clientId}::${transactionId}...`);
         await store.commitTransaction(this.clientId, transactionId);
 
-        console.log('snapshot sent.');
+        log('snapshot sent.');
     }
 }
 
