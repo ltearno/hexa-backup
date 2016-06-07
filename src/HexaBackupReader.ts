@@ -7,6 +7,7 @@ import { ObjectRepository } from './ObjectRepository';
 import { ShaCache } from './ShaCache';
 import { IHexaBackupStore } from './HexaBackupStore';
 import * as Model from './Model';
+import { ProgressBar } from './Bar';
 
 const log = require('./Logger')('HexaBackupReader');
 
@@ -45,7 +46,13 @@ export class HexaBackupReader {
             let stat = fs.lstatSync(fullFileName);
 
             if (currentSize < stat.size) {
-                const maxBlockSize = 1024 * 1024;
+                const maxBlockSize = 1024 * 100;
+
+                log(`sending ${stat.size - currentSize} bytes for file ${fileDesc.name} by chunk of ${maxBlockSize}`);
+
+                let bar = new ProgressBar(`${fileDesc.name} ${fileDesc.size} :bar`, { total: stat.size });
+                bar.tick(currentSize);
+                bar.render();
 
                 let fd = await FsTools.openFile(fullFileName, 'r');
 
@@ -62,14 +69,19 @@ export class HexaBackupReader {
                         await store.putShaBytes(fileDesc.contentSha, currentReadPosition, buffer);
 
                         currentReadPosition += buffer.length;
+
+                        bar.tick(buffer.length);
+                        bar.render();
                     }
                 }
+
+                bar.terminate();
 
                 await FsTools.closeFile(fd);
             }
 
-            log(`push ${fileDesc.name}`);
             await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
+            log(`pushed ${fileDesc.name}`);
         });
 
         log(`commit transaction ${this.clientId}::${transactionId}...`);

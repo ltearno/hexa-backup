@@ -56,14 +56,15 @@ export class RPCClient {
     async connect(server: string, port: number) {
         return new Promise<boolean>((resolve, reject) => {
             if (this.socket != null) {
-                reject("already connected !");
+                log.dbg("already connected !");
+                resolve(true);
                 return;
             }
 
             this.socket = require('engine.io-client')(`ws://${server}:${port}`);
             if (!this.socket) {
                 log.err('connection error');
-                reject('cannot connect !');
+                resolve(false);
             }
             this.socket.on('open', () => {
                 log('connected to server');
@@ -93,13 +94,13 @@ export class RPCClient {
                     this.socket = null;
                 });
 
-                this.socket.on('error', () => {
-                    log.err('client connection error');
-                    this.socket = null;
-                    reject('error');
-                });
-
                 resolve(true);
+            });
+
+            this.socket.on('error', () => {
+                log.err('client connection error');
+                this.socket = null;
+                resolve(false);
             });
         });
     }

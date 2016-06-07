@@ -2,6 +2,8 @@ import crypto = require('crypto');
 import fs = require('fs');
 import * as FsTools from './FsTools';
 
+const log = require('./Logger')('HashTools');
+
 export const EMPTY_PAYLOAD_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
 export function hashString(value: string) {
@@ -25,7 +27,7 @@ export async function hashFile(fileName: string): Promise<string> {
             }
         }
         catch (error) {
-            console.log(`error reading ${fileName}`);
+            log.err(`error reading ${fileName}`);
             reject(`error reading ${fileName}`);
             return;
         }
@@ -37,7 +39,7 @@ export async function hashFile(fileName: string): Promise<string> {
         }).on('end', () => {
             resolve(hash.digest('hex'));
         }).on('error', () => {
-            console.log(`error reading ${fileName}`);
+            log.err(`error reading ${fileName}`);
             reject(`error reading ${fileName}`);
         });
     });

@@ -14,17 +14,18 @@ async function run() {
     let sourceId = process.argv[2];
     let directory = process.argv[3];
     let serverIp = process.argv[4];
+    let port = 5005;
 
     log(`source: ${sourceId}`);
     log(`directory: ${directory}`);
-    log(`server: ${serverIp}`);
+    log(`server: ${serverIp}:${port}`);
     log();
 
     log('connecting to remote store...');
     let rpcClient = new RPCClient();
-    let connected = await rpcClient.connect('localhost', 5005);
+    let connected = await rpcClient.connect(serverIp, 5005);
     if (!connected) {
-        log('cannot connect to server !');
+        log.err('cannot connect to server !');
         return;
     }
 
