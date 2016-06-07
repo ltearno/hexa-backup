@@ -11,9 +11,6 @@ import { ProgressBar } from './Bar';
 
 const log = require('./Logger')('HexaBackupReader');
 
-// READER
-// .hb-cache => cache fileName, modif date, sha
-// produces the current state
 export class HexaBackupReader {
     private rootPath: string;
     private shaCache: ShaCache;
@@ -35,53 +32,58 @@ export class HexaBackupReader {
 
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames);
         await directoryLister.readDir(async (fileDesc) => {
-            if (fileDesc.isDirectory) {
-                await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
-                return;
-            }
-
-            let fullFileName = fsPath.join(this.rootPath, fileDesc.name);
-
-            let currentSize = await store.hasShaBytes(fileDesc.contentSha);
-            let stat = fs.lstatSync(fullFileName);
-
-            if (currentSize < stat.size) {
-                const maxBlockSize = 1024 * 100;
-
-                log(`sending ${stat.size - currentSize} bytes for file ${fileDesc.name} by chunk of ${maxBlockSize}`);
-
-                let bar = new ProgressBar(`${fileDesc.name} ${fileDesc.size} :bar`, { total: stat.size });
-                bar.tick(currentSize);
-                bar.render();
-
-                let fd = await FsTools.openFile(fullFileName, 'r');
-
-                let currentReadPosition = currentSize;
-
-                while (currentReadPosition < stat.size) {
-                    let chunkSize = stat.size - currentReadPosition;
-                    if (chunkSize > maxBlockSize)
-                        chunkSize = maxBlockSize;
-
-                    if (chunkSize > 0) {
-                        let buffer = await FsTools.readFile(fd, currentReadPosition, chunkSize);
-
-                        await store.putShaBytes(fileDesc.contentSha, currentReadPosition, buffer);
-
-                        currentReadPosition += buffer.length;
-
-                        bar.tick(buffer.length);
-                        bar.render();
-                    }
+            try {
+                if (fileDesc.isDirectory) {
+                    await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
+                    return;
                 }
 
-                bar.terminate();
+                let fullFileName = fsPath.join(this.rootPath, fileDesc.name);
 
-                await FsTools.closeFile(fd);
+                let currentSize = await store.hasShaBytes(fileDesc.contentSha);
+                let stat = fs.lstatSync(fullFileName);
+
+                if (currentSize < stat.size) {
+                    const maxBlockSize = 1024 * 100;
+
+                    log(`sending ${stat.size - currentSize} bytes for file ${fileDesc.name} by chunk of ${maxBlockSize}`);
+
+                    let bar = new ProgressBar(`${fileDesc.name} ${fileDesc.size} :bar`, { total: stat.size });
+                    bar.tick(currentSize);
+                    bar.render();
+
+                    let fd = await FsTools.openFile(fullFileName, 'r');
+
+                    let currentReadPosition = currentSize;
+
+                    while (currentReadPosition < stat.size) {
+                        let chunkSize = stat.size - currentReadPosition;
+                        if (chunkSize > maxBlockSize)
+                            chunkSize = maxBlockSize;
+
+                        if (chunkSize > 0) {
+                            let buffer = await FsTools.readFile(fd, currentReadPosition, chunkSize);
+
+                            await store.putShaBytes(fileDesc.contentSha, currentReadPosition, buffer);
+
+                            currentReadPosition += buffer.length;
+
+                            bar.tick(buffer.length);
+                            bar.render();
+                        }
+                    }
+
+                    bar.terminate();
+
+                    await FsTools.closeFile(fd);
+                }
+
+                await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
+                log(`pushed ${fileDesc.name}`);
             }
-
-            await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
-            log(`pushed ${fileDesc.name}`);
+            catch (error) {
+                log.err(`error reading or pushing ${fileDesc.name} : ${error}`);
+            }
         });
 
         log(`commit transaction ${this.clientId}::${transactionId}...`);

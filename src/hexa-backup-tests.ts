@@ -1,12 +1,64 @@
 import { HexaBackupReader } from './HexaBackupReader';
-import { HexaBackupStore } from './HexaBackupStore';
+import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore';
 import { RPCClient, RPCServer } from './RPC';
+
+const log = require('./Logger')('tests');
 
 interface YoupiService {
     sayHello(message: string, object: any, buffer: Buffer): Promise<string>;
 }
 
 async function run() {
+    const serverIp = 'ks387039.kimsufi.com';
+
+    log('connecting to remote store...');
+    let rpcClient = new RPCClient();
+    let connected = await rpcClient.connect(serverIp, 5005);
+    if (!connected) {
+        log.err('cannot connect to server !');
+        return;
+    }
+
+    let store = rpcClient.createProxy<IHexaBackupStore>();
+
+    console.log('history of pc-arnaud in store');
+    let sourceState = await store.getSourceState('pc-arnaud');
+    let commitSha = sourceState.currentCommitSha;
+    if (commitSha == null) {
+        console.log('empty !');
+    }
+    while (commitSha != null) {
+        let commit = await store.getCommit(commitSha);
+        if (commit == null) {
+            console.log(`error : commit ${commitSha} not found !`);
+            break;
+        }
+
+        let directoryDescriptor = await store.getDirectoryDescriptor(commit.directoryDescriptorSha);
+        let totalSize = 0;
+        let nbFiles = 0;
+        let nbDirectories = 0;
+        directoryDescriptor.files.forEach((fd) => {
+            totalSize += fd.size;
+            if (fd.isDirectory)
+                nbDirectories++;
+            else
+                nbFiles++;
+        });
+
+        console.log(`${commitSha.substring(0, 7)}: ${new Date(commit.commitDate).toDateString()} ${commit.directoryDescriptorSha.substring(0, 7)} ${totalSize} bytes in ${nbFiles} files, ${nbDirectories} dirs`);
+
+        directoryDescriptor.files.forEach((fd) => {
+            console.log(`  ${fd.isDirectory ? '<dir>' : ''} ${fd.name} - ${new Date(fd.lastWrite).toDateString()} ${fd.size}`);
+        });
+
+        commitSha = commit.parentSha;
+    }
+
+    process.exit(0);
+}
+
+async function runb() {
     /*let source = ["salut poto", { tat: 'titi' }, new Buffer([1, 5, 7, 8])];
     let sourcePayload = Serialization.serialize(source);
     console.log(`sourcePayload : ${sourcePayload.length}`);
@@ -60,37 +112,6 @@ async function runa() {
     let store = new HexaBackupStore(`D:\\Tmp\\HexaBackupStore`);
 
     await reader.sendSnapshotToStore(store);
-
-    console.log('history of pc-arnaud in store');
-    let sourceState = await store.getSourceState('pc-arnaud');
-    let commitSha = sourceState.currentCommitSha;
-    while (commitSha != null) {
-        let commit = await store.getCommit(commitSha);
-        if (commit == null) {
-            console.log(`error : commit ${commitSha} not found !`);
-            break;
-        }
-
-        let directoryDescriptor = await store.getDirectoryDescriptor(commit.directoryDescriptorSha);
-        let totalSize = 0;
-        let nbFiles = 0;
-        let nbDirectories = 0;
-        directoryDescriptor.files.forEach((fd) => {
-            totalSize += fd.size;
-            if (fd.isDirectory)
-                nbDirectories++;
-            else
-                nbFiles++;
-        });
-
-        console.log(`${commitSha.substring(0, 7)}: ${new Date(commit.commitDate).toDateString()} ${commit.directoryDescriptorSha.substring(0, 7)} ${totalSize} bytes in ${nbFiles} files, ${nbDirectories} dirs`);
-
-        directoryDescriptor.files.forEach((fd) => {
-            console.log(`  ${fd.isDirectory ? '<dir>' : ''} ${fd.name} - ${new Date(fd.lastWrite).toDateString()} ${fd.size}`);
-        });
-
-        commitSha = commit.parentSha;
-    }
 
     console.log('finish');
 }

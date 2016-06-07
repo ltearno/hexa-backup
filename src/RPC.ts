@@ -131,7 +131,7 @@ export class RPCClient {
                             that.socket.send(payload);
                         }
                         catch (error) {
-                            log.err(`rpc::error serializing ${JSON.stringify(args)} ${error}`);
+                            log.err(`error serializing ${JSON.stringify(args)} ${error}`);
                         }
                     });
                 };
