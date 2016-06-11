@@ -5,7 +5,8 @@
   "main": "target/hexa-backup.js",
   "bin": {
     "hexa-backup-store": "bin/hexa-backup-store",
-    "hexa-backup-push": "bin/hexa-backup-push"
+    "hexa-backup-push": "bin/hexa-backup-push",
+    "hexa-backup": "bin/hexa-backup"
   },
   "scripts": {
     "prepublish": "tsc"
@@ -13,7 +14,8 @@
   "author": "Arnaud Tournier",
   "dependencies": {
     "engine.io": "1.6.9",
-    "engine.io-client": "1.6.9"
+    "engine.io-client": "1.6.9",
+    "gauge": "2.5.0"
   },
   "devDependencies": {
     "typescript": "1.8.10"

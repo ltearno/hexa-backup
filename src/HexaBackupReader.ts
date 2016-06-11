@@ -9,6 +9,8 @@ import { IHexaBackupStore } from './HexaBackupStore';
 import * as Model from './Model';
 import { ProgressBar } from './Bar';
 
+let Gauge = require('gauge');
+
 const log = require('./Logger')('HexaBackupReader');
 
 export class HexaBackupReader {
@@ -48,13 +50,15 @@ export class HexaBackupReader {
 
                     log(`sending ${stat.size - currentSize} bytes for file ${fileDesc.name} by chunk of ${maxBlockSize}`);
 
-                    let bar = new ProgressBar(`${fileDesc.name} ${fileDesc.size} :bar`, { total: stat.size });
-                    bar.tick(currentSize);
-                    bar.render();
-
                     let fd = await FsTools.openFile(fullFileName, 'r');
 
                     let currentReadPosition = currentSize;
+
+                    /*let bar = new ProgressBar(`${fileDesc.name} ${fileDesc.size} :bar`, { total: stat.size });
+                    bar.tick(currentSize);
+                    bar.render();*/
+                    let gauge = new Gauge()
+                    gauge.show(fileDesc.name, currentReadPosition / stat.size)
 
                     while (currentReadPosition < stat.size) {
                         let chunkSize = stat.size - currentReadPosition;
@@ -68,12 +72,14 @@ export class HexaBackupReader {
 
                             currentReadPosition += buffer.length;
 
-                            bar.tick(buffer.length);
-                            bar.render();
+                            gauge.show(fileDesc.name, currentReadPosition / stat.size)
+                            //bar.tick(buffer.length);
+                            //bar.render();
                         }
                     }
 
-                    bar.terminate();
+                    //bar.terminate();
+                    gauge.hide();
 
                     await FsTools.closeFile(fd);
                 }

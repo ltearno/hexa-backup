@@ -70,17 +70,19 @@ export class HexaBackupStore implements IHexaBackupStore {
             }
         }
 
+        let validated = false;
         if (fileDesc.isDirectory) {
             clientState.currentTransactionContent[fileDesc.name] = fileDesc;
+            validated = true;
         }
         else {
-            let validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
-            if (validated) {
+            validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
+            if (validated)
                 clientState.currentTransactionContent[fileDesc.name] = fileDesc;
-            }
         }
 
-        await this.storeClientState(sourceId, clientState, false);
+        if (validated)
+            await this.storeClientState(sourceId, clientState, false);
 
         log(`received ${fileDesc.name} from '${sourceId}'`);
     }
