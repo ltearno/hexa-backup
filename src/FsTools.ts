@@ -1,14 +1,18 @@
 import fs = require('fs');
 
+export async function fileExists(path: string) {
+    return new Promise<boolean>((resolve, reject) => {
+        fs.exists(path, (exists) => resolve(exists));
+    });
+}
+
 export async function lstat(path: string) {
     return new Promise<fs.Stats>((resolve, reject) => {
         fs.lstat(path, (err, stats) => {
-            if (err) {
-                console.log(`error lstat on ${path} : err`);
-                reject(err);
-            }
+            if (err)
+                reject(err)
             else
-                resolve(stats);
+                resolve(stats)
         });
     });
 }
@@ -34,6 +38,17 @@ export async function readFile(fd: number, offset: number, length: number) {
             else
                 resolve(buffer);
         });
+    });
+}
+
+export async function readFileContent(path: string, encoding?: string) {
+    return new Promise<string>((resolve, reject) => {
+        fs.readFile(path, encoding, (err, data) => {
+            if(err)
+                reject(err)
+            else
+                resolve(data)
+        })
     });
 }
 

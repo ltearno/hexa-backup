@@ -2,7 +2,33 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Lancer",
+            "name": "Hexa Backup",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceRoot}/target/cli/hexa-backup.js",
+            "stopOnEntry": false,
+            "args": [
+                "--toto",
+                "-host",
+                "ks387039.kimsufi.com",
+                "push",
+                "famal"
+            ],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": null,
+            "runtimeExecutable": null,
+            "runtimeArgs": [
+                "--nolazy"
+            ],
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "externalConsole": false,
+            "sourceMaps": true,
+            "outDir": "${workspaceRoot}/target"
+        },
+        {
+            "name": "Hexa-Backup Push",
             "type": "node",
             "request": "launch",
             "program": "${workspaceRoot}/target/cli/hexa-backup-push.js",
