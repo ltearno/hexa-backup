@@ -7,7 +7,7 @@ const log = require('./Logger')('hexa-backup-commands')
 
 export async function history(sourceId, storeIp, storePort) {
     console.log('connecting to remote store...')
-    let store = null
+    let store: IHexaBackupStore = null
     try {
         log('connecting to remote store...')
         let rpcClient = new RPCClient()
@@ -27,6 +27,21 @@ export async function history(sourceId, storeIp, storePort) {
     console.log()
 
     let sourceState = await store.getSourceState(sourceId);
+
+    if (sourceState == null) {
+        console.log(`source state not found !`)
+        return
+    }
+
+    if (sourceState.currentTransactionId && sourceState.currentTransactionContent) {
+        let emptySha = '                                                                '
+        console.log()
+        console.log(`current transaction ${sourceState.currentTransactionId}`)
+        for (let k in sourceState.currentTransactionContent) {
+            let fd = sourceState.currentTransactionContent[k]
+            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha}  ${fd.name}`);
+        }
+    }
 
     let directoryDescriptorShaToShow = null
     let commitSha = sourceState.currentCommitSha
