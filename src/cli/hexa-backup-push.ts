@@ -12,18 +12,18 @@ async function run() {
     }
 
     let sourceId = process.argv[2];
-    let directory = process.argv[3];
-    let serverIp = process.argv[4];
-    let port = 5005;
+    let pushedDirectory = process.argv[3];
+    let storeIp = process.argv[4];
+    let storePort = 5005;
 
     log(`source: ${sourceId}`);
-    log(`directory: ${directory}`);
-    log(`server: ${serverIp}:${port}`);
+    log(`directory: ${pushedDirectory}`);
+    log(`server: ${storeIp}:${storePort}`);
     log();
 
     log('connecting to remote store...');
     let rpcClient = new RPCClient();
-    let connected = await rpcClient.connect(serverIp, 5005);
+    let connected = await rpcClient.connect(storeIp, 5005);
     if (!connected) {
         log.err('cannot connect to server !');
         return;
@@ -32,7 +32,7 @@ async function run() {
     log('connected');
 
     log('preparing directory reader');
-    let reader = new HexaBackupReader(directory, sourceId);
+    let reader = new HexaBackupReader(pushedDirectory, sourceId);
 
     let remoteStore = rpcClient.createProxy<IHexaBackupStore>();
 

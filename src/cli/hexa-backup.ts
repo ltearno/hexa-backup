@@ -1,10 +1,15 @@
-import fs = require('fs');
-import os = require('os');
-import fsPath = require('path');
-import { readFileContent, lstat } from '../FsTools';
+import fs = require('fs')
+import os = require('os')
+import fsPath = require('path')
+import { readFileContent, lstat } from '../FsTools'
 
-const log = require('../Logger')('hexa-backup');
-log.conf('dbg', false);
+import { IHexaBackupStore, HexaBackupStore } from '../HexaBackupStore'
+import { HexaBackupReader } from '../HexaBackupReader'
+import { RPCClient, RPCServer } from '../RPC'
+import * as Commands from '../Commands'
+
+const log = require('../Logger')('hexa-backup')
+log.conf('dbg', false)
 
 function parseArgs(args: string[], defaultParameters): { verbs: string[]; parameters: { [k: string]: any } } {
     let parameters = {}
@@ -110,20 +115,29 @@ async function run() {
                 storePort: 5005,
                 pushedDirectory: '.'
             },
-            executor: (options) => {
-                console.log(`push to ${options.storeIp}:${options.storePort} as source '${options.sourceId}'`)
+            executor: async (options) => {
+                const sourceId = options['sourceId']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const pushedDirectory = fsPath.resolve(options['pushedDirectory'])
+
+                await Commands.push(sourceId, pushedDirectory, storeIp, storePort)
+
+                process.exit(0)
             }
         },
         {
             id: "store",
             verbs: ["store"],
             options: {
-                sourceId: defaultSourceId,
-                storeIp: "localhost",
                 storePort: 5005,
                 storeDirectory: '.'
             },
-            executor: (options) => {
+            executor: async (options) => {
+                const port = options['storePort']
+                const directory = fsPath.resolve(options['storeDirectory'])
+
+                await Commands.store(directory, port)
             }
         }
     ])
