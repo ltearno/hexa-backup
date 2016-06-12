@@ -1,6 +1,7 @@
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
 import { HexaBackupReader } from './HexaBackupReader'
 import { RPCClient, RPCServer } from './RPC'
+import * as Model from './Model'
 
 const log = require('./Logger')('hexa-backup-commands')
 
@@ -102,7 +103,6 @@ export async function push(sourceId, pushedDirectory, storeIp, storePort) {
 
         log('connected')
         remoteStore = rpcClient.createProxy<IHexaBackupStore>()
-        //remoteStore = await connectStore(storeIp, storePort)
     }
     catch (error) {
         console.log(`[ERROR] cannot connect to server : ${error} !`)
@@ -140,7 +140,7 @@ async function connectStore(storeIp, storePort) {
     return rpcClient.createProxy<IHexaBackupStore>()
 }
 
-function showDirectoryDescriptor(directoryDescriptor) {
+function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor) {
     let totalSize = 0;
     let nbFiles = 0;
     let nbDirectories = 0;
@@ -154,7 +154,9 @@ function showDirectoryDescriptor(directoryDescriptor) {
 
     console.log(`${totalSize} bytes in ${nbFiles} files, ${nbDirectories} dirs`);
 
+    let emptySha = '                                                                '
+
     directoryDescriptor.files.forEach((fd) => {
-        console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + fd.size).slice(-12)}    ${fd.name}`);
+        console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha}  ${fd.name}`);
     });
 }
