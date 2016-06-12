@@ -70,7 +70,14 @@ async function run() {
                 storeIp: "localhost",
                 storePort: 5005
             },
-            executor: (options) => {
+            executor: async (options) => {
+                const sourceId = options['sourceId']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+
+                await Commands.history(sourceId, storeIp, storePort)
+
+                process.exit(0)
             }
         },
         {
@@ -81,7 +88,15 @@ async function run() {
                 storeIp: "localhost",
                 storePort: 5005
             },
-            executor: (options) => {
+            executor: async (options) => {
+                const sourceId = options['sourceId']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const prefix = options['prefix'] || null;
+
+                await Commands.showCurrentTransaction(sourceId, storeIp, storePort, prefix)
+
+                process.exit(0)
             }
         },
         {
@@ -92,7 +107,15 @@ async function run() {
                 storeIp: "localhost",
                 storePort: 5005
             },
-            executor: (options) => {
+            executor: async (options) => {
+                const sourceId = options['sourceId']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const commitSha = options['commitSha']
+
+                await Commands.showCommit(sourceId, storeIp, storePort, commitSha)
+
+                process.exit(0)
             }
         },
         {
@@ -103,7 +126,15 @@ async function run() {
                 storeIp: "localhost",
                 storePort: 5005
             },
-            executor: (options) => {
+            executor: async (options) => {
+                const sourceId = options['sourceId']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const prefix = options['prefix'] || null;
+
+                await Commands.lsDirectoryStructure(sourceId, storeIp, storePort, prefix)
+
+                process.exit(0)
             }
         },
         {

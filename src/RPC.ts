@@ -9,6 +9,8 @@ export class RPCServer {
         server.on('connection', (socket) => {
             log('client connected');
 
+            socket.on('close', () => log('client disconnected'))
+
             socket.on('message', (...args) => {
                 if (args == null || args.length != 1) {
                     log.err(`received corrupted message !`);
