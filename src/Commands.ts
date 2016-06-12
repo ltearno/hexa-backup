@@ -23,11 +23,15 @@ export async function history(sourceId, storeIp, storePort) {
     }
 
     console.log('history of pc-arnaud in store');
+    console.log()
+
     let sourceState = await store.getSourceState(sourceId);
-    let commitSha = sourceState.currentCommitSha;
-    if (commitSha == null) {
-        console.log('empty !');
-    }
+
+    let directoryDescriptorShaToShow = null
+    let commitSha = sourceState.currentCommitSha
+    if (commitSha == null)
+        console.log('empty !')
+
     while (commitSha != null) {
         let commit = await store.getCommit(commitSha);
         if (commit == null) {
@@ -35,35 +39,49 @@ export async function history(sourceId, storeIp, storePort) {
             break;
         }
 
-        let directoryDescriptor = await store.getDirectoryDescriptor(commit.directoryDescriptorSha);
-        let totalSize = 0;
-        let nbFiles = 0;
-        let nbDirectories = 0;
-        directoryDescriptor.files.forEach((fd) => {
-            totalSize += fd.size;
-            if (fd.isDirectory)
-                nbDirectories++;
-            else
-                nbFiles++;
-        });
+        console.log(`${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc:${commit.directoryDescriptorSha}`);
 
-        console.log(`${commitSha.substring(0, 7)}: ${new Date(commit.commitDate).toDateString()} ${commit.directoryDescriptorSha.substring(0, 7)} ${totalSize} bytes in ${nbFiles} files, ${nbDirectories} dirs`);
+        if (directoryDescriptorShaToShow == null)
+            directoryDescriptorShaToShow = commit.directoryDescriptorSha
 
-        directoryDescriptor.files.forEach((fd) => {
-            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + fd.size).slice(-12)}    ${fd.name}`);
-        });
+        commitSha = commit.parentSha
+    }
 
-        commitSha = commit.parentSha;
+    if (directoryDescriptorShaToShow) {
+        console.log()
+        console.log(`most recent commit's directory structure (${directoryDescriptorShaToShow}) :`)
+        let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorShaToShow)
+        showDirectoryDescriptor(directoryDescriptor)
     }
 }
 
 export async function showCurrentTransaction(sourceId, storeIp, storePort, prefix) {
 }
 
-export async function showCommit(sourceId, storeIp, storePort, commitSha) {
+export async function showCommit(storeIp, storePort, commitSha) {
 }
 
-export async function lsDirectoryStructure(sourceId, storeIp, storePort, prefix) {
+export async function lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix) {
+    console.log('connecting to remote store...')
+    let store = null
+    try {
+        log('connecting to remote store...')
+        let rpcClient = new RPCClient()
+        let connected = await rpcClient.connect(storeIp, storePort)
+        if (!connected)
+            throw 'cannot connect to server !'
+
+        log('connected')
+        store = rpcClient.createProxy<IHexaBackupStore>()
+    }
+    catch (error) {
+        console.log(`[ERROR] cannot connect to server : ${error} !`)
+        return
+    }
+
+    let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
+
+    showDirectoryDescriptor(directoryDescriptor)
 }
 
 export async function push(sourceId, pushedDirectory, storeIp, storePort) {
@@ -120,4 +138,23 @@ async function connectStore(storeIp, storePort) {
 
     log('connected')
     return rpcClient.createProxy<IHexaBackupStore>()
+}
+
+function showDirectoryDescriptor(directoryDescriptor) {
+    let totalSize = 0;
+    let nbFiles = 0;
+    let nbDirectories = 0;
+    directoryDescriptor.files.forEach((fd) => {
+        totalSize += fd.size;
+        if (fd.isDirectory)
+            nbDirectories++;
+        else
+            nbFiles++;
+    });
+
+    console.log(`${totalSize} bytes in ${nbFiles} files, ${nbDirectories} dirs`);
+
+    directoryDescriptor.files.forEach((fd) => {
+        console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + fd.size).slice(-12)}    ${fd.name}`);
+    });
 }

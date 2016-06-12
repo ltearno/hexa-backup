@@ -103,17 +103,15 @@ async function run() {
             id: "showCommit",
             verbs: ["show", "commit", "!commitSha"],
             options: {
-                sourceId: defaultSourceId,
                 storeIp: "localhost",
                 storePort: 5005
             },
             executor: async (options) => {
-                const sourceId = options['sourceId']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const commitSha = options['commitSha']
 
-                await Commands.showCommit(sourceId, storeIp, storePort, commitSha)
+                await Commands.showCommit(storeIp, storePort, commitSha)
 
                 process.exit(0)
             }
@@ -122,17 +120,16 @@ async function run() {
             id: "lsDirectoryStructure",
             verbs: ["ls", "!directoryDescriptorSha", "?prefix"],
             options: {
-                sourceId: defaultSourceId,
                 storeIp: "localhost",
                 storePort: 5005
             },
             executor: async (options) => {
-                const sourceId = options['sourceId']
+                const directoryDescriptorSha = options['directoryDescriptorSha']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const prefix = options['prefix'] || null;
 
-                await Commands.lsDirectoryStructure(sourceId, storeIp, storePort, prefix)
+                await Commands.lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix)
 
                 process.exit(0)
             }
@@ -204,7 +201,12 @@ async function run() {
         cmdManager.showHelp();
     }
     else {
-        cmdManager.execute(processed);
+        try {
+            cmdManager.execute(processed);
+        }
+        catch (error) {
+            console.log(`[ERROR] ${error}`)
+        }
     }
 }
 
@@ -237,7 +239,7 @@ class CommandManager {
             if (spec.options) {
                 for (let k in spec.options)
                     if (spec.options[k])
-                        console.log(`  -${k}: by default ${spec.options[k]}`)
+                        console.log(`  -${k}: by default ${JSON.stringify(spec.options[k])}`)
                     else
                         console.log(`  -${k}`)
             }
