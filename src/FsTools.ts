@@ -44,7 +44,7 @@ export async function readFile(fd: number, offset: number, length: number) {
 export async function readFileContent(path: string, encoding?: string) {
     return new Promise<string>((resolve, reject) => {
         fs.readFile(path, encoding, (err, data) => {
-            if(err)
+            if (err)
                 reject(err)
             else
                 resolve(data)
@@ -60,6 +60,17 @@ export async function writeFile(fd: number, data: string) {
             else
                 resolve(written);
         });
+    });
+}
+
+export async function writeFileBuffer(fd: number, offset: number, buffer: Buffer) {
+    return new Promise<number>((resolve, reject) => {
+        fs.write(fd, buffer, 0, buffer.byteLength, offset, (err, written, buffer) => {
+            if (err)
+                reject(err)
+            else
+                resolve(written)
+        })
     });
 }
 

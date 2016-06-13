@@ -145,15 +145,17 @@ async function run() {
             verbs: ["extract", "!directoryDescriptorSha", "?prefix"],
             options: {
                 storeIp: "localhost",
-                storePort: 5005
+                storePort: 5005,
+                destinationDirectory: '.'
             },
             executor: async (options) => {
                 const directoryDescriptorSha = options['directoryDescriptorSha']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
-                const prefix = options['prefix'] || null;
+                const destinationDirectory = options['destinationDirectory']
+                const prefix = options['prefix'] || null
 
-                await Commands.extract(storeIp, storePort, directoryDescriptorSha, prefix)
+                await Commands.extract(storeIp, storePort, directoryDescriptorSha, prefix, destinationDirectory)
 
                 process.exit(0)
             }

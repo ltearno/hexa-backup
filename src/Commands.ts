@@ -1,7 +1,11 @@
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
 import { HexaBackupReader } from './HexaBackupReader'
 import { RPCClient, RPCServer } from './RPC'
+import * as HashTools from './HashTools'
+import * as FsTools from './FsTools'
 import * as Model from './Model'
+import fsPath = require('path')
+import fs = require('fs')
 
 const log = require('./Logger')('Commands')
 
@@ -102,9 +106,9 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
     showDirectoryDescriptor(directoryDescriptor, prefix)
 }
 
-export async function extract(storeIp, storePort, directoryDescriptorSha, prefix: string) {
+export async function extract(storeIp, storePort, directoryDescriptorSha, prefix: string, destinationDirectory: string) {
     console.log('connecting to remote store...')
-    let store = null
+    let store: IHexaBackupStore = null
     try {
         log('connecting to remote store...')
         let rpcClient = new RPCClient()
@@ -120,9 +124,62 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
         return
     }
 
+    console.log('getting directory descriptor...')
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 
     showDirectoryDescriptor(directoryDescriptor, prefix)
+
+    destinationDirectory = fsPath.resolve(destinationDirectory)
+
+    console.log(`extracting ${directoryDescriptorSha} to ${destinationDirectory}, prefix='${prefix}'...`)
+
+    for (let k in directoryDescriptor.files) {
+        let fileDesc = directoryDescriptor.files[k]
+
+        if (prefix && !fileDesc.name.startsWith(prefix))
+            continue
+
+        let destinationFilePath = fsPath.join(destinationDirectory, fileDesc.name)
+
+        if (fileDesc.isDirectory) {
+            fs.mkdirSync(destinationFilePath)
+        }
+        else {
+            let fileLength = await store.hasOneShaBytes(fileDesc.contentSha)
+
+            let currentReadPosition = 0
+            try {
+                let stat = await FsTools.lstat(destinationFilePath)
+                currentReadPosition = stat.size
+            }
+            catch (error) {
+            }
+
+            let fd = await FsTools.openFile(destinationFilePath, 'a')
+
+            const maxSize = 1024 * 100
+            while (currentReadPosition < fileLength) {
+                let size = fileLength - currentReadPosition
+                if (size > maxSize)
+                    size = maxSize
+
+                let buffer = await store.readShaBytes(fileDesc.contentSha, currentReadPosition, size)
+
+                await FsTools.writeFileBuffer(fd, currentReadPosition, buffer)
+
+                currentReadPosition += size
+            }
+
+            await FsTools.closeFile(fd)
+
+            let contentSha = await HashTools.hashFile(destinationFilePath)
+            if (contentSha != fileDesc.contentSha) {
+                log.err(`extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`)
+            }
+
+            log(`extracted ${fileDesc.name}`)
+        }
+    }
 }
 
 export async function push(sourceId, pushedDirectory, storeIp, storePort) {
