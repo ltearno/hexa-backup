@@ -5,7 +5,7 @@ import * as Model from './Model'
 
 const log = require('./Logger')('hexa-backup-commands')
 
-export async function history(sourceId, storeIp, storePort) {
+export async function history(sourceId, storeIp, storePort, verbose) {
     console.log('connecting to remote store...')
     let store: IHexaBackupStore = null
     try {
@@ -37,9 +37,11 @@ export async function history(sourceId, storeIp, storePort) {
         let emptySha = '                                                                '
         console.log()
         console.log(`current transaction ${sourceState.currentTransactionId}`)
-        for (let k in sourceState.currentTransactionContent) {
-            let fd = sourceState.currentTransactionContent[k]
-            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha}  ${fd.name}`);
+        if (verbose) {
+            for (let k in sourceState.currentTransactionContent) {
+                let fd = sourceState.currentTransactionContent[k]
+                console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha}  ${fd.name}`);
+            }
         }
     }
 
@@ -63,7 +65,7 @@ export async function history(sourceId, storeIp, storePort) {
         commitSha = commit.parentSha
     }
 
-    if (directoryDescriptorShaToShow) {
+    if (verbose && directoryDescriptorShaToShow) {
         console.log()
         console.log(`most recent commit's directory structure (${directoryDescriptorShaToShow}) :`)
         let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorShaToShow)
@@ -77,7 +79,7 @@ export async function showCurrentTransaction(sourceId, storeIp, storePort, prefi
 export async function showCommit(storeIp, storePort, commitSha) {
 }
 
-export async function lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix) {
+export async function lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix: string) {
     console.log('connecting to remote store...')
     let store = null
     try {
@@ -97,7 +99,7 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
 
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 
-    showDirectoryDescriptor(directoryDescriptor)
+    showDirectoryDescriptor(directoryDescriptor, prefix)
 }
 
 export async function push(sourceId, pushedDirectory, storeIp, storePort) {
@@ -155,7 +157,7 @@ async function connectStore(storeIp, storePort) {
     return rpcClient.createProxy<IHexaBackupStore>()
 }
 
-function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor) {
+function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, prefix?: string) {
     let totalSize = 0;
     let nbFiles = 0;
     let nbDirectories = 0;
@@ -172,6 +174,7 @@ function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor)
     let emptySha = '                                                                '
 
     directoryDescriptor.files.forEach((fd) => {
-        console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha}  ${fd.name}`);
+        if (!prefix || fd.name.startsWith(prefix))
+            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha}  ${fd.name}`);
     });
 }
