@@ -4,8 +4,6 @@
   "description": "A distributed and versioned backup tool",
   "main": "target/hexa-backup.js",
   "bin": {
-    "hexa-backup-store": "bin/hexa-backup-store",
-    "hexa-backup-push": "bin/hexa-backup-push",
     "hexa-backup": "bin/hexa-backup"
   },
   "scripts": {
@@ -15,7 +13,8 @@
   "dependencies": {
     "engine.io": "1.6.9",
     "engine.io-client": "1.6.9",
-    "gauge": "2.5.0"
+    "gauge": "2.5.0",
+    "colors": "1.1.2"
   },
   "devDependencies": {
     "typescript": "1.8.10"

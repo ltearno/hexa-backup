@@ -50,7 +50,7 @@ export class WorkPool {
             this.workInProgress = null
 
             log.err(error)
-            log.dbg(`finished with ERROR work of ${batch.length} items`)
+            log.dbg(`finished with ERROR (${error}) work of ${batch.length} items`)
 
             if (this.waitingQueue.length == 0)
                 this.signalEndWaiters()

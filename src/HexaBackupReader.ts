@@ -33,7 +33,7 @@ export class HexaBackupReader {
         log.dbg(`beginning transaction ${transactionId}`);
 
         let workPool = new WorkPool(async (batch: Model.FileDescriptor[]) => {
-            let currentSizes = await store.hasShaBytes(batch.map((fileDesc) => fileDesc.contentSha))
+            let currentSizes = await store.hasShaBytes(batch.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
 
             log(`currentSizes: ${JSON.stringify(currentSizes)}`)
 
@@ -69,12 +69,11 @@ export class HexaBackupReader {
 
         let fullFileName = fsPath.join(this.rootPath, fileDesc.name);
 
-        //let currentSize = await store.hasOneShaBytes(fileDesc.contentSha);
         let currentSize = currentSizes[fileDesc.contentSha] || 0
         let stat = fs.lstatSync(fullFileName);
 
         if (currentSize < stat.size) {
-            const maxBlockSize = 1024 * 100;
+            const maxBlockSize = 1024 * 128;
 
             log(`sending ${stat.size - currentSize} bytes for file ${fileDesc.name} by chunk of ${maxBlockSize}`);
 
@@ -82,8 +81,9 @@ export class HexaBackupReader {
 
             let currentReadPosition = currentSize;
 
-            let gauge = new Gauge()
-            gauge.show(fileDesc.name, currentReadPosition / stat.size)
+            let gauge = null;// new Gauge()
+            if (gauge)
+                gauge.show(fileDesc.name, currentReadPosition / stat.size)
 
             while (currentReadPosition < stat.size) {
                 let chunkSize = stat.size - currentReadPosition;
@@ -93,21 +93,35 @@ export class HexaBackupReader {
                 if (chunkSize > 0) {
                     let buffer = await FsTools.readFile(fd, currentReadPosition, chunkSize);
 
-                    await store.putShaBytes(fileDesc.contentSha, currentReadPosition, buffer);
+                    log.dbg(`pushing data file '${fullFileName}', pos=${currentReadPosition}, size=${chunkSize}`)
 
-                    currentReadPosition += buffer.length;
+                    let written = await store.putShaBytes(fileDesc.contentSha, currentReadPosition, buffer)
+                    if (written != chunkSize) {
+                        log.err(`cannot push data file '${fullFileName}', pos=${currentReadPosition}, size=${chunkSize}`)
+                        break
+                    }
 
-                    gauge.show(fileDesc.name, currentReadPosition / stat.size)
+                    currentReadPosition += buffer.length
+
+                    if (gauge)
+                        gauge.show(fileDesc.name, currentReadPosition / stat.size)
                 }
             }
 
-            gauge.hide();
+            if (gauge)
+                gauge.hide();
 
             await FsTools.closeFile(fd);
+
+            currentSizes[fileDesc.contentSha] = fileDesc.size
         }
 
-        await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
-        log(`pushed ${fileDesc.name}`);
+        let pushResult = await store.pushFileDescriptor(this.clientId, transactionId, fileDesc)
+
+        if (pushResult)
+            log(`pushed ${fileDesc.name}`)
+        else
+            log.err(`failed to push ${fileDesc.name}`)
     }
 }
 

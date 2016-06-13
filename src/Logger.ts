@@ -1,3 +1,5 @@
+const colors = require('colors/safe')
+
 class Logger {
     private static config = {
         'log': true,
@@ -27,14 +29,26 @@ class Logger {
         Logger.config[level] = show;
     }
 
-    output(level, message) {
+    output(level: string, message) {
         if (level in Logger.config && Logger.config[level]) {
+            let s
             if (message == "" || message == undefined || message == null)
-                console.log();
+                s = ''
             else if (typeof message === "string")
-                console.log(`[${level}  ${this.id}] ${message}`);
+                s = `[${level}  ${this.id}] ${message}`
             else
-                console.log(`[${level}  ${this.id}] ${JSON.stringify(message)}`);
+                s = `[${level}  ${this.id}] ${JSON.stringify(message)}`
+
+            switch (level) {
+                case 'err':
+                    s = colors.red(s)
+                    break
+                case 'dbg':
+                    s = colors.yellow(s)
+                    break
+            }
+
+            console.log(s)
         }
     }
 }

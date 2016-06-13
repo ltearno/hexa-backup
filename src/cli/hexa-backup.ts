@@ -206,6 +206,8 @@ async function run() {
         try {
             if ('debug' in processed.options && processed.options['debug'])
                 log.conf('dbg', true)
+            log.dbg('== executing in DEBUG mode ==')
+
             cmdManager.execute(processed);
         }
         catch (error) {

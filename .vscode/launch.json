@@ -60,7 +60,7 @@
             "args": [
                 "push",
                 "-pushedDirectory",
-                "d:/Documents/Wibrain",
+                "d:/Documents/Dossier 807",
                 "-storeIp",
                 "ks387039.kimsufi.com"
             ],
@@ -81,9 +81,12 @@
             "name": "Serveur",
             "type": "node",
             "request": "launch",
-            "program": "${workspaceRoot}/target/cli/hexa-backup-store.js",
+            "program": "${workspaceRoot}/target/cli/hexa-backup.js",
             "stopOnEntry": false,
-            "args": [],
+            "args": [
+                "--debug",
+                "store"
+            ],
             "cwd": "${workspaceRoot}",
             "preLaunchTask": null,
             "runtimeExecutable": null,
