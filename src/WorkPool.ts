@@ -1,17 +1,16 @@
 const log = require('./Logger')('WorkPool');
 
-export class WorkPool {
-    private waitingQueue: any[] = []
+export class WorkPool<T> {
+    private waitingQueue: T[] = []
     private workInProgress = null
     private finishWaiters = []
     private queuedAdders = []
 
-    constructor(private worker: any, private maxQueueLength) {
+    constructor(private maxQueueLength: number, private worker: (batch: T[]) => Promise<void>) {
     }
 
-    addWork(workItem): Promise<void> {
+    addWork(workItem: T): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            log.dbg(`add work`)
             this.waitingQueue.push(workItem)
             this.startWork()
 
@@ -24,7 +23,6 @@ export class WorkPool {
 
     emptied() {
         return new Promise<void>((resolve, reject) => {
-            log.dbg(`emptied?`)
             if (this.isCompletelyEmpty()) {
                 resolve()
             }
@@ -68,8 +66,7 @@ export class WorkPool {
         }).catch((error) => {
             this.workInProgress = null
 
-            log.err(error)
-            log.dbg(`finished with ERROR (${error}) work of ${batch.length} items`)
+            log.err(`finished with ERROR (${error}) work of ${batch.length} items`)
 
             if (this.waitingQueue.length == 0)
                 this.signalEndWaiters()
@@ -84,7 +81,6 @@ export class WorkPool {
     }
 
     private signalEndWaiters() {
-        log.dbg(`signal end`)
         let len = this.finishWaiters.length
         while (len-- > 0)
             this.finishWaiters.shift()()

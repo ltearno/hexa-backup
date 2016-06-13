@@ -32,7 +32,7 @@ export class HexaBackupReader {
 
         log.dbg(`beginning transaction ${transactionId}`);
 
-        let workPool = new WorkPool(async (batch: Model.FileDescriptor[]) => {
+        let workPool = new WorkPool<Model.FileDescriptor>(50, async (batch) => {
             let currentSizes = await store.hasShaBytes(batch.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
 
             for (let k in batch) {
@@ -58,17 +58,16 @@ export class HexaBackupReader {
                     nbSuccess++
                 }
             }
-            log(`validated ${nbSuccess} files on remote store`)
-        }, 50)
+            log.dbg(`validated ${nbSuccess} files on remote store`)
+        })
 
-        let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames);
-        await directoryLister.readDir(async (fileDesc) => {
-            await workPool.addWork(fileDesc)
-        });
+        let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames)
+
+        await directoryLister.readDir(async (fileDesc) => await workPool.addWork(fileDesc))
 
         await workPool.emptied()
 
-        log(`commit transaction ${this.clientId}::${transactionId}...`);
+        log(`commit transaction ${this.clientId}::${transactionId}`);
         await store.commitTransaction(this.clientId, transactionId);
 
         log('snapshot sent.');
