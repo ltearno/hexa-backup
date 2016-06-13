@@ -12,11 +12,16 @@ export class ShaCache {
         if (!fs.existsSync(this.cacheDirectory))
             fs.mkdirSync(this.cacheDirectory);
 
-        let cacheFileName = fsPath.join(this.cacheDirectory, 'data');
-        if (fs.existsSync(cacheFileName))
-            this.cache = JSON.parse(fs.readFileSync(cacheFileName, 'utf8'));
-        else
+        try {
+            let cacheFileName = fsPath.join(this.cacheDirectory, 'data');
+            if (fs.existsSync(cacheFileName))
+                this.cache = JSON.parse(fs.readFileSync(cacheFileName, 'utf8'));
+            else
+                this.cache = {};
+        }
+        catch (error) {
             this.cache = {};
+        }
     }
 
     flushToDisk() {

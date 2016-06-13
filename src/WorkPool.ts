@@ -33,8 +33,17 @@ export class WorkPool {
         if (this.workInProgress || this.waitingQueue.length == 0)
             return
 
-        let batch = this.waitingQueue
-        this.waitingQueue = []
+        let batch: any[]
+
+        const max = 50
+        if (this.waitingQueue.length < max) {
+            batch = this.waitingQueue
+            this.waitingQueue = []
+        }
+        else {
+            batch = this.waitingQueue.slice(0, max)
+            this.waitingQueue = this.waitingQueue.slice(max)
+        }
 
         log.dbg(`start work of ${batch.length} items`)
         this.workInProgress = this.worker(batch).then(() => {

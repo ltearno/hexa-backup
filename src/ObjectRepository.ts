@@ -80,7 +80,6 @@ export class ObjectRepository {
                     else
                         result[sha] = stat.size
                 } catch (error) {
-                    log.err(`hashShaBytes, lstat throws '${error}'`)
                     result[sha] = 0
                 }
             }

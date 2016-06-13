@@ -70,7 +70,7 @@ export class HexaBackupStore implements IHexaBackupStore {
                     && current.lastWrite == fileDesc.lastWrite
                     && current.name == fileDesc.name
                     && current.size == fileDesc.size) {
-                    return false;
+                    return true;
                 }
             }
         }

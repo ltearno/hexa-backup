@@ -35,8 +35,6 @@ export class HexaBackupReader {
         let workPool = new WorkPool(async (batch: Model.FileDescriptor[]) => {
             let currentSizes = await store.hasShaBytes(batch.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
 
-            log(`currentSizes: ${JSON.stringify(currentSizes)}`)
-
             for (let k in batch) {
                 let fileDesc = batch[k]
                 try {
@@ -75,15 +73,18 @@ export class HexaBackupReader {
         if (currentSize < stat.size) {
             const maxBlockSize = 1024 * 128;
 
-            log(`sending ${stat.size - currentSize} bytes for file ${fileDesc.name} by chunk of ${maxBlockSize}`);
+            //log(`sending ${stat.size - currentSize} bytes for file ${fileDesc.name} by chunk of ${maxBlockSize}`);
 
             let fd = await FsTools.openFile(fullFileName, 'r');
 
             let currentReadPosition = currentSize;
 
-            let gauge = null;// new Gauge()
+            let gauge = new Gauge()
             if (gauge)
                 gauge.show(fileDesc.name, currentReadPosition / stat.size)
+
+            let sent = 0
+            let startTime = Date.now()
 
             while (currentReadPosition < stat.size) {
                 let chunkSize = stat.size - currentReadPosition;
@@ -102,9 +103,10 @@ export class HexaBackupReader {
                     }
 
                     currentReadPosition += buffer.length
+                    sent += buffer.length
 
                     if (gauge)
-                        gauge.show(fileDesc.name, currentReadPosition / stat.size)
+                        gauge.show(`${fileDesc.name} - ${(sent / (Date.now() - startTime)).toFixed(2)} kb/s`, currentReadPosition / stat.size)
                 }
             }
 

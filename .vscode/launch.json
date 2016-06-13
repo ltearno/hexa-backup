@@ -8,13 +8,11 @@
             "program": "${workspaceRoot}/target/cli/hexa-backup.js",
             "stopOnEntry": false,
             "args": [
-                "--toto",
-                "-host",
-                "ks387039.kimsufi.com",
                 "push",
-                "famal"
+                "-storeIp",
+                "ks387039.kimsufi.com"
             ],
-            "cwd": "${workspaceRoot}",
+            "cwd": "d:\\Documents",
             "preLaunchTask": null,
             "runtimeExecutable": null,
             "runtimeArgs": [

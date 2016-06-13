@@ -3,7 +3,7 @@ import { HexaBackupReader } from './HexaBackupReader'
 import { RPCClient, RPCServer } from './RPC'
 import * as Model from './Model'
 
-const log = require('./Logger')('hexa-backup-commands')
+const log = require('./Logger')('Commands')
 
 export async function history(sourceId, storeIp, storePort, verbose) {
     console.log('connecting to remote store...')
