@@ -141,6 +141,24 @@ async function run() {
             }
         },
         {
+            id: "extract",
+            verbs: ["extract", "!directoryDescriptorSha", "?prefix"],
+            options: {
+                storeIp: "localhost",
+                storePort: 5005
+            },
+            executor: async (options) => {
+                const directoryDescriptorSha = options['directoryDescriptorSha']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const prefix = options['prefix'] || null;
+
+                await Commands.lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix)
+
+                process.exit(0)
+            }
+        },
+        {
             id: "push",
             verbs: ["push"],
             options: {
@@ -178,12 +196,12 @@ async function run() {
 
     function parseAndProcess(args: string[]) {
         let parsed = parseArgs(args, defaultParameters)
-        log(`verbs: ${parsed.verbs.join()}    params: ${JSON.stringify(parsed.parameters)}`)
+        log.dbg(`verbs: ${parsed.verbs.join()}    params: ${JSON.stringify(parsed.parameters)}`)
         let processed = cmdManager.process(parsed.verbs, parsed.parameters)
         if (processed)
-            log(`command for '${args.join()}': ${processed.id} processed.options: ${JSON.stringify(processed.options)}`)
+            log.dbg(`command for '${args.join()}': ${processed.id} processed.options: ${JSON.stringify(processed.options)}`)
         else
-            log(`no command for '${args.join()}'`)
+            log(`not understood : '${args.join()}'...`)
         return processed
     }
 
