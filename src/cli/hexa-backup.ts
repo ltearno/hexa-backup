@@ -153,7 +153,7 @@ async function run() {
                 const storePort = options['storePort']
                 const prefix = options['prefix'] || null;
 
-                await Commands.lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix)
+                await Commands.extract(storeIp, storePort, directoryDescriptorSha, prefix)
 
                 process.exit(0)
             }

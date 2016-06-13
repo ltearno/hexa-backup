@@ -130,6 +130,39 @@ export class ObjectRepository {
         });
     }
 
+    async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
+        return new Promise<Buffer>((resolve, reject) => {
+            if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
+                resolve(new Buffer(0))
+                return
+            }
+
+            log.dbg(`read bytes for ${sha} @${offset}, size=${length}`)
+
+            let contentFileName = this.contentFileName(sha)
+            fs.open(contentFileName, 'r', (err, fd) => {
+                if (err) {
+                    log.err(`readShaBytes: opening ${contentFileName}, err='${err}'`)
+                    reject(err)
+                    return
+                }
+
+                let buffer = new Buffer(length)
+                fs.read(fd, buffer, 0, length, offset, (err, read, buffer) => {
+                    fs.close(fd, (err) => {
+                        if (err) {
+                            log.err(`readShaBytes: closing ${contentFileName}, err='${err}'`)
+                            reject(err)
+                            return
+                        }
+
+                        resolve(buffer)
+                    });
+                });
+            });
+        });
+    }
+
     async validateSha(contentSha: string, contentSize: number) {
         return new Promise<boolean>(async (resolve, reject) => {
             if (contentSha == HashTools.EMPTY_PAYLOAD_SHA) {

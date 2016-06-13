@@ -10,6 +10,7 @@ export interface IHexaBackupStore {
     hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }>
     hasOneShaBytes(sha: string): Promise<number>
     putShaBytes(sha: string, offset: number, data: Buffer): Promise<number>
+    readShaBytes(sha: string, offset: number, length: number): Promise<Buffer>
     pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }>
     commitTransaction(sourceId: string, transactionId: string): Promise<void>
     getSourceState(sourceId: string): Promise<Model.SourceState>
@@ -53,6 +54,10 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     async putShaBytes(sha: string, offset: number, data: Buffer) {
         return this.objectRepository.putShaBytes(sha, offset, data);
+    }
+
+    async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
+        return this.objectRepository.readShaBytes(sha, offset, length)
     }
 
     async pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }> {

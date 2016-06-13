@@ -102,6 +102,29 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
     showDirectoryDescriptor(directoryDescriptor, prefix)
 }
 
+export async function extract(storeIp, storePort, directoryDescriptorSha, prefix: string) {
+    console.log('connecting to remote store...')
+    let store = null
+    try {
+        log('connecting to remote store...')
+        let rpcClient = new RPCClient()
+        let connected = await rpcClient.connect(storeIp, storePort)
+        if (!connected)
+            throw 'cannot connect to server !'
+
+        log('connected')
+        store = rpcClient.createProxy<IHexaBackupStore>()
+    }
+    catch (error) {
+        console.log(`[ERROR] cannot connect to server : ${error} !`)
+        return
+    }
+
+    let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
+
+    showDirectoryDescriptor(directoryDescriptor, prefix)
+}
+
 export async function push(sourceId, pushedDirectory, storeIp, storePort) {
     console.log(`push options :`)
     console.log(`  directory: ${pushedDirectory}`);
