@@ -59,11 +59,11 @@ export class HexaBackupReader {
                 }
             }
             log(`validated ${nbSuccess} files on remote store`)
-        })
+        }, 50)
 
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames);
         await directoryLister.readDir(async (fileDesc) => {
-            workPool.addWork(fileDesc)
+            await workPool.addWork(fileDesc)
         });
 
         await workPool.emptied()

@@ -4,14 +4,22 @@ export class WorkPool {
     private waitingQueue: any[] = []
     private workInProgress = null
     private finishWaiters = []
+    private queuedAdders = []
 
-    constructor(private worker: any) {
+    constructor(private worker: any, private maxQueueLength) {
     }
 
-    addWork(workItem) {
-        log.dbg(`add work`)
-        this.waitingQueue.push(workItem)
-        this.startWork()
+    addWork(workItem): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            log.dbg(`add work`)
+            this.waitingQueue.push(workItem)
+            this.startWork()
+
+            if (this.waitingQueue.length < this.maxQueueLength)
+                resolve()
+            else
+                this.queuedAdders.push(resolve)
+        })
     }
 
     emptied() {
@@ -51,6 +59,8 @@ export class WorkPool {
 
             log.dbg(`finished work of ${batch.length} items`)
 
+            this.signalQueuedAdders()
+
             if (this.waitingQueue.length == 0)
                 this.signalEndWaiters()
             else
@@ -66,6 +76,11 @@ export class WorkPool {
             else
                 this.startWork()
         })
+    }
+
+    private signalQueuedAdders() {
+        while (this.queuedAdders.length > 0)
+            this.queuedAdders.shift()()
     }
 
     private signalEndWaiters() {
