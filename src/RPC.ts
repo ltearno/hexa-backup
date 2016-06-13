@@ -19,8 +19,6 @@ export class RPCServer {
 
                 let received = Serialization.deserialize(args[0]);
 
-                //log.dbg(`received ${JSON.stringify(received)}`);
-
                 let callId = received[0];
                 received.shift();
                 let method = received[0];

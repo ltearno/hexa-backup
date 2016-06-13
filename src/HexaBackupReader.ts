@@ -7,7 +7,6 @@ import { ObjectRepository } from './ObjectRepository';
 import { ShaCache } from './ShaCache';
 import { IHexaBackupStore } from './HexaBackupStore';
 import * as Model from './Model';
-import { ProgressBar } from './Bar';
 
 let Gauge = require('gauge');
 
@@ -54,9 +53,6 @@ export class HexaBackupReader {
 
                     let currentReadPosition = currentSize;
 
-                    /*let bar = new ProgressBar(`${fileDesc.name} ${fileDesc.size} :bar`, { total: stat.size });
-                    bar.tick(currentSize);
-                    bar.render();*/
                     let gauge = new Gauge()
                     gauge.show(fileDesc.name, currentReadPosition / stat.size)
 
@@ -73,12 +69,9 @@ export class HexaBackupReader {
                             currentReadPosition += buffer.length;
 
                             gauge.show(fileDesc.name, currentReadPosition / stat.size)
-                            //bar.tick(buffer.length);
-                            //bar.render();
                         }
                     }
 
-                    //bar.terminate();
                     gauge.hide();
 
                     await FsTools.closeFile(fd);
