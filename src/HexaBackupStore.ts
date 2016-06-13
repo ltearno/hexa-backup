@@ -6,14 +6,15 @@ import * as Model from './Model';
 const log = require('./Logger')('HexaBackupStore');
 
 export interface IHexaBackupStore {
-    startOrContinueSnapshotTransaction(sourceId: string): Promise<string>;
-    hasShaBytes(sha: string): Promise<number>;
-    putShaBytes(sha: string, offset: number, data: Buffer): Promise<void>;
-    pushFileDescriptor(sourceId: string, transactionId: string, fileDesc: Model.FileDescriptor): Promise<void>;
-    commitTransaction(sourceId: string, transactionId: string): Promise<void>;
-    getSourceState(sourceId: string): Promise<Model.SourceState>;
-    getCommit(sha: string): Promise<Model.Commit>;
-    getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>;
+    startOrContinueSnapshotTransaction(sourceId: string): Promise<string>
+    hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }>
+    hasOneShaBytes(sha: string): Promise<number>
+    putShaBytes(sha: string, offset: number, data: Buffer): Promise<void>
+    pushFileDescriptor(sourceId: string, transactionId: string, fileDesc: Model.FileDescriptor): Promise<void>
+    commitTransaction(sourceId: string, transactionId: string): Promise<void>
+    getSourceState(sourceId: string): Promise<Model.SourceState>
+    getCommit(sha: string): Promise<Model.Commit>
+    getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>
 }
 
 export class HexaBackupStore implements IHexaBackupStore {
@@ -42,8 +43,12 @@ export class HexaBackupStore implements IHexaBackupStore {
         });
     }
 
-    async hasShaBytes(sha: string) {
-        return this.objectRepository.hasShaBytes(sha);
+    async hasShaBytes(shas: string[]) {
+        return this.objectRepository.hasShaBytes(shas)
+    }
+
+    async hasOneShaBytes(sha: string) {
+        return this.objectRepository.hasOneShaBytes(sha)
     }
 
     async putShaBytes(sha: string, offset: number, data: Buffer) {

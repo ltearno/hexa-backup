@@ -15,7 +15,7 @@ export class ObjectRepository {
         return new Promise<string>(async (resolve, reject) => {
             let sha = HashTools.hashString(payload);
 
-            if (await this.hasShaBytes(sha) == 0)
+            if (await this.hasOneShaBytes(sha) != payload.length)
                 await this.putShaBytes(sha, 0, new Buffer(payload, 'utf8'));
 
             resolve(sha);
@@ -55,19 +55,34 @@ export class ObjectRepository {
     /**
      * Returns the number of bytes that are currently committed for the specified sha
      */
-    async hasShaBytes(sha: string) {
-        return new Promise<number>((resolve, reject) => {
-            if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
-                resolve(0);
-                return;
+    async hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }> {
+        return new Promise<{ [sha: string]: number }>((resolve, reject) => {
+            let result: { [sha: string]: number } = {}
+
+            for (let k in shas) {
+                let sha = shas[k]
+
+                if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
+                    result[sha] = 0
+                }
+                else {
+                    try {
+                        let contentFileName = this.contentFileName(sha);
+                        result[sha] = fs.lstatSync(contentFileName).size
+                    } catch (error) {
+                        result[sha] = 0
+                    }
+                }
+
             }
 
-            let contentFileName = this.contentFileName(sha);
-            if (fs.existsSync(contentFileName))
-                resolve(fs.lstatSync(contentFileName).size);
-            else
-                resolve(0);
+            resolve(result)
         });
+    }
+
+    async hasOneShaBytes(sha: string) {
+        let res = await this.hasShaBytes([sha])
+        return res[sha]
     }
 
     async putShaBytes(sha: string, offset: number, data: Buffer): Promise<void> {

@@ -33,10 +33,14 @@ export class HexaBackupReader {
         log.dbg(`beginning transaction ${transactionId}`);
 
         let workPool = new WorkPool(async (batch: Model.FileDescriptor[]) => {
+            let currentSizes = await store.hasShaBytes(batch.map((fileDesc) => fileDesc.contentSha))
+
+            log(`currentSizes: ${JSON.stringify(currentSizes)}`)
+
             for (let k in batch) {
                 let fileDesc = batch[k]
                 try {
-                    await this.processFileDesc(store, transactionId, fileDesc)
+                    await this.processFileDesc(store, transactionId, fileDesc, currentSizes)
                 }
                 catch (error) {
                     log.err(`error reading or pushing ${fileDesc.name} : ${error}`);
@@ -57,7 +61,7 @@ export class HexaBackupReader {
         log('snapshot sent.');
     }
 
-    private async processFileDesc(store: IHexaBackupStore, transactionId, fileDesc: Model.FileDescriptor) {
+    private async processFileDesc(store: IHexaBackupStore, transactionId, fileDesc: Model.FileDescriptor, currentSizes: { [sha: string]: number }) {
         if (fileDesc.isDirectory) {
             await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
             return;
@@ -65,7 +69,8 @@ export class HexaBackupReader {
 
         let fullFileName = fsPath.join(this.rootPath, fileDesc.name);
 
-        let currentSize = await store.hasShaBytes(fileDesc.contentSha);
+        //let currentSize = await store.hasOneShaBytes(fileDesc.contentSha);
+        let currentSize = currentSizes[fileDesc.contentSha] || 0
         let stat = fs.lstatSync(fullFileName);
 
         if (currentSize < stat.size) {
