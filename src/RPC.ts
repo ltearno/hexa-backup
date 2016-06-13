@@ -81,7 +81,7 @@ export class RPCClient {
                     delete this.callInfos[callId];
 
                     if (err) {
-                        log.err(`rpc received error processing method ${callInfo.methodName} : ${err + ''}`);
+                        log.err(`rpc received error processing method ${callInfo.methodName} : ${JSON.stringify(err)}`);
 
                         callInfo.rejecter(err);
                     }

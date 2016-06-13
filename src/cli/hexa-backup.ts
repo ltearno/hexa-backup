@@ -11,6 +11,10 @@ import * as Commands from '../Commands'
 const log = require('../Logger')('hexa-backup')
 log.conf('dbg', false)
 
+process.on('unhandledRejection', (reason, p) => {
+    log.err(`Unhandled Rejection at: Promise ${p} reason: ${reason}`)
+});
+
 function parseArgs(args: string[], defaultParameters): { verbs: string[]; parameters: { [k: string]: any } } {
     let parameters = {}
 
