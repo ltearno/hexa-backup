@@ -91,10 +91,7 @@ export class HexaBackupReader {
 
             let currentReadPosition = currentSize
 
-            let gauge = new Gauge()
-            if (gauge)
-                gauge.show(fileDesc.name, currentReadPosition / stat.size)
-
+            let gauge = null
             let startTime = Date.now()
 
             while (currentReadPosition < stat.size) {
@@ -116,8 +113,11 @@ export class HexaBackupReader {
                     currentReadPosition += buffer.length
                     sent += buffer.length
 
-                    if (gauge)
+                    if (currentReadPosition < stat.size) {
+                        if (gauge == null)
+                            gauge = new Gauge()
                         gauge.show(`${fileDesc.name} - ${currentReadPosition} of ${stat.size} - ${(sent / (Date.now() - startTime)).toFixed(2)} kb/s`, currentReadPosition / stat.size)
+                    }
                 }
             }
 
@@ -125,6 +125,9 @@ export class HexaBackupReader {
                 gauge.hide()
 
             await FsTools.closeFile(fd)
+
+            if (sent > 0)
+                log(`sent ${sent} bytes for file ${fileDesc.name}`)
 
             currentSizes[fileDesc.contentSha] = fileDesc.size
         }
