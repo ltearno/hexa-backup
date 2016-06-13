@@ -204,6 +204,8 @@ async function run() {
     }
     else {
         try {
+            if ('debug' in processed.options && processed.options['debug'])
+                log.conf('dbg', true)
             cmdManager.execute(processed);
         }
         catch (error) {

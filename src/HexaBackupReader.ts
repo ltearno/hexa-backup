@@ -7,6 +7,7 @@ import { ObjectRepository } from './ObjectRepository';
 import { ShaCache } from './ShaCache';
 import { IHexaBackupStore } from './HexaBackupStore';
 import * as Model from './Model';
+import { WorkPool } from './WorkPool'
 
 let Gauge = require('gauge');
 
@@ -31,15 +32,24 @@ export class HexaBackupReader {
 
         log.dbg(`beginning transaction ${transactionId}`);
 
+        let workPool = new WorkPool(async (batch: Model.FileDescriptor[]) => {
+            for (let k in batch) {
+                let fileDesc = batch[k]
+                try {
+                    await this.processFileDesc(store, transactionId, fileDesc)
+                }
+                catch (error) {
+                    log.err(`error reading or pushing ${fileDesc.name} : ${error}`);
+                }
+            }
+        })
+
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames);
         await directoryLister.readDir(async (fileDesc) => {
-            try {
-                await this.processFileDesc(store, transactionId, fileDesc)
-            }
-            catch (error) {
-                log.err(`error reading or pushing ${fileDesc.name} : ${error}`);
-            }
+            workPool.addWork(fileDesc)
         });
+
+        await workPool.emptied()
 
         log(`commit transaction ${this.clientId}::${transactionId}...`);
         await store.commitTransaction(this.clientId, transactionId);

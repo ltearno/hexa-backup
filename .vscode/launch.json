@@ -57,7 +57,13 @@
             "request": "launch",
             "program": "${workspaceRoot}/target/cli/hexa-backup.js",
             "stopOnEntry": false,
-            "args": ["push", "-pushedDirectory", "d:/Documents/Wibrain"],
+            "args": [
+                "push",
+                "-pushedDirectory",
+                "d:/Documents/Wibrain",
+                "-storeIp",
+                "ks387039.kimsufi.com"
+            ],
             "cwd": "${workspaceRoot}",
             "preLaunchTask": null,
             "runtimeExecutable": null,
