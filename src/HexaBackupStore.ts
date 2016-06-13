@@ -10,7 +10,7 @@ export interface IHexaBackupStore {
     hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }>
     hasOneShaBytes(sha: string): Promise<number>
     putShaBytes(sha: string, offset: number, data: Buffer): Promise<number>
-    pushFileDescriptor(sourceId: string, transactionId: string, fileDesc: Model.FileDescriptor): Promise<boolean>
+    pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }>
     commitTransaction(sourceId: string, transactionId: string): Promise<void>
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
@@ -55,49 +55,61 @@ export class HexaBackupStore implements IHexaBackupStore {
         return this.objectRepository.putShaBytes(sha, offset, data);
     }
 
-    async pushFileDescriptor(sourceId: string, transactionId: string, fileDesc: Model.FileDescriptor) {
-        let clientState = await this.getSourceState(sourceId);
-        if (clientState.currentTransactionId != transactionId) {
-            log.err(`source is pushing with a bad transaction id !`);
-            return false;
-        }
+    async pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }> {
+        let res: { [sha: string]: boolean } = {}
 
-        if (fileDesc.name in clientState.currentTransactionContent) {
-            let current = clientState.currentTransactionContent[fileDesc.name];
-            if (current != null) {
-                if (current.contentSha == fileDesc.contentSha
-                    && current.isDirectory == fileDesc.isDirectory
-                    && current.lastWrite == fileDesc.lastWrite
-                    && current.name == fileDesc.name
-                    && current.size == fileDesc.size) {
-                    return true;
+        for (let d in descriptors) {
+            let fileDesc = descriptors[d]
+
+            let clientState = await this.getSourceState(sourceId);
+            if (clientState.currentTransactionId != transactionId) {
+                log.err(`source is pushing with a bad transaction id !`)
+                res[fileDesc.contentSha] = false
+                continue
+            }
+
+            if (fileDesc.name in clientState.currentTransactionContent) {
+                let current = clientState.currentTransactionContent[fileDesc.name];
+                if (current != null) {
+                    if (current.contentSha == fileDesc.contentSha
+                        && current.isDirectory == fileDesc.isDirectory
+                        && current.lastWrite == fileDesc.lastWrite
+                        && current.name == fileDesc.name
+                        && current.size == fileDesc.size) {
+                        res[fileDesc.contentSha] = true
+                        continue
+                    }
                 }
+            }
+
+            let validated = false;
+            if (fileDesc.isDirectory) {
+                clientState.currentTransactionContent[fileDesc.name] = fileDesc;
+                validated = true;
+            }
+            else {
+                validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
+                if (validated)
+                    clientState.currentTransactionContent[fileDesc.name] = fileDesc
+                else
+                    log.err(`cannot validate sha ${fileDesc.contentSha} for file ${fileDesc.name}`)
+            }
+
+            if (validated) {
+                await this.storeClientState(sourceId, clientState, false)
+
+                log(`received ${fileDesc.name} (${fileDesc.contentSha}) from '${sourceId}'`)
+
+                res[fileDesc.contentSha] = true
+                continue
+            }
+            else {
+                res[fileDesc.contentSha] = false
+                continue
             }
         }
 
-        let validated = false;
-        if (fileDesc.isDirectory) {
-            clientState.currentTransactionContent[fileDesc.name] = fileDesc;
-            validated = true;
-        }
-        else {
-            validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
-            if (validated)
-                clientState.currentTransactionContent[fileDesc.name] = fileDesc
-            else
-                log.err(`cannot validate sha ${fileDesc.contentSha} for file ${fileDesc.name}`)
-        }
-
-        if (validated) {
-            await this.storeClientState(sourceId, clientState, false)
-
-            log(`received ${fileDesc.name} (${fileDesc.contentSha}) from '${sourceId}'`)
-
-            return true
-        }
-        else {
-            return false
-        }
+        return res
     }
 
     async commitTransaction(sourceId: string, transactionId: string) {

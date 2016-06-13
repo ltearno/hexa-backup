@@ -41,9 +41,24 @@ export class HexaBackupReader {
                     await this.processFileDesc(store, transactionId, fileDesc, currentSizes)
                 }
                 catch (error) {
-                    log.err(`error reading or pushing ${fileDesc.name} : ${error}`);
+                    log.err(`error reading or pushing ${fileDesc.name} : ${error}`)
                 }
             }
+
+            let pushResult = await store.pushFileDescriptors(this.clientId, transactionId, batch)
+            let nbError = 0
+            let nbSuccess = 0
+            for (let sha in pushResult) {
+                let success = pushResult[sha]
+                if (!success) {
+                    log.err(`failed validate sha ${sha}`)
+                    nbError++
+                }
+                else {
+                    nbSuccess++
+                }
+            }
+            log(`validated ${nbSuccess} files on remote store`)
         })
 
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames);
@@ -60,39 +75,35 @@ export class HexaBackupReader {
     }
 
     private async processFileDesc(store: IHexaBackupStore, transactionId, fileDesc: Model.FileDescriptor, currentSizes: { [sha: string]: number }) {
-        if (fileDesc.isDirectory) {
-            await store.pushFileDescriptor(this.clientId, transactionId, fileDesc);
-            return;
-        }
+        if (fileDesc.isDirectory)
+            return
 
-        let fullFileName = fsPath.join(this.rootPath, fileDesc.name);
+        let fullFileName = fsPath.join(this.rootPath, fileDesc.name)
 
         let currentSize = currentSizes[fileDesc.contentSha] || 0
-        let stat = fs.lstatSync(fullFileName);
+        let stat = fs.lstatSync(fullFileName)
+        let sent = 0
 
         if (currentSize < stat.size) {
-            const maxBlockSize = 1024 * 128;
+            const maxBlockSize = 1024 * 128
 
-            //log(`sending ${stat.size - currentSize} bytes for file ${fileDesc.name} by chunk of ${maxBlockSize}`);
+            let fd = await FsTools.openFile(fullFileName, 'r')
 
-            let fd = await FsTools.openFile(fullFileName, 'r');
-
-            let currentReadPosition = currentSize;
+            let currentReadPosition = currentSize
 
             let gauge = new Gauge()
             if (gauge)
                 gauge.show(fileDesc.name, currentReadPosition / stat.size)
 
-            let sent = 0
             let startTime = Date.now()
 
             while (currentReadPosition < stat.size) {
-                let chunkSize = stat.size - currentReadPosition;
+                let chunkSize = stat.size - currentReadPosition
                 if (chunkSize > maxBlockSize)
-                    chunkSize = maxBlockSize;
+                    chunkSize = maxBlockSize
 
                 if (chunkSize > 0) {
-                    let buffer = await FsTools.readFile(fd, currentReadPosition, chunkSize);
+                    let buffer = await FsTools.readFile(fd, currentReadPosition, chunkSize)
 
                     log.dbg(`pushing data file '${fullFileName}', pos=${currentReadPosition}, size=${chunkSize}`)
 
@@ -111,19 +122,12 @@ export class HexaBackupReader {
             }
 
             if (gauge)
-                gauge.hide();
+                gauge.hide()
 
-            await FsTools.closeFile(fd);
+            await FsTools.closeFile(fd)
 
             currentSizes[fileDesc.contentSha] = fileDesc.size
         }
-
-        let pushResult = await store.pushFileDescriptor(this.clientId, transactionId, fileDesc)
-
-        if (pushResult)
-            log(`pushed ${fileDesc.name}`)
-        else
-            log.err(`failed to push ${fileDesc.name}`)
     }
 }
 
