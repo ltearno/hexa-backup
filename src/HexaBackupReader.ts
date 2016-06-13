@@ -106,7 +106,7 @@ export class HexaBackupReader {
                     sent += buffer.length
 
                     if (gauge)
-                        gauge.show(`${fileDesc.name} - ${(sent / (Date.now() - startTime)).toFixed(2)} kb/s`, currentReadPosition / stat.size)
+                        gauge.show(`${fileDesc.name} - ${currentReadPosition} of ${stat.size} - ${(sent / (Date.now() - startTime)).toFixed(2)} kb/s`, currentReadPosition / stat.size)
                 }
             }
 
