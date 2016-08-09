@@ -13,14 +13,20 @@ const RPC_MSG_STREAM_ERROR = 15;
 export class RPCServer {
     private engine = require('engine.io');
 
-    private openedStreams = {}
-
     listen(port: number, serviceImpl: any) {
         var server = this.engine.listen(5005);
         server.on('connection', (socket) => {
             log('client connected');
 
-            socket.on('close', () => log('client disconnected'))
+            let openedStreams = {}
+
+            socket.on('close', () => {
+                log('client disconnected')
+
+                for (let i in openedStreams)
+                    openedStreams[i].receivedError("CLOSING!")
+                openedStreams = {}
+            })
 
             socket.on('message', (args) => {
                 let streamStub = new StreamStub(socket)
@@ -37,7 +43,7 @@ export class RPCServer {
                     received.shift();
 
                     streamStub.callId = callId
-                    this.openedStreams[callId] = streamStub
+                    openedStreams[callId] = streamStub
 
                     let m = serviceImpl[method];
                     if (!m) {
@@ -48,13 +54,13 @@ export class RPCServer {
                     let promise: Promise<any> = m.apply(serviceImpl, received)
 
                     promise.then((value) => {
-                        delete this.openedStreams[callId]
+                        delete openedStreams[callId]
 
                         let result = [RPC_MSG_REPLY, callId, null, value];
                         let resultSerialized = Serialization.serialize(result, null);
                         socket.send(resultSerialized)
                     }).catch((err) => {
-                        delete this.openedStreams[callId]
+                        delete openedStreams[callId]
 
                         let result = [RPC_MSG_REPLY, callId, err, null];
                         let resultSerialized = Serialization.serialize(result, null);
@@ -69,7 +75,7 @@ export class RPCServer {
 
                     log.dbg(`received stream chunk ${chunk ? chunk.length : '(null)'}`)
 
-                    let stub = this.openedStreams[callId]
+                    let stub = openedStreams[callId]
                     if (!stub) {
                         log.err('no opened stream for chunk')
                         return
@@ -82,7 +88,7 @@ export class RPCServer {
                     received.shift();
                     received.shift();
 
-                    let stub = this.openedStreams[callId]
+                    let stub = openedStreams[callId]
                     if (!stub) {
                         log.err('no opened stream for error')
                         return

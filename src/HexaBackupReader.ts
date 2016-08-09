@@ -8,6 +8,8 @@ import { ShaCache } from './ShaCache';
 import { IHexaBackupStore } from './HexaBackupStore';
 import * as Model from './Model';
 import { WorkPool } from './WorkPool'
+import * as Stream from 'stream'
+const progress = require('progress-stream')
 
 let Gauge = require('gauge');
 
@@ -84,49 +86,45 @@ export class HexaBackupReader {
         let sent = 0
 
         if (currentSize < stat.size) {
-            const maxBlockSize = 1024 * 128
+            log.dbg(`pushing data file '${fullFileName}', pos=${currentSize}...`)
 
-            let fd = await FsTools.openFile(fullFileName, 'r')
+            let fileStream = (<any>fs).createReadStream(fullFileName, { flags: 'r', start: currentSize })
+            let tranferred = 0;
 
-            let currentReadPosition = currentSize
+            let str = progress({
+                length: stat.size,
+                transferred: currentSize,
+                time: 1000
+            });
 
             let gauge = null
             let startTime = Date.now()
 
-            while (currentReadPosition < stat.size) {
-                let chunkSize = stat.size - currentReadPosition
-                if (chunkSize > maxBlockSize)
-                    chunkSize = maxBlockSize
+            str.on('progress', function (progress) {
+                if (gauge == null)
+                    gauge = new Gauge()
+                gauge.show(`${fileDesc.name} - ${progress.transferred} of ${stat.size} - ${((progress.transferred - currentSize) / (Date.now() - startTime)).toFixed(2)} kb/s`, progress.transferred / stat.size)
+            })
 
-                if (chunkSize > 0) {
-                    let buffer = await FsTools.readFile(fd, currentReadPosition, chunkSize)
-
-                    log.dbg(`pushing data file '${fullFileName}', pos=${currentReadPosition}, size=${chunkSize}`)
-
-                    let written = await store.putShaBytes(fileDesc.contentSha, currentReadPosition, buffer)
-                    if (written != chunkSize) {
-                        log.err(`cannot push data file '${fullFileName}', pos=${currentReadPosition}, size=${chunkSize}`)
-                        break
-                    }
-
-                    currentReadPosition += buffer.length
-                    sent += buffer.length
-
-                    if (currentReadPosition < stat.size) {
-                        if (gauge == null)
-                            gauge = new Gauge()
-                        gauge.show(`${fileDesc.name} - ${currentReadPosition} of ${stat.size} - ${(sent / (Date.now() - startTime)).toFixed(2)} kb/s`, currentReadPosition / stat.size)
+            /*let backup = fileStream.on
+            fileStream.on = (name, callback) => {
+                if (name == 'data') {
+                    let oldCallback = callback
+                    callback = (chunk) => {
+                        log(`read chunk ${chunk ? chunk.length : 0}, total ${tranferred}`)
+                        tranferred += chunk ? chunk.length : 0
+                        oldCallback(chunk)
                     }
                 }
-            }
+                backup.apply(fileStream, [name, callback])
+            }*/
+
+            let ok = await store.putShaBytesStream(fileDesc.contentSha, currentSize, fileStream.pipe(str))
 
             if (gauge)
                 gauge.hide()
 
-            await FsTools.closeFile(fd)
-
-            if (sent > 0)
-                log(`sent ${sent} bytes for file ${fileDesc.name}`)
+            log.dbg(`done sending file.`)
 
             currentSizes[fileDesc.contentSha] = fileDesc.size
         }

@@ -2,6 +2,7 @@ import fs = require('fs');
 import fsPath = require('path');
 import * as HashTools from './HashTools';
 import * as FsTools from './FsTools';
+import * as Stream from 'stream'
 
 const log = require('./Logger')('ObjectRepository');
 
@@ -128,6 +129,35 @@ export class ObjectRepository {
                 });
             });
         });
+    }
+
+    async putShaBytesStream(sha: string, offset: number, stream: Stream.Readable): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
+                resolve(true)
+                return
+            }
+
+            log.dbg(`put bytes by stream for ${sha} @${offset}`)
+
+            let contentFileName = this.contentFileName(sha)
+
+            let fileStream = (<any>fs).createWriteStream(contentFileName, { flags: 'a', start: offset })
+
+            stream.pipe(fileStream)
+
+            stream.on('error', (err) => {
+                log.err('error receiving stream !')
+                fileStream.close()
+                reject(err)
+            })
+
+            fileStream.on('finish', () => {
+                log(`stream finished !`)
+                fileStream.close()
+                resolve(true)
+            })
+        })
     }
 
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {

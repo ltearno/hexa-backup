@@ -12,14 +12,13 @@ export interface IHexaBackupStore {
     hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }>
     hasOneShaBytes(sha: string): Promise<number>
     putShaBytes(sha: string, offset: number, data: Buffer): Promise<number>
+    putShaBytesStream(sha: string, offset: number, stream: Stream.Readable): Promise<boolean>
     readShaBytes(sha: string, offset: number, length: number): Promise<Buffer>
     pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }>
     commitTransaction(sourceId: string, transactionId: string): Promise<void>
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
     getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>
-
-    testStream(stream: Stream.Readable): Promise<void>
 }
 
 export class HexaBackupStore implements IHexaBackupStore {
@@ -38,30 +37,7 @@ export class HexaBackupStore implements IHexaBackupStore {
         this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'));
     }
 
-    async testStream(stream: Stream.Readable): Promise<void> {
-        return new Promise<void>(async (resolve, reject) => {
-            let fileStream = FS.createWriteStream(`d:/Tmp/pandagrenouille.jpg.bak`, { flags: 'w' })
-
-            stream.pipe(fileStream)
-
-            stream.on('error', (err) => log.err('error receiving stream !'))
-
-            fileStream.on('finish', () => {
-                log(`stream finished !`)
-                fileStream.close()
-                resolve()
-            })
-        })
-    }
-
     async startOrContinueSnapshotTransaction(sourceId: string): Promise<string> {
-        /*return new Promise<string>(async (resolve, reject) => {
-            let sourceState: Model.SourceState = await this.getSourceState(sourceId);
-            if (sourceState.currentTransactionId == null)
-                sourceState.currentTransactionId = await this.openTransaction(sourceId);
-            log(`source ${sourceId} starts or continues transaction ${sourceState.currentTransactionId}`);
-            resolve(sourceState.currentTransactionId);
-        });*/
         let sourceState: Model.SourceState = await this.getSourceState(sourceId)
 
         if (sourceState.currentTransactionId == null)
@@ -82,6 +58,10 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     async putShaBytes(sha: string, offset: number, data: Buffer) {
         return this.objectRepository.putShaBytes(sha, offset, data);
+    }
+
+    async putShaBytesStream(sha: string, offset: number, stream: Stream.Readable) {
+        return this.objectRepository.putShaBytesStream(sha, offset, stream)
     }
 
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
