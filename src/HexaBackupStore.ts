@@ -1,9 +1,11 @@
-import fsPath = require('path');
-import { ReferenceRepository } from './ReferenceRepository';
-import { ObjectRepository } from './ObjectRepository';
-import * as Model from './Model';
+import fsPath = require('path')
+import { ReferenceRepository } from './ReferenceRepository'
+import { ObjectRepository } from './ObjectRepository'
+import * as Model from './Model'
+import * as Stream from 'stream'
+import * as FS from 'fs'
 
-const log = require('./Logger')('HexaBackupStore');
+const log = require('./Logger')('HexaBackupStore')
 
 export interface IHexaBackupStore {
     startOrContinueSnapshotTransaction(sourceId: string): Promise<string>
@@ -16,6 +18,8 @@ export interface IHexaBackupStore {
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
     getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>
+
+    testStream(stream: Stream.Readable): Promise<void>
 }
 
 export class HexaBackupStore implements IHexaBackupStore {
@@ -34,14 +38,38 @@ export class HexaBackupStore implements IHexaBackupStore {
         this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'));
     }
 
+    async testStream(stream: Stream.Readable): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            let fileStream = FS.createWriteStream(`d:/Tmp/pandagrenouille.jpg.bak`, { flags: 'w' })
+
+            stream.pipe(fileStream)
+
+            stream.on('error', (err) => log.err('error receiving stream !'))
+
+            fileStream.on('finish', () => {
+                log(`stream finished !`)
+                fileStream.close()
+                resolve()
+            })
+        })
+    }
+
     async startOrContinueSnapshotTransaction(sourceId: string): Promise<string> {
-        return new Promise<string>(async (resolve, reject) => {
+        /*return new Promise<string>(async (resolve, reject) => {
             let sourceState: Model.SourceState = await this.getSourceState(sourceId);
             if (sourceState.currentTransactionId == null)
                 sourceState.currentTransactionId = await this.openTransaction(sourceId);
             log(`source ${sourceId} starts or continues transaction ${sourceState.currentTransactionId}`);
             resolve(sourceState.currentTransactionId);
-        });
+        });*/
+        let sourceState: Model.SourceState = await this.getSourceState(sourceId)
+
+        if (sourceState.currentTransactionId == null)
+            sourceState.currentTransactionId = await this.openTransaction(sourceId)
+
+        log(`source ${sourceId} starts or continues transaction ${sourceState.currentTransactionId}`)
+
+        return sourceState.currentTransactionId
     }
 
     async hasShaBytes(shas: string[]) {

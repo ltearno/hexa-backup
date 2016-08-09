@@ -99,6 +99,29 @@
             "outDir": "${workspaceRoot}/target"
         },
         {
+            "name": "Test",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceRoot}/target/cli/hexa-backup.js",
+            "stopOnEntry": false,
+            "args": [
+                "--debug",
+                "test"
+            ],
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": null,
+            "runtimeExecutable": null,
+            "runtimeArgs": [
+                "--nolazy"
+            ],
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "externalConsole": false,
+            "sourceMaps": true,
+            "outDir": "${workspaceRoot}/target"
+        },
+        {
             "name": "Attacher",
             "type": "node",
             "request": "attach",

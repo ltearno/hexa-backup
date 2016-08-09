@@ -1,3 +1,5 @@
+import * as Stream from 'stream';
+
 class GrowingBuffer {
     private buffer: Buffer;
 
@@ -50,8 +52,9 @@ const TYPE_BUFFER = 0;
 const TYPE_ANY = 1;
 const TYPE_NULL = 2;
 const TYPE_UNDEFINED = 3;
+const TYPE_STREAM = 4;
 
-export function serialize(args: any[]) {
+export function serialize(args: any[], streamReceiver: (stream: Stream.Readable) => void): Buffer {
     let currentOffset = 0;
     let buffer: GrowingBuffer = new GrowingBuffer();
     currentOffset += buffer.writeByte(currentOffset, args.length);
@@ -61,18 +64,23 @@ export function serialize(args: any[]) {
 
         try {
             if (arg === null) {
-                currentOffset += buffer.writeByte(currentOffset, TYPE_NULL);
+                currentOffset += buffer.writeByte(currentOffset, TYPE_NULL)
             }
             else if (arg === undefined) {
-                currentOffset += buffer.writeByte(currentOffset, TYPE_UNDEFINED);
+                currentOffset += buffer.writeByte(currentOffset, TYPE_UNDEFINED)
+            }
+            else if (arg instanceof Stream.Stream) {
+                currentOffset += buffer.writeByte(currentOffset, TYPE_STREAM)
+                if (streamReceiver)
+                    streamReceiver(arg)
             }
             else if (arg instanceof Buffer) {
-                currentOffset += buffer.writeByte(currentOffset, TYPE_BUFFER);
-                currentOffset += buffer.writeBuffer(currentOffset, arg);
+                currentOffset += buffer.writeByte(currentOffset, TYPE_BUFFER)
+                currentOffset += buffer.writeBuffer(currentOffset, arg)
             }
             else {
-                currentOffset += buffer.writeByte(currentOffset, TYPE_ANY);
-                currentOffset += buffer.writeAny(currentOffset, arg);
+                currentOffset += buffer.writeByte(currentOffset, TYPE_ANY)
+                currentOffset += buffer.writeAny(currentOffset, arg)
             }
         }
         catch (error) {
@@ -85,32 +93,36 @@ export function serialize(args: any[]) {
     return result;
 }
 
-export function deserialize(buffer: Buffer): any[] {
-    let currentOffset = 0;
+export function deserialize(buffer: Buffer, streamCreator: () => Stream.Stream): any[] {
+    let currentOffset = 0
 
-    let nbItems = buffer.readUInt8(currentOffset);
-    currentOffset += 1;
+    let nbItems = buffer.readUInt8(currentOffset)
+    currentOffset += 1
 
-    let result = new Array(nbItems);
+    let result = new Array(nbItems)
     for (let i = 0; i < nbItems; i++) {
-        let itemType = buffer.readUInt8(currentOffset);
-        currentOffset += 1;
+        let itemType = buffer.readUInt8(currentOffset)
+        currentOffset += 1
 
-        let param = null;
+        let param = null
 
         if (itemType == TYPE_BUFFER) {
-            let chunkSize = buffer.readUInt32LE(currentOffset);
-            currentOffset += 4;
+            let chunkSize = buffer.readUInt32LE(currentOffset)
+            currentOffset += 4
 
-            param = buffer.slice(currentOffset, currentOffset + chunkSize);
-            currentOffset += chunkSize;
+            param = buffer.slice(currentOffset, currentOffset + chunkSize)
+            currentOffset += chunkSize
         }
         else if (itemType == TYPE_ANY) {
-            let chunkSize = buffer.readUInt32LE(currentOffset);
-            currentOffset += 4;
+            let chunkSize = buffer.readUInt32LE(currentOffset)
+            currentOffset += 4
 
-            param = JSON.parse(buffer.slice(currentOffset, currentOffset + chunkSize).toString('utf8'));
-            currentOffset += chunkSize;
+            param = JSON.parse(buffer.slice(currentOffset, currentOffset + chunkSize).toString('utf8'))
+            currentOffset += chunkSize
+        }
+        else if (itemType == TYPE_STREAM) {
+            if (streamCreator)
+                param = streamCreator()
         }
         else if (itemType == TYPE_NULL) {
             param = null;

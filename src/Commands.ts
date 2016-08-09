@@ -5,7 +5,7 @@ import * as HashTools from './HashTools'
 import * as FsTools from './FsTools'
 import * as Model from './Model'
 import fsPath = require('path')
-import fs = require('fs')
+import * as fs from 'fs'
 
 const log = require('./Logger')('Commands')
 
@@ -235,6 +235,34 @@ async function connectStore(storeIp, storePort) {
 
     log('connected')
     return rpcClient.createProxy<IHexaBackupStore>()
+}
+
+export async function test(sourceId, storeIp, storePort) {
+    console.log(`push options :`)
+    console.log(`  source: ${sourceId}`);
+    console.log(`  server: ${storeIp}:${storePort}`);
+    console.log();
+
+    console.log('connecting to remote store...')
+    let remoteStore: IHexaBackupStore = null
+    try {
+        log('connecting to remote store...')
+        let rpcClient = new RPCClient()
+        let connected = await rpcClient.connect(storeIp, storePort)
+        if (!connected)
+            throw 'cannot connect to server !'
+
+        log('connected')
+        remoteStore = rpcClient.createProxy<IHexaBackupStore>()
+
+        let f = `D:/Documents/Photos/_Canon EOS 700D.2/101CANON/MVI_0545.MOV`
+        // f = 'd:/Tmp/pandagrenouille.jpg'
+        await remoteStore.testStream(fs.createReadStream(f, { flags: 'r' }))
+    }
+    catch (error) {
+        console.log(`[ERROR] cannot connect to server : ${error} !`)
+        return
+    }
 }
 
 function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, prefix?: string) {

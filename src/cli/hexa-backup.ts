@@ -193,6 +193,24 @@ async function run() {
 
                 await Commands.store(directory, port)
             }
+        },
+        {
+            id: "test",
+            verbs: ["test"],
+            options: {
+                sourceId: defaultSourceId,
+                storeIp: "localhost",
+                storePort: 5005
+            },
+            executor: async (options) => {
+                const sourceId = options['sourceId']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+
+                await Commands.test(sourceId, storeIp, storePort)
+
+                process.exit(0)
+            }
         }
     ])
 
