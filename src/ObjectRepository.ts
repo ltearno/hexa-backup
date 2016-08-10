@@ -153,7 +153,7 @@ export class ObjectRepository {
             })
 
             fileStream.on('finish', () => {
-                log(`stream finished !`)
+                log.dbg(`stream finished !`)
                 fileStream.close()
                 resolve(true)
             })

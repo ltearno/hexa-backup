@@ -80,6 +80,7 @@ export class RPCServer {
                         log.err('no opened stream for chunk')
                         return
                     }
+
                     stub.received(chunk)
                 }
                 else if (messageType == RPC_MSG_STREAM_ERROR) {
@@ -125,7 +126,7 @@ class StreamStub extends Stream.Readable {
 }
 
 export class RPCClient {
-    private callInfos: { [key: string]: { resolver; rejecter; methodName; stream: Stream.Readable; streamOpened: boolean; streamPaused: boolean; } } = {};
+    private callInfos: { [key: string]: { resolver; rejecter; methodName; stream: Stream.Readable; streamOpened: boolean; streamPaused: boolean; socketWriter: SocketWriter; } } = {};
     private socket;
     private nextCallId = 1;
 
@@ -185,15 +186,27 @@ export class RPCClient {
                         else {
                             callInfo.streamOpened = true
 
-                            callInfo.stream.on('data', (chunk) => {
+                            log('open stream');
+
+                            callInfo.stream.on('drain', () => {
+                                //log.dbg('drain')
                                 callInfo.stream.pause()
-                                this.socket.send(Serialization.serialize([RPC_MSG_STREAM_CHUNK, callId, chunk], null), { compress: true }, () => {
+                            })
+
+                            callInfo.stream.on('data', (chunk) => {
+                                log.dbg(`received chunk ${chunk.length}`)
+
+                                callInfo.stream.pause()
+
+                                let payload = Serialization.serialize([RPC_MSG_STREAM_CHUNK, callId, chunk], null)
+                                this.socket.send(payload, { compress: true }, () => {
+                                    //log(`sent data through net ${payload.length}`)
                                     if (!callInfo.streamPaused)
                                         callInfo.stream.resume()
                                 })
                             })
 
-                            this.callInfos[callId].stream.on('error', (error) => {
+                            callInfo.stream.on('error', (error) => {
                                 this.socket.send(Serialization.serialize([RPC_MSG_STREAM_ERROR, callId, error], null))
                             })
 
@@ -209,7 +222,7 @@ export class RPCClient {
 
                         callInfo.streamPaused = true
 
-                        this.callInfos[callId].stream.pause()
+                        callInfo.stream.pause()
                     }
                 });
 
@@ -257,7 +270,8 @@ export class RPCClient {
                                 rejecter: reject,
                                 stream: stream,
                                 streamOpened: false,
-                                streamPaused: false
+                                streamPaused: false,
+                                socketWriter: stream ? new SocketWriter(that.socket, callId) : null
                             };
 
                             that.socket.send(payload);
@@ -269,5 +283,16 @@ export class RPCClient {
                 };
             }
         });
+    }
+}
+
+class SocketWriter extends Stream.Writable {
+    constructor(private socket, private callId) {
+        super()
+    }
+
+    _write(data, encoding, callback) {
+        let payload = Serialization.serialize([RPC_MSG_STREAM_CHUNK, this.callId, data], null)
+        this.socket.send(payload, { compress: true }, () => callback())
     }
 }

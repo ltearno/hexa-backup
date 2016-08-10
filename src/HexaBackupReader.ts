@@ -88,8 +88,10 @@ export class HexaBackupReader {
         if (currentSize < stat.size) {
             log.dbg(`pushing data file '${fullFileName}', pos=${currentSize}...`)
 
-            let fileStream = (<any>fs).createReadStream(fullFileName, { flags: 'r', start: currentSize })
+            let fileStream = (<any>fs).createReadStream(fullFileName, { flags: 'r', start: currentSize, bufferSize: 1 })
             let tranferred = 0;
+
+            //let fileStream = new FileStream(fullFileName, currentSize)
 
             let str = progress({
                 length: stat.size,
@@ -103,7 +105,7 @@ export class HexaBackupReader {
             str.on('progress', function (progress) {
                 if (gauge == null)
                     gauge = new Gauge()
-                gauge.show(`${fileDesc.name} - ${progress.transferred} of ${stat.size} - ${((progress.transferred - currentSize) / (Date.now() - startTime)).toFixed(2)} kb/s`, progress.transferred / stat.size)
+                gauge.show(`${fullFileName} ${fileDesc.name} - ${progress.transferred} of ${stat.size} - ${((progress.transferred - currentSize) / (Date.now() - startTime)).toFixed(2)} kb/s`, progress.transferred / stat.size)
             })
 
             /*let backup = fileStream.on
@@ -127,6 +129,29 @@ export class HexaBackupReader {
             log.dbg(`done sending file.`)
 
             currentSizes[fileDesc.contentSha] = fileDesc.size
+        }
+    }
+}
+
+class FileStream extends Stream.Readable {
+    private fd
+
+    constructor(private fullFileName: string, private offset: number) {
+        super()
+    }
+
+    async _read(size: number) {
+        if (this.fd == null)
+            this.fd = await FsTools.openFile(this.fullFileName, 'r')
+
+        let buffer = await FsTools.readFile(this.fd, this.offset, 65536)
+
+        if (buffer == null || buffer.length == 0) {
+            this.push(null)
+            await FsTools.closeFile(this.fd)
+        }
+        else {
+            this.push(buffer)
         }
     }
 }

@@ -206,6 +206,8 @@ export async function push(sourceId, pushedDirectory, storeIp, storePort) {
         return
     }
 
+    //remoteStore = new HexaBackupStore("d:\\tmp\\tmp");
+
     console.log('preparing directory reader');
     let reader = new HexaBackupReader(pushedDirectory, sourceId);
 

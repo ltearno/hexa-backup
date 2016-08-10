@@ -106,9 +106,9 @@
             "stopOnEntry": false,
             "args": [
                 "--debug",
-                "test"
+                "push"
             ],
-            "cwd": "${workspaceRoot}",
+            "cwd": "D:\\Tmp\\tmp",
             "preLaunchTask": null,
             "runtimeExecutable": null,
             "runtimeArgs": [
