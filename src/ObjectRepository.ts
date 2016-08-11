@@ -131,7 +131,7 @@ export class ObjectRepository {
         });
     }
 
-    async putShaBytesStream(sha: string, offset: number, stream: Stream.Readable): Promise<boolean> {
+    putShaBytesStream(sha: string, offset: number, stream: Stream.Readable): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
             if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
                 resolve(true)

@@ -9,7 +9,6 @@ import { IHexaBackupStore } from './HexaBackupStore';
 import * as Model from './Model';
 import { WorkPool } from './WorkPool'
 import * as Stream from 'stream'
-const progress = require('progress-stream')
 
 let Gauge = require('gauge');
 
@@ -37,6 +36,8 @@ export class HexaBackupReader {
 
         let workPool = new WorkPool<Model.FileDescriptor>(50, async (batch) => {
             let currentSizes = await store.hasShaBytes(batch.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
+
+            // push Objects : transactionId, list<sha, offset>, dataStream
 
             for (let k in batch) {
                 let fileDesc = batch[k]
@@ -85,41 +86,37 @@ export class HexaBackupReader {
         let fullFileName = fsPath.join(this.rootPath, fileDesc.name)
 
         let currentSize = currentSizes[fileDesc.contentSha] || 0
-        let stat = fs.lstatSync(fullFileName)
+        let fileSize = fs.lstatSync(fullFileName).size
         let sent = 0
 
-        if (currentSize < stat.size) {
+        if (currentSize < fileSize) {
             log.dbg(`pushing data file '${fullFileName}', pos=${currentSize}...`)
 
-            this.gauge().show(`sending ${fileDesc.name}`, 0)
+            //this.gauge().show(`sending ${fileDesc.name}`, 0)
 
             let fileStream = (<any>fs).createReadStream(fullFileName, { flags: 'r', start: currentSize, bufferSize: 1 })
-            let tranferred = 0
-
-            let str = progress({
-                length: stat.size,
-                transferred: currentSize,
-                time: 1000
-            })
+            let transferred = currentSize
 
             let startTime = Date.now()
 
-            str.on('progress', (progress) => this.gauge().show(`${fullFileName} - ${progress.transferred} of ${stat.size} - ${((progress.transferred - currentSize) / (Date.now() - startTime)).toFixed(2)} kb/s`, progress.transferred / stat.size))
-
-            /*let backup = fileStream.on
+            let backup = fileStream.on
             fileStream.on = (name, callback) => {
                 if (name == 'data') {
                     let oldCallback = callback
                     callback = (chunk) => {
-                        log(`read chunk ${chunk ? chunk.length : 0}, total ${tranferred}`)
-                        tranferred += chunk ? chunk.length : 0
+                        transferred += chunk ? chunk.length : 0
+
+                        let elapsed = Date.now() - startTime
+                        let speed = elapsed > 0 ? (transferred - currentSize) / elapsed : 0
+                        this.gauge().show(`${fullFileName} - ${transferred} of ${fileSize} - ${speed.toFixed(2)} kb/s`, transferred / fileSize)
+
                         oldCallback(chunk)
                     }
                 }
                 backup.apply(fileStream, [name, callback])
-            }*/
+            }
 
-            let ok = await store.putShaBytesStream(fileDesc.contentSha, currentSize, fileStream.pipe(str))
+            let ok = await store.putShaBytesStream(fileDesc.contentSha, currentSize, fileStream)
 
             this.hideGauge()
 

@@ -12,10 +12,7 @@
   "author": "Arnaud Tournier",
   "dependencies": {
     "colors": "1.1.2",
-    "engine.io": "1.6.9",
-    "engine.io-client": "1.6.9",
-    "gauge": "2.5.0",
-    "progress-stream": "^1.2.0"
+    "gauge": "2.5.0"
   },
   "devDependencies": {
     "typescript": "1.8.10"
