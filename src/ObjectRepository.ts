@@ -6,6 +6,13 @@ import * as Stream from 'stream'
 
 const log = require('./Logger')('ObjectRepository');
 
+export interface ShaPoolDescriptor {
+    fileName: string;
+    sha: string;
+    offset: number;
+    size: number;
+}
+
 export class ObjectRepository {
     private rootPath: string;
 
@@ -160,6 +167,26 @@ export class ObjectRepository {
         })
     }
 
+    putShasBytesStream(poolDescriptor: ShaPoolDescriptor[], dataStream: Stream.Readable): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            poolDescriptor.forEach((e) => e.fileName = this.contentFileName(e.fileName))
+
+            let writeStream = new ShaPoolStream(poolDescriptor)
+
+            dataStream.pipe(writeStream)
+
+            writeStream.on('error', (err) => {
+                log.err('error receiving stream !')
+                reject(err)
+            })
+
+            writeStream.on('finish', () => {
+                log.dbg(`stream finished !`)
+                resolve(true)
+            })
+        })
+    }
+
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
         return new Promise<Buffer>((resolve, reject) => {
             if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
@@ -227,5 +254,58 @@ export class ObjectRepository {
         if (!fs.existsSync(directory))
             fs.mkdirSync(directory);
         return fsPath.join(this.rootPath, prefix, `${sha}`);
+    }
+}
+
+class ShaPoolStream extends Stream.Writable {
+    private fd = null
+    private offset
+    private size
+
+    constructor(private poolDesc: ShaPoolDescriptor[]) {
+        super()
+    }
+
+    async _write(chunk: Buffer, encoding: string, callback: Function) {
+        let offsetInChunk = 0
+
+        while (true) {
+            if (this.fd && this.offset == this.size) {
+                fs.closeSync(this.fd)
+                this.fd = null
+                this.offset = 0
+                this.size = 0
+            }
+
+            if (offsetInChunk >= chunk.length)
+                break
+
+            if (this.fd == null) {
+                let desc = this.poolDesc.shift()
+
+                let fd = await FsTools.openFile(desc.fileName, 'a')
+                this.offset = desc.offset
+                this.size = desc.offset + desc.size
+            }
+
+            let length = chunk.length - offsetInChunk
+            // TODO check que ce n'est pas trop
+            await this.writeFile(this.fd, chunk, offsetInChunk, length, this.offset)
+            offsetInChunk += length
+            this.offset += length
+        }
+
+        callback()
+    }
+
+    private async writeFile(fd, buffer: Buffer, offsetInSource: number, length, offsetInFile): Promise<number> {
+        return new Promise<number>((resolver, rejecter) => {
+            fs.write(fd, buffer, offsetInSource, length, offsetInFile, (err, written, buffer) => {
+                if (err)
+                    rejecter(err)
+                else
+                    resolver(written)
+            })
+        })
     }
 }

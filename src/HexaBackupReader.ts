@@ -27,6 +27,35 @@ export class HexaBackupReader {
         this.shaCache = new ShaCache(cachePath);
     }
 
+    private createPoolDescription(batch: Model.FileDescriptor[], currentSizes: { [sha: string]: number }): Model.ShaPoolDescriptor[] {
+        let res = [];
+        for (let k in batch) {
+            let fileDesc = batch[k]
+            try {
+                if (fileDesc.isDirectory)
+                    continue
+
+                let fullFileName = fsPath.join(this.rootPath, fileDesc.name)
+
+                let currentSize = currentSizes[fileDesc.contentSha] || 0
+                let fileSize = fs.lstatSync(fullFileName).size
+
+                if (fileSize > currentSize) {
+                    res.push({
+                        fileName: fileDesc.name,
+                        sha: fileDesc.contentSha,
+                        offset: currentSize,
+                        size: fileSize - currentSize
+                    })
+                }
+            }
+            catch (error) {
+                log.err(`error processing ${fileDesc.name} : ${error}`)
+            }
+        }
+        return res
+    }
+
     async sendSnapshotToStore(store: IHexaBackupStore) {
         log(`sending directory snapshot ${this.rootPath}`);
 
@@ -37,17 +66,10 @@ export class HexaBackupReader {
         let workPool = new WorkPool<Model.FileDescriptor>(50, async (batch) => {
             let currentSizes = await store.hasShaBytes(batch.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
 
-            // push Objects : transactionId, list<sha, offset>, dataStream
+            let poolDesc = this.createPoolDescription(batch, currentSizes)
+            let dataStream = new ShasDataStream(poolDesc, this.rootPath)
 
-            for (let k in batch) {
-                let fileDesc = batch[k]
-                try {
-                    await this.processFileDesc(store, transactionId, fileDesc, currentSizes)
-                }
-                catch (error) {
-                    log.err(`error processing ${fileDesc.name} : ${error}`)
-                }
-            }
+            await store.putShasBytesStream(poolDesc, dataStream)
 
             let pushResult = await store.pushFileDescriptors(this.clientId, transactionId, batch)
             let nbError = 0
@@ -79,7 +101,7 @@ export class HexaBackupReader {
         log('snapshot sent.');
     }
 
-    private async processFileDesc(store: IHexaBackupStore, transactionId, fileDesc: Model.FileDescriptor, currentSizes: { [sha: string]: number }) {
+    private async processFileDesc(store: IHexaBackupStore, fileDesc: Model.FileDescriptor, currentSizes: { [sha: string]: number }) {
         if (fileDesc.isDirectory)
             return
 
@@ -138,22 +160,33 @@ export class HexaBackupReader {
     }
 }
 
-class FileStream extends Stream.Readable {
+class ShasDataStream extends Stream.Readable {
     private fd
+    private offset
 
-    constructor(private fullFileName: string, private offset: number) {
+    constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string) {
         super()
     }
 
     async _read(size: number) {
-        if (this.fd == null)
-            this.fd = await FsTools.openFile(this.fullFileName, 'r')
+        if (this.fd == null) {
+            if (this.poolDesc.length == 0) {
+                this.push(null)
+                return
+            }
+
+            let fileDesc = this.poolDesc.shift()
+
+            let fullFileName = fsPath.join(this.rootPath, fileDesc.fileName)
+            this.fd = await FsTools.openFile(fullFileName, 'r')
+        }
 
         let buffer = await FsTools.readFile(this.fd, this.offset, 65536)
 
         if (buffer == null || buffer.length == 0) {
             this.push(null)
             await FsTools.closeFile(this.fd)
+            this.fd = null
         }
         else {
             this.push(buffer)

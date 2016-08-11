@@ -10,10 +10,6 @@ export interface DirectoryDescriptor {
     files: FileDescriptor[];
 }
 
-
-
-
-
 export interface SourceState {
     currentTransactionId: string;
     currentTransactionContent: { [key: string]: FileDescriptor };
@@ -24,4 +20,11 @@ export interface Commit {
     parentSha: string;
     commitDate: number;
     directoryDescriptorSha: string;
+}
+
+export interface ShaPoolDescriptor {
+    fileName: string;
+    sha: string;
+    offset: number;
+    size: number;
 }
