@@ -16,14 +16,25 @@ export class RPCServer {
         let server = Net.createServer((socket) => {
             log('client connected')
 
-            let openedStreams = {}
+            let openedStreams: { [key: number]: StreamStub } = {}
+
+            function cleanStreams() {
+                for (let i in openedStreams)
+                    try {
+                        openedStreams[i].receivedError("connection clean-up")
+                    }
+                    catch (e) { }
+                openedStreams = {}
+            }
 
             socket.on('close', () => {
                 log('client disconnected')
+                cleanStreams()
+            })
 
-                for (let i in openedStreams)
-                    openedStreams[i].receivedError("CLOSING!")
-                openedStreams = {}
+            socket.on('error', (error) => {
+                log(`client connection error ${error}`)
+                cleanStreams()
             })
 
             socketDataToMessage(socket)
@@ -187,35 +198,36 @@ export class RPCClient {
                         let callId = response[1]
                         let callInfo = this.callInfos[callId]
 
+                        let wasPaused = callInfo.streamPaused
                         callInfo.streamPaused = false
 
                         if (callInfo.streamOpened) {
-                            callInfo.stream.resume()
+                            if (wasPaused)
+                                callInfo.stream.resume()
                         }
                         else {
                             callInfo.streamOpened = true
 
-                            log('open stream');
-
-                            callInfo.stream.on('drain', () => {
-                                //log.dbg('drain')
-                                //callInfo.stream.pause()
-                            })
+                            log.dbg('open stream')
 
                             callInfo.stream.on('data', (chunk) => {
                                 log.dbg(`received chunk ${chunk.length}`)
 
                                 let payload = Serialization.serialize([RPC_MSG_STREAM_CHUNK, callId, chunk], null)
+
                                 let res = socketWrite(this.socket, payload, () => {
-                                    log(`sent data through net ${payload.length}`)
-                                    //if (!callInfo.streamPaused)
-                                    //    callInfo.stream.resume()
+                                    log.dbg(`sent data through net ${payload.length}`)
+
+                                    if (!callInfo.streamPaused) {
+                                        callInfo.stream.resume()
+                                    }
                                 })
 
-                                if (!res)
-                                    log('saturation RESEAU !!!!')
+                                if (!res) {
+                                    log.dbg('saturation RESEAU !!!!')
 
-                                callInfo.stream.pause()
+                                    callInfo.stream.pause()
+                                }
                             })
 
                             callInfo.stream.on('error', (error) => {
@@ -286,9 +298,7 @@ export class RPCClient {
                                 streamOpened: false,
                                 streamPaused: false,
                                 socketWriter: stream ? new SocketWriter(that.socket, callId) : null
-                            };
-
-                            log(`typeof payload: ${typeof payload}`)
+                            }
 
                             socketWrite(that.socket, payload);
                         }

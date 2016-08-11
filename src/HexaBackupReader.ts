@@ -18,7 +18,8 @@ const log = require('./Logger')('HexaBackupReader');
 export class HexaBackupReader {
     private rootPath: string;
     private shaCache: ShaCache;
-    private ignoredNames = ['.hb-cache', '.git', '.metadata'];
+    private ignoredNames = ['.hb-cache', '.git', '.metadata']
+    private _gauge: any = null
 
     constructor(rootPath: string, private clientId: string) {
         this.rootPath = fsPath.resolve(rootPath);
@@ -43,7 +44,7 @@ export class HexaBackupReader {
                     await this.processFileDesc(store, transactionId, fileDesc, currentSizes)
                 }
                 catch (error) {
-                    log.err(`error reading or pushing ${fileDesc.name} : ${error}`)
+                    log.err(`error processing ${fileDesc.name} : ${error}`)
                 }
             }
 
@@ -64,6 +65,8 @@ export class HexaBackupReader {
         })
 
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames)
+
+        this.gauge().show(`listing and hashing files...`, 0)
 
         await directoryLister.readDir(async (fileDesc) => await workPool.addWork(fileDesc))
 
@@ -88,25 +91,20 @@ export class HexaBackupReader {
         if (currentSize < stat.size) {
             log.dbg(`pushing data file '${fullFileName}', pos=${currentSize}...`)
 
-            let fileStream = (<any>fs).createReadStream(fullFileName, { flags: 'r', start: currentSize, bufferSize: 1 })
-            let tranferred = 0;
+            this.gauge().show(`sending ${fileDesc.name}`, 0)
 
-            //let fileStream = new FileStream(fullFileName, currentSize)
+            let fileStream = (<any>fs).createReadStream(fullFileName, { flags: 'r', start: currentSize, bufferSize: 1 })
+            let tranferred = 0
 
             let str = progress({
                 length: stat.size,
                 transferred: currentSize,
                 time: 1000
-            });
+            })
 
-            let gauge = null
             let startTime = Date.now()
 
-            str.on('progress', function (progress) {
-                if (gauge == null)
-                    gauge = new Gauge()
-                gauge.show(`${fullFileName} ${fileDesc.name} - ${progress.transferred} of ${stat.size} - ${((progress.transferred - currentSize) / (Date.now() - startTime)).toFixed(2)} kb/s`, progress.transferred / stat.size)
-            })
+            str.on('progress', (progress) => this.gauge().show(`${fullFileName} - ${progress.transferred} of ${stat.size} - ${((progress.transferred - currentSize) / (Date.now() - startTime)).toFixed(2)} kb/s`, progress.transferred / stat.size))
 
             /*let backup = fileStream.on
             fileStream.on = (name, callback) => {
@@ -123,13 +121,23 @@ export class HexaBackupReader {
 
             let ok = await store.putShaBytesStream(fileDesc.contentSha, currentSize, fileStream.pipe(str))
 
-            if (gauge)
-                gauge.hide()
+            this.hideGauge()
 
             log.dbg(`done sending file.`)
 
             currentSizes[fileDesc.contentSha] = fileDesc.size
         }
+    }
+
+    private hideGauge() {
+        if (this._gauge)
+            this._gauge.hide()
+    }
+
+    private gauge() {
+        if (this._gauge == null)
+            this._gauge = new Gauge()
+        return this._gauge
     }
 }
 

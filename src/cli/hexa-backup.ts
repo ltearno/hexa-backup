@@ -284,6 +284,9 @@ class CommandManager {
             return false
         }
 
+        if ('debug' in processed.options)
+            log.conf('dbg', true)
+
         spec.executor(processed.options)
 
         return true

@@ -143,7 +143,13 @@ export class HexaBackupStore implements IHexaBackupStore {
             let saveCommit = true;
             if (clientState.currentCommitSha != null) {
                 let currentCommit: Model.Commit = await this.objectRepository.readObject(clientState.currentCommitSha);
-                if (currentCommit.directoryDescriptorSha == descriptorSha) {
+                if (currentCommit == null) {
+                    log.err(`not found commit ${clientState.currentCommitSha} for closing transaction ${transactionId}, create a new commit`)
+
+                    clientState.currentCommitSha = null
+                    saveCommit = true
+                }
+                else if (currentCommit.directoryDescriptorSha == descriptorSha) {
                     log(`transaction ${transactionId} makes no change, ignoring`);
                     saveCommit = false;
                 }
