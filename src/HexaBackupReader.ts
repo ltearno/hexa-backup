@@ -64,11 +64,16 @@ export class HexaBackupReader {
         log.dbg(`beginning transaction ${transactionId}`);
 
         let workPool = new WorkPool<Model.FileDescriptor>(50, async (batch) => {
-            let currentSizes = await store.hasShaBytes(batch.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
+            let shas = {}
+            batch.forEach((b) => shas[b.contentSha] = b)
+            let uniqueShas = []
+            for (let i in shas)
+                uniqueShas.push(shas[i])
 
-            let poolDesc = this.createPoolDescription(batch, currentSizes)
+            // send the unique shas (just what is needed)
+            let currentSizes = await store.hasShaBytes(uniqueShas.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
+            let poolDesc = this.createPoolDescription(uniqueShas, currentSizes)
             let dataStream = new ShasDataStream(poolDesc, this.rootPath)
-
             await store.putShasBytesStream(poolDesc, dataStream)
 
             let pushResult = await store.pushFileDescriptors(this.clientId, transactionId, batch)
@@ -77,7 +82,7 @@ export class HexaBackupReader {
             for (let sha in pushResult) {
                 let success = pushResult[sha]
                 if (!success) {
-                    log.err(`failed validate sha ${sha}`)
+                    log.err(`failed validate sha ${sha} (${batch.filter((b) => b.contentSha == sha).map((b) => b.name).join(', ')})`)
                     nbError++
                 }
                 else {
@@ -163,33 +168,62 @@ export class HexaBackupReader {
 class ShasDataStream extends Stream.Readable {
     private fd
     private offset
+    private size
 
     constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string) {
         super()
     }
 
     async _read(size: number) {
-        if (this.fd == null) {
-            if (this.poolDesc.length == 0) {
-                this.push(null)
-                return
+        let askedIo = false
+
+        while (!askedIo) {
+            if (this.fd == null) {
+                if (this.poolDesc.length == 0) {
+                    this.push(null)
+                    log.dbg(`finished pool`)
+                    return
+                }
+
+                let fileDesc = this.poolDesc.shift()
+
+                let fullFileName = fsPath.join(this.rootPath, fileDesc.fileName)
+                this.fd = fs.openSync(fullFileName, 'r')
+                this.offset = fileDesc.offset
+                this.size = fileDesc.size
+
+                log.dbg(`read ${fullFileName}`)
             }
 
-            let fileDesc = this.poolDesc.shift()
 
-            let fullFileName = fsPath.join(this.rootPath, fileDesc.fileName)
-            this.fd = await FsTools.openFile(fullFileName, 'r')
-        }
+            try {
+                let length = this.size
+                if (length > 65536)
+                    length = 65536
 
-        let buffer = await FsTools.readFile(this.fd, this.offset, 65536)
+                if (length == 0) {
+                    log.dbg(`close file`)
+                    FsTools.closeFile(this.fd)
+                    this.fd = null
+                }
+                else {
+                    log.dbg(`read ${length} @ ${this.offset}`)
 
-        if (buffer == null || buffer.length == 0) {
-            this.push(null)
-            await FsTools.closeFile(this.fd)
-            this.fd = null
-        }
-        else {
-            this.push(buffer)
+                    askedIo = true
+
+                    let offset = this.offset
+
+                    this.offset += length
+                    this.size -= length
+
+                    let buffer = await FsTools.readFile(this.fd, offset, length)
+
+                    this.push(buffer)
+                }
+            }
+            catch (e) {
+                log.err(`error reading ... error=${e}`)
+            }
         }
     }
 }

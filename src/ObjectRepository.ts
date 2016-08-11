@@ -169,7 +169,7 @@ export class ObjectRepository {
 
     putShasBytesStream(poolDescriptor: ShaPoolDescriptor[], dataStream: Stream.Readable): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
-            poolDescriptor.forEach((e) => e.fileName = this.contentFileName(e.fileName))
+            poolDescriptor.forEach((e) => e.fileName = this.contentFileName(e.sha))
 
             let writeStream = new ShaPoolStream(poolDescriptor)
 
@@ -258,6 +258,7 @@ export class ObjectRepository {
 }
 
 class ShaPoolStream extends Stream.Writable {
+    private desc: ShaPoolDescriptor
     private fd = null
     private offset
     private size
@@ -270,8 +271,15 @@ class ShaPoolStream extends Stream.Writable {
         let offsetInChunk = 0
 
         while (true) {
+            if (this.offset > this.size)
+                log.err(`offset writing sha pool ${this.offset} > ${this.size}`)
+
             if (this.fd && this.offset == this.size) {
                 fs.closeSync(this.fd)
+
+                log(`written sha ${this.desc.sha} on disk`)
+
+                this.desc = null
                 this.fd = null
                 this.offset = 0
                 this.size = 0
@@ -280,16 +288,21 @@ class ShaPoolStream extends Stream.Writable {
             if (offsetInChunk >= chunk.length)
                 break
 
-            if (this.fd == null) {
+            if (!this.fd) {
                 let desc = this.poolDesc.shift()
 
-                let fd = await FsTools.openFile(desc.fileName, 'a')
+                this.desc = desc
+                this.fd = fs.openSync(desc.fileName, 'a')
                 this.offset = desc.offset
                 this.size = desc.offset + desc.size
+
+                log.dbg(`open for writing pool ${desc.fileName}`)
             }
 
             let length = chunk.length - offsetInChunk
-            // TODO check que ce n'est pas trop
+            if (length > this.size)
+                length = this.size
+
             await this.writeFile(this.fd, chunk, offsetInChunk, length, this.offset)
             offsetInChunk += length
             this.offset += length

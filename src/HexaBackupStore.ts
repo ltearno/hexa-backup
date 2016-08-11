@@ -76,6 +76,8 @@ export class HexaBackupStore implements IHexaBackupStore {
     async pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }> {
         let res: { [sha: string]: boolean } = {}
 
+        log(`validating ${descriptors.length} descriptors in transaction ${transactionId}`)
+
         for (let d in descriptors) {
             let fileDesc = descriptors[d]
 
@@ -116,7 +118,7 @@ export class HexaBackupStore implements IHexaBackupStore {
             if (validated) {
                 await this.storeClientState(sourceId, clientState, false)
 
-                log(`received ${fileDesc.name} (${fileDesc.contentSha}) from '${sourceId}'`)
+                log.dbg(`validated ${fileDesc.name} (${fileDesc.contentSha}) from '${sourceId}'`)
 
                 res[fileDesc.contentSha] = true
                 continue
