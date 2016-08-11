@@ -9,6 +9,7 @@ import { IHexaBackupStore } from './HexaBackupStore';
 import * as Model from './Model';
 import { WorkPool } from './WorkPool'
 import * as Stream from 'stream'
+import * as ZLib from 'zlib'
 
 let Gauge = require('gauge');
 
@@ -85,7 +86,8 @@ export class HexaBackupReader {
             let poolDesc = this.createPoolDescription(uniqueShas, currentSizes)
             let dataStream = new ShasDataStream(poolDesc, this.rootPath, status, this.gauge())
 
-            await store.putShasBytesStream(poolDesc, dataStream)
+            let zipped = ZLib.createGzip()
+            await store.putShasBytesStream(poolDesc, dataStream.pipe(zipped))
 
             let pushResult = await store.pushFileDescriptors(this.clientId, transactionId, batch)
             let nbError = 0

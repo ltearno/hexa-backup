@@ -3,6 +3,7 @@ import fsPath = require('path');
 import * as HashTools from './HashTools';
 import * as FsTools from './FsTools';
 import * as Stream from 'stream'
+import * as ZLib from 'zlib'
 
 const log = require('./Logger')('ObjectRepository');
 
@@ -167,13 +168,15 @@ export class ObjectRepository {
         })
     }
 
-    putShasBytesStream(poolDescriptor: ShaPoolDescriptor[], dataStream: Stream.Readable): Promise<boolean> {
+    putShasBytesStream(poolDescriptor: ShaPoolDescriptor[], dataStream: NodeJS.ReadableStream): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
             poolDescriptor.forEach((e) => e.fileName = this.contentFileName(e.sha))
 
             let writeStream = new ShaPoolStream(poolDescriptor)
 
-            dataStream.pipe(writeStream)
+            let unzipped = ZLib.createGunzip()
+
+            dataStream.pipe(unzipped).pipe(writeStream)
 
             writeStream.on('error', (err) => {
                 log.err('error receiving stream !')
@@ -300,8 +303,8 @@ class ShaPoolStream extends Stream.Writable {
             }
 
             let length = chunk.length - offsetInChunk
-            if (length > this.size)
-                length = this.size
+            if (length > this.size - this.offset)
+                length = this.size - this.offset
 
             await this.writeFile(this.fd, chunk, offsetInChunk, length, this.offset)
             offsetInChunk += length
