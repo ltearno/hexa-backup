@@ -63,6 +63,16 @@ export class HexaBackupReader {
 
         log.dbg(`beginning transaction ${transactionId}`);
 
+        let status = {
+            start: Date.now(),
+            nbFiles: 0,
+            nbDirectories: 0,
+            totalBytes: 0,
+            transferredBytes: 0,
+            transferredFiles: 0,
+            currentFile: null
+        }
+
         let workPool = new WorkPool<Model.FileDescriptor>(50, async (batch) => {
             let shas = {}
             batch.forEach((b) => shas[b.contentSha] = b)
@@ -73,7 +83,8 @@ export class HexaBackupReader {
             // send the unique shas (just what is needed)
             let currentSizes = await store.hasShaBytes(uniqueShas.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
             let poolDesc = this.createPoolDescription(uniqueShas, currentSizes)
-            let dataStream = new ShasDataStream(poolDesc, this.rootPath)
+            let dataStream = new ShasDataStream(poolDesc, this.rootPath, status, this.gauge())
+
             await store.putShasBytesStream(poolDesc, dataStream)
 
             let pushResult = await store.pushFileDescriptors(this.clientId, transactionId, batch)
@@ -96,7 +107,16 @@ export class HexaBackupReader {
 
         this.gauge().show(`listing and hashing files...`, 0)
 
-        await directoryLister.readDir(async (fileDesc) => await workPool.addWork(fileDesc))
+        await directoryLister.readDir(async (fileDesc) => {
+            if (fileDesc.isDirectory)
+                status.nbDirectories++
+            else
+                status.nbFiles++
+
+            status.totalBytes += fileDesc.size
+
+            await workPool.addWork(fileDesc)
+        })
 
         await workPool.emptied()
 
@@ -137,6 +157,8 @@ export class HexaBackupReader {
                         let speed = elapsed > 0 ? (transferred - currentSize) / elapsed : 0
                         this.gauge().show(`${fullFileName} - ${transferred} of ${fileSize} - ${speed.toFixed(2)} kb/s`, transferred / fileSize)
 
+                        log(`${fullFileName} - ${transferred} of ${fileSize} - ${speed.toFixed(2)} kb/s`)
+
                         oldCallback(chunk)
                     }
                 }
@@ -165,17 +187,30 @@ export class HexaBackupReader {
     }
 }
 
+let lastGauge = 0
+
 class ShasDataStream extends Stream.Readable {
     private fd
     private offset
     private size
 
-    constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string) {
+    constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string, private status: any, private gauge) {
         super()
     }
 
     async _read(size: number) {
         let askedIo = false
+
+        let now = Date.now()
+        if (now > lastGauge + 1000) {
+            lastGauge = now
+
+            let elapsed = now - this.status.start
+            let speed = elapsed > 0 ? this.status.transferredBytes / elapsed : 0
+            let s = `${this.status.nbDirectories} directories, ${this.status.transferredFiles}/${this.status.nbFiles} files, ${this.status.transferredBytes}/${this.status.totalBytes} bytes - ${speed.toFixed(2)} kb/s - current file: ${this.status.currentFile ? this.status.currentFile.fileName : '-'}`
+
+            this.gauge.show(s, this.status.transferredBytes / this.status.totalBytes)
+        }
 
         while (!askedIo) {
             if (this.fd == null) {
@@ -192,6 +227,8 @@ class ShasDataStream extends Stream.Readable {
                 this.offset = fileDesc.offset
                 this.size = fileDesc.size
 
+                this.status.currentFile = fileDesc
+
                 log.dbg(`read ${fullFileName}`)
             }
 
@@ -205,6 +242,9 @@ class ShasDataStream extends Stream.Readable {
                     log.dbg(`close file`)
                     FsTools.closeFile(this.fd)
                     this.fd = null
+
+                    this.status.transferredFiles++
+                    this.status.currentFile = null
                 }
                 else {
                     log.dbg(`read ${length} @ ${this.offset}`)
@@ -215,6 +255,8 @@ class ShasDataStream extends Stream.Readable {
 
                     this.offset += length
                     this.size -= length
+
+                    this.status.transferredBytes += length
 
                     let buffer = await FsTools.readFile(this.fd, offset, length)
 
