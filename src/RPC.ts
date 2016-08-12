@@ -344,6 +344,9 @@ function socketDataToMessage(socket: Net.Socket) {
     let currentMessage: Buffer = null
     let currentMessageBytesToFill = 0
 
+    let counterBuffer = new Buffer(4)
+    let counterBufferOffset = 0
+
     socket.on('data', (chunk: Buffer) => {
         let offsetInSource = 0
 
@@ -357,13 +360,23 @@ function socketDataToMessage(socket: Net.Socket) {
                 break
 
             if (currentMessageBytesToFill === 0) {
-                // get length
-                currentMessageBytesToFill = chunk.readInt32LE(offsetInSource)
-                offsetInSource += 4
+                let counterLength = 4 - counterBufferOffset
+                if (chunk.length - offsetInSource < counterLength)
+                    counterLength = chunk.length - offsetInSource
 
-                // allocate next buffer
-                currentMessage = new Buffer(currentMessageBytesToFill)
-                currentMessage.fill(0xcd)
+                chunk.copy(counterBuffer, counterBufferOffset, offsetInSource, offsetInSource + counterLength)
+                counterBufferOffset += counterLength
+                offsetInSource += counterLength
+
+                if (counterBufferOffset == 4) {
+                    // get length
+                    currentMessageBytesToFill = counterBuffer.readInt32LE(0)
+                    counterBufferOffset = 0
+
+                    // allocate next buffer
+                    currentMessage = new Buffer(currentMessageBytesToFill)
+                    currentMessage.fill(0xcd)
+                }
 
                 continue
             }
