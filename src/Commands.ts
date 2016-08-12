@@ -182,11 +182,12 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
     }
 }
 
-export async function push(sourceId, pushedDirectory, storeIp, storePort) {
+export async function push(sourceId, pushedDirectory, storeIp, storePort, useZip: boolean) {
     console.log(`push options :`)
     console.log(`  directory: ${pushedDirectory}`);
     console.log(`  source: ${sourceId}`);
     console.log(`  server: ${storeIp}:${storePort}`);
+    console.log(` use zip: ${useZip}`)
     console.log();
 
     console.log('connecting to remote store...')
@@ -202,7 +203,7 @@ export async function push(sourceId, pushedDirectory, storeIp, storePort) {
         remoteStore = rpcClient.createProxy<IHexaBackupStore>()
     }
     catch (error) {
-        console.log(`[ERROR] cannot connect to server : ${error} !`)
+        console.log(`[ERROR] cannot connect to server : ${error } !`)
         return
     }
 
@@ -210,20 +211,20 @@ export async function push(sourceId, pushedDirectory, storeIp, storePort) {
     let reader = new HexaBackupReader(pushedDirectory, sourceId);
 
     console.log('sending directory snapshot to remote store');
-    await reader.sendSnapshotToStore(remoteStore);
+    await reader.sendSnapshotToStore(remoteStore, useZip);
 
-    console.log(`finished, directory ${pushedDirectory} pushed`);
+    console.log(`finished, directory ${pushedDirectory } pushed`);
 }
 
 export async function store(directory, port) {
-    console.log(`preparing store in ${directory}`);
+    console.log(`preparing store in ${directory }`);
     let store = new HexaBackupStore(directory);
 
     console.log('server intialisation');
     let rpcServer = new RPCServer();
     rpcServer.listen(port, store);
 
-    console.log(`ready on port ${port} !`);
+    console.log(`ready on port ${port } !`);
 }
 
 async function connectStore(storeIp, storePort) {
@@ -249,12 +250,12 @@ function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor,
             nbFiles++;
     });
 
-    console.log(`${totalSize} bytes in ${nbFiles} files, ${nbDirectories} dirs`);
+    console.log(`${totalSize } bytes in ${nbFiles } files, ${nbDirectories } dirs`);
 
     let emptySha = '                                                                '
 
     directoryDescriptor.files.forEach((fd) => {
         if (!prefix || fd.name.startsWith(prefix))
-            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha}  ${fd.name}`);
+            console.log(`${fd.isDirectory ? '<dir>' : '     ' } ${new Date(fd.lastWrite).toDateString() } ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha } ${fd.name } `);
     });
 }

@@ -168,15 +168,19 @@ export class ObjectRepository {
         })
     }
 
-    putShasBytesStream(poolDescriptor: ShaPoolDescriptor[], dataStream: NodeJS.ReadableStream): Promise<boolean> {
+    putShasBytesStream(poolDescriptor: ShaPoolDescriptor[], useZip: boolean, dataStream: NodeJS.ReadableStream): Promise<boolean> {
+        poolDescriptor = poolDescriptor.slice()
+
         return new Promise<boolean>((resolve, reject) => {
-            poolDescriptor.forEach((e) => e.fileName = this.contentFileName(e.sha))
+            let writeStream = new ShaPoolStream(poolDescriptor, (sha) => this.contentFileName(sha))
 
-            let writeStream = new ShaPoolStream(poolDescriptor)
+            if (useZip) {
+                let unzipped = ZLib.createGunzip()
 
-            let unzipped = ZLib.createGunzip()
+                dataStream = dataStream.pipe(unzipped)
+            }
 
-            dataStream.pipe(unzipped).pipe(writeStream)
+            dataStream.pipe(writeStream)
 
             writeStream.on('error', (err) => {
                 log.err('error receiving stream !')
@@ -266,7 +270,7 @@ class ShaPoolStream extends Stream.Writable {
     private offset
     private size
 
-    constructor(private poolDesc: ShaPoolDescriptor[]) {
+    constructor(private poolDesc: ShaPoolDescriptor[], private fileNamer: (sha: string) => string) {
         super()
     }
 
@@ -294,12 +298,14 @@ class ShaPoolStream extends Stream.Writable {
             if (!this.fd) {
                 let desc = this.poolDesc.shift()
 
+                let fileName = this.fileNamer(desc.sha)
+
                 this.desc = desc
-                this.fd = fs.openSync(desc.fileName, 'a')
+                this.fd = fs.openSync(fileName, 'a')
                 this.offset = desc.offset
                 this.size = desc.offset + desc.size
 
-                log.dbg(`open for writing pool ${desc.fileName}`)
+                log.dbg(`open for writing pool ${fileName}`)
             }
 
             let length = chunk.length - offsetInChunk

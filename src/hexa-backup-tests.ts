@@ -100,20 +100,26 @@ async function runb() {
 }
 
 async function runa() {
-    console.log("Test load for Hexa-Backup !");
+    try {
+        console.log("Test load for Hexa-Backup !");
 
-    let backupedDirectory = `D:\\Tmp\\Conseils d'Annelise pour la prochaine AG`;
-    //let backupedDirectory = `D:\\Documents`;
+        let backupedDirectory = `C:\\Tmp\\AnaisFairePart`;
+        //let backupedDirectory = `D:\\Documents`;
 
-    let reader = new HexaBackupReader(backupedDirectory, 'pc-arnaud');
-    //let desc = await reader.readDirectoryState();
-    //console.log(`descriptor: ${JSON.stringify(desc)}`);
+        let reader = new HexaBackupReader(backupedDirectory, 'pc-arnaud');
+        //let desc = await reader.readDirectoryState();
+        //console.log(`descriptor: ${JSON.stringify(desc)}`);
 
-    let store = new HexaBackupStore(`D:\\Tmp\\HexaBackupStore`);
+        let store = new HexaBackupStore(`C:\\Tmp\\HexaBackupStore`);
 
-    await reader.sendSnapshotToStore(store);
+        console.log('sending');
+        await reader.sendSnapshotToStore(store, true);
 
-    console.log('finish');
+        console.log('finish');
+    }
+    catch (e) {
+        log.err(`uncaught exception: ${e}`)
+    }
 }
 
 async function old() {
@@ -131,4 +137,4 @@ async function old() {
     console.log(`picture sha : ${shaContent}`);*/
 }
 
-run();
+runa();

@@ -102,11 +102,10 @@
             "name": "Test",
             "type": "node",
             "request": "launch",
-            "program": "${workspaceRoot}/target/cli/hexa-backup.js",
+            "program": "${workspaceRoot}/target/hexa-backup-tests.js",
             "stopOnEntry": false,
             "args": [
-                "--debug",
-                "push"
+                "--debug"
             ],
             "cwd": "C:\\tmp",
             "preLaunchTask": null,

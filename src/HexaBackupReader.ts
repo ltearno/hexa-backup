@@ -24,6 +24,18 @@ export class HexaBackupReader {
     constructor(rootPath: string, private clientId: string) {
         this.rootPath = fsPath.resolve(rootPath);
 
+        let ok = true
+        try {
+            ok = fs.existsSync(this.rootPath)
+        }
+        catch (e) {
+            log.err(`exception: ${e}`)
+        }
+        if (!ok) {
+            log.err(`the path ${this.rootPath} does not exist !`)
+            throw `the path ${this.rootPath} does not exist !`
+        }
+
         let cachePath = fsPath.join(this.rootPath, '.hb-cache');
         this.shaCache = new ShaCache(cachePath);
     }
@@ -57,7 +69,7 @@ export class HexaBackupReader {
         return res
     }
 
-    async sendSnapshotToStore(store: IHexaBackupStore) {
+    async sendSnapshotToStore(store: IHexaBackupStore, useZip: boolean) {
         log(`sending directory snapshot ${this.rootPath}`);
 
         let transactionId = await store.startOrContinueSnapshotTransaction(this.clientId);
@@ -81,13 +93,16 @@ export class HexaBackupReader {
             for (let i in shas)
                 uniqueShas.push(shas[i])
 
-            // send the unique shas (just what is needed)
             let currentSizes = await store.hasShaBytes(uniqueShas.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
             let poolDesc = this.createPoolDescription(uniqueShas, currentSizes)
-            let dataStream = new ShasDataStream(poolDesc, this.rootPath, status, this.gauge())
+            let dataStream: NodeJS.ReadableStream = new ShasDataStream(poolDesc, this.rootPath, status, this.gauge())
 
-            let zipped = ZLib.createGzip()
-            await store.putShasBytesStream(poolDesc, dataStream.pipe(zipped))
+            if (useZip) {
+                let zipped = ZLib.createGzip()
+                dataStream = dataStream.pipe(zipped)
+            }
+
+            await store.putShasBytesStream(poolDesc, useZip, dataStream)
 
             let pushResult = await store.pushFileDescriptors(this.clientId, transactionId, batch)
             let nbError = 0
@@ -126,55 +141,6 @@ export class HexaBackupReader {
         await store.commitTransaction(this.clientId, transactionId);
 
         log('snapshot sent.');
-    }
-
-    private async processFileDesc(store: IHexaBackupStore, fileDesc: Model.FileDescriptor, currentSizes: { [sha: string]: number }) {
-        if (fileDesc.isDirectory)
-            return
-
-        let fullFileName = fsPath.join(this.rootPath, fileDesc.name)
-
-        let currentSize = currentSizes[fileDesc.contentSha] || 0
-        let fileSize = fs.lstatSync(fullFileName).size
-        let sent = 0
-
-        if (currentSize < fileSize) {
-            log.dbg(`pushing data file '${fullFileName}', pos=${currentSize}...`)
-
-            //this.gauge().show(`sending ${fileDesc.name}`, 0)
-
-            let fileStream = (<any>fs).createReadStream(fullFileName, { flags: 'r', start: currentSize, bufferSize: 1 })
-            let transferred = currentSize
-
-            let startTime = Date.now()
-
-            let backup = fileStream.on
-            fileStream.on = (name, callback) => {
-                if (name == 'data') {
-                    let oldCallback = callback
-                    callback = (chunk) => {
-                        transferred += chunk ? chunk.length : 0
-
-                        let elapsed = Date.now() - startTime
-                        let speed = elapsed > 0 ? (transferred - currentSize) / elapsed : 0
-                        this.gauge().show(`${fullFileName} - ${transferred} of ${fileSize} - ${speed.toFixed(2)} kb/s`, transferred / fileSize)
-
-                        log(`${fullFileName} - ${transferred} of ${fileSize} - ${speed.toFixed(2)} kb/s`)
-
-                        oldCallback(chunk)
-                    }
-                }
-                backup.apply(fileStream, [name, callback])
-            }
-
-            let ok = await store.putShaBytesStream(fileDesc.contentSha, currentSize, fileStream)
-
-            this.hideGauge()
-
-            log.dbg(`done sending file.`)
-
-            currentSizes[fileDesc.contentSha] = fileDesc.size
-        }
     }
 
     private hideGauge() {
@@ -224,14 +190,15 @@ class ShasDataStream extends Stream.Readable {
 
                 let fileDesc = this.poolDesc.shift()
 
-                let fullFileName = fsPath.join(this.rootPath, fileDesc.fileName)
-                this.fd = fs.openSync(fullFileName, 'r')
+                let fileName = fsPath.join(this.rootPath, fileDesc.fileName)
+
+                this.fd = fs.openSync(fileName, 'r')
                 this.offset = fileDesc.offset
                 this.size = fileDesc.size
 
                 this.status.currentFile = fileDesc
 
-                log.dbg(`read ${fullFileName}`)
+                log.dbg(`read ${fileName}`)
             }
 
 
