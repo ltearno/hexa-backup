@@ -98,7 +98,10 @@ export class HexaBackupReader {
             let dataStream: NodeJS.ReadableStream = new ShasDataStream(poolDesc, this.rootPath, status, this.gauge())
 
             if (useZip) {
-                let zipped = ZLib.createGzip()
+                let zipped = ZLib.createGzip({
+                    memLevel: 9,
+                    level: 9
+                })
                 dataStream = dataStream.pipe(zipped)
             }
 
