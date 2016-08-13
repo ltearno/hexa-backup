@@ -80,7 +80,7 @@ export class HexaBackupReader {
         let lastGauge = 0
 
         let status = {
-            start: Date.now(),
+            start: null,
             nbFiles: 0,
             nbDirectories: 0,
             totalBytes: 0,
@@ -96,32 +96,37 @@ export class HexaBackupReader {
                 if (now > lastGauge + 1000) {
                     lastGauge = now
 
-                    let elapsed = now - status.start
-                    let dataTranferSpeed = elapsed > 0 ? status.dataTransferredBytes / elapsed : 0
-                    let networkTranferSpeed = elapsed > 0 ? status.networkTransferredBytes / elapsed : 0
+                    let s = `${status.nbDirectories} directories, ${status.transferredFiles}/${status.nbFiles} files, ${FileSize(status.transferredBytes, { base: 10 })}/${FileSize(status.totalBytes, { base: 10 })}`
 
-                    let eta = '-'
-                    let rest = (status.totalBytes - status.transferredBytes) / 1000
-                    if (dataTranferSpeed > 0 && rest > 0) {
-                        let etaSecond = rest / dataTranferSpeed
-                        eta = `${etaSecond.toFixed(0)} second(s)`
-                        if (etaSecond > 60) {
-                            let etaMinute = etaSecond / 60
-                            eta = `${etaMinute.toFixed(0)} minute(s)`
-                            if (etaMinute > 60) {
-                                let etaHour = etaMinute / 60
-                                eta = `${etaHour.toFixed(2)} hours`
-                                if (etaHour > 24) {
-                                    let etaDay = etaHour / 24
-                                    eta = `${etaDay.toFixed(2)} days`
+                    if (status.start) {
+                        let elapsed = now - status.start
+                        let dataTranferSpeed = elapsed > 0 ? status.dataTransferredBytes / elapsed : 0
+                        let networkTranferSpeed = elapsed > 0 ? status.networkTransferredBytes / elapsed : 0
+
+                        let eta = '-'
+                        let rest = (status.totalBytes - status.transferredBytes) / 1000
+                        if (dataTranferSpeed > 0 && rest > 0) {
+                            let etaSecond = rest / dataTranferSpeed
+                            eta = `${etaSecond.toFixed(0)} second(s)`
+                            if (etaSecond > 60) {
+                                let etaMinute = etaSecond / 60
+                                eta = `${etaMinute.toFixed(0)} minute(s)`
+                                if (etaMinute > 60) {
+                                    let etaHour = etaMinute / 60
+                                    eta = `${etaHour.toFixed(2)} hours`
+                                    if (etaHour > 24) {
+                                        let etaDay = etaHour / 24
+                                        eta = `${etaDay.toFixed(2)} days`
+                                    }
                                 }
                             }
                         }
+
+                        s += ` - data speed: ${dataTranferSpeed.toFixed(2)} kb/s - network speed: ${networkTranferSpeed.toFixed(2)} kb/s - ETA: ${eta}`
                     }
 
-                    let s = `${status.nbDirectories} directories, ${status.transferredFiles}/${status.nbFiles} files, ${FileSize(status.transferredBytes, { base: 10 })}/${FileSize(status.totalBytes, { base: 10 })} - data speed: ${dataTranferSpeed.toFixed(2)} kb/s - network speed: ${networkTranferSpeed.toFixed(2)} kb/s - ETA: ${eta}`
-
-                    s += ' - ' + text
+                    if (text)
+                        s += ' - ' + text
 
                     if (status.lastSentFile)
                         s += ` - last sent file: ${status.lastSentFile.fileName}`
@@ -173,6 +178,9 @@ export class HexaBackupReader {
                 if (name == 'data') {
                     let oldCallback = callback
                     callback = (chunk) => {
+                        if (status.start == null)
+                            status.start = Date.now()
+
                         status.networkTransferredBytes += chunk ? chunk.length : 0
 
                         status.show(`network transfer`)
