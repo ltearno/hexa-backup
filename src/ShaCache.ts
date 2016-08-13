@@ -37,7 +37,7 @@ export class ShaCache {
             if (!fsPath.isAbsolute(fullFileName))
                 throw "path should be absolute";
 
-            let stat = fs.lstatSync(fullFileName);
+            let stat = fs.statSync(fullFileName);
 
             if (fullFileName in this.cache) {
                 let cacheInfo = this.cache[fullFileName];

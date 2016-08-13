@@ -12,7 +12,8 @@
   "author": "Arnaud Tournier",
   "dependencies": {
     "colors": "1.1.2",
-    "gauge": "2.5.0"
+    "gauge": "2.5.0",
+    "filesize": "3.3.0"
   },
   "devDependencies": {
     "typescript": "1.8.10"

@@ -12,6 +12,7 @@ import * as Stream from 'stream'
 import * as ZLib from 'zlib'
 
 let Gauge = require('gauge');
+let FileSize = require('filesize')
 
 const log = require('./Logger')('HexaBackupReader');
 
@@ -51,7 +52,7 @@ export class HexaBackupReader {
                 let fullFileName = fsPath.join(this.rootPath, fileDesc.name)
 
                 let currentSize = currentSizes[fileDesc.contentSha] || 0
-                let fileSize = fs.lstatSync(fullFileName).size
+                let fileSize = fs.statSync(fullFileName).size
 
                 if (fileSize > currentSize) {
                     res.push({
@@ -86,7 +87,21 @@ export class HexaBackupReader {
             currentFile: null
         }
 
-        let workPool = new WorkPool<Model.FileDescriptor>(50, async (batch) => {
+        let poolWorker = async (batch) => {
+            log(`beginning work pool of ${batch.length} items, hashing...`)
+
+            for (let i in batch) {
+                let b = batch[i]
+                if (!b.isDirectory) {
+                    let fileName = fsPath.join(this.rootPath, b.name)
+                    // TODO show progress
+                    let sha = await this.shaCache.hashFile(fileName)
+                    b.contentSha = sha
+                }
+            }
+
+            log(`beginning work pool transfer`)
+
             let shas = {}
             batch.forEach((b) => shas[b.contentSha] = b)
             let uniqueShas = []
@@ -121,12 +136,15 @@ export class HexaBackupReader {
                 }
             }
             log.dbg(`validated ${nbSuccess} files on remote store`)
-        })
+        }
 
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames)
 
-        this.gauge().show(`listing and hashing files...`, 0)
+        this.gauge().show(`listing files...`, 0)
 
+        let filesList = []
+
+        let lastNb = 0
         await directoryLister.readDir(async (fileDesc) => {
             if (fileDesc.isDirectory)
                 status.nbDirectories++
@@ -135,10 +153,25 @@ export class HexaBackupReader {
 
             status.totalBytes += fileDesc.size
 
-            await workPool.addWork(fileDesc)
+            filesList.push(fileDesc)
+            if (lastNb < status.nbFiles + 100) {
+                lastNb = status.nbFiles
+                this.gauge().show(`listing files ${status.nbDirectories} directories and ${status.nbFiles} files, total: ${FileSize(status.totalBytes, { base: 10 })}`)
+            }
         })
 
-        await workPool.emptied()
+        while (filesList.length > 0) {
+            let currentPool = []
+            let currentPoolFileSize = 0
+            while (filesList.length > 0 && currentPoolFileSize < 1024 * 1024 * 5) {
+                let desc = filesList.shift()
+                currentPool.push(desc)
+                currentPoolFileSize += desc.size
+            }
+
+            if (currentPool.length > 0)
+                await poolWorker(currentPool)
+        }
 
         log(`commit transaction ${this.clientId}::${transactionId}`);
         await store.commitTransaction(this.clientId, transactionId);
@@ -165,6 +198,9 @@ class ShasDataStream extends Stream.Readable {
     private offset
     private size
 
+    private poolStart = null
+    private poolTransferred = 0
+
     constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string, private status: any, private gauge) {
         super()
     }
@@ -172,13 +208,20 @@ class ShasDataStream extends Stream.Readable {
     async _read(size: number) {
         let askedIo = false
 
+        if (this.poolStart == null)
+            this.poolStart = Date.now()
+
         let now = Date.now()
         if (now > lastGauge + 1000) {
             lastGauge = now
 
             let elapsed = now - this.status.start
             let speed = elapsed > 0 ? this.status.transferredBytes / elapsed : 0
-            let s = `${this.status.nbDirectories} directories, ${this.status.transferredFiles}/${this.status.nbFiles} files, ${this.status.transferredBytes}/${this.status.totalBytes} bytes - ${speed.toFixed(2)} kb/s - current file: ${this.status.currentFile ? this.status.currentFile.fileName : '-'}`
+
+            let poolElapsed = now - this.poolStart
+            let poolSpeed = poolElapsed > 0 ? this.poolTransferred / poolElapsed : 0
+
+            let s = `${this.status.nbDirectories} directories, ${this.status.transferredFiles}/${this.status.nbFiles} files, ${FileSize(this.status.transferredBytes, { base: 10 })}/${FileSize(this.status.totalBytes, { base: 10 })} - current pool: ${poolSpeed.toFixed(2)} kb/s - global: ${speed.toFixed(2)} kb/s - current file: ${this.status.currentFile ? this.status.currentFile.fileName : '-'}`
 
             this.gauge.show(s, this.status.transferredBytes / this.status.totalBytes)
         }
@@ -229,6 +272,7 @@ class ShasDataStream extends Stream.Readable {
                     this.size -= length
 
                     this.status.transferredBytes += length
+                    this.poolTransferred += length
 
                     let buffer = await FsTools.readFile(this.fd, offset, length)
 
@@ -258,7 +302,7 @@ class DirectoryLister {
                     continue;
 
                 let fullFileName = fsPath.join(currentPath, fileName);
-                let stat = fs.lstatSync(fullFileName);
+                let stat = fs.statSync(fullFileName);
 
                 let desc = {
                     name: fsPath.relative(this.path, fullFileName),
@@ -272,8 +316,6 @@ class DirectoryLister {
                     stack.push(fullFileName);
                 }
                 else {
-                    let sha = await this.shaCache.hashFile(fullFileName);
-                    desc.contentSha = sha;
                     desc.size = stat.size;
                 }
 

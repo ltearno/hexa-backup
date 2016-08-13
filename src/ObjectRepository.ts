@@ -128,7 +128,7 @@ export class ObjectRepository {
                             return
                         }
 
-                        let totalSize = fs.lstatSync(contentFileName).size
+                        let totalSize = fs.statSync(contentFileName).size
                         if (totalSize != (offset + data.byteLength))
                             log.err(`inconsistent object file size : ${totalSize} != (${offset} + ${data.byteLength})`)
 
@@ -237,7 +237,7 @@ export class ObjectRepository {
             try {
                 let contentFileName = this.contentFileName(contentSha)
                 let storedContentSha = await HashTools.hashFile(contentFileName)
-                let stat = fs.lstatSync(contentFileName)
+                let stat = fs.statSync(contentFileName)
                 if (storedContentSha == contentSha && contentSize == stat.size) {
                     resolve(true)
                 }
