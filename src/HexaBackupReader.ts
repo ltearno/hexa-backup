@@ -77,30 +77,57 @@ export class HexaBackupReader {
 
         log.dbg(`beginning transaction ${transactionId}`);
 
+        let lastGauge = 0
+
         let status = {
             start: Date.now(),
             nbFiles: 0,
             nbDirectories: 0,
             totalBytes: 0,
             transferredBytes: 0,
+            dataTransferredBytes: 0,
+            networkTransferredBytes: 0,
             transferredFiles: 0,
-            currentFile: null
+            currentFile: null,
+
+            show: (text) => {
+                let now = Date.now()
+
+                if (now > lastGauge + 1000) {
+                    lastGauge = now
+
+                    let elapsed = now - status.start
+                    let dataTranferSpeed = elapsed > 0 ? status.dataTransferredBytes / elapsed : 0
+                    let networkTranferSpeed = elapsed > 0 ? status.networkTransferredBytes / elapsed : 0
+
+                    let s = `${status.nbDirectories} directories, ${status.transferredFiles}/${status.nbFiles} files, ${FileSize(status.transferredBytes, { base: 10 })}/${FileSize(status.totalBytes, { base: 10 })} - data speed: ${dataTranferSpeed.toFixed(2)} kb/s - network speed: ${networkTranferSpeed.toFixed(2)} kb/s`
+
+                    s += ' - ' + text
+
+                    if (status.currentFile)
+                        s += ` - current file: ${status.currentFile.fileName}`
+
+                    this.gauge().show(s, status.transferredBytes / status.totalBytes)
+                }
+            }
         }
 
-        let poolWorker = async (batch) => {
-            log(`beginning work pool of ${batch.length} items, hashing...`)
+        let poolWorker = async (batch: Model.FileDescriptor[]) => {
+            status.show(`beginning work pool of ${batch.length} items, hashing...`)
 
             for (let i in batch) {
                 let b = batch[i]
                 if (!b.isDirectory) {
                     let fileName = fsPath.join(this.rootPath, b.name)
-                    // TODO show progress
+
+                    status.show(`hashing ${fileName}`)
+
                     let sha = await this.shaCache.hashFile(fileName)
                     b.contentSha = sha
                 }
             }
 
-            log(`beginning work pool transfer`)
+            status.show(`beginning work pool transfer`)
 
             let shas = {}
             batch.forEach((b) => shas[b.contentSha] = b)
@@ -112,12 +139,29 @@ export class HexaBackupReader {
             let poolDesc = this.createPoolDescription(uniqueShas, currentSizes)
             let dataStream: NodeJS.ReadableStream = new ShasDataStream(poolDesc, this.rootPath, status, this.gauge())
 
+            batch.forEach((i) => status.transferredBytes += currentSizes[i.contentSha] || 0)
+
             if (useZip) {
                 let zipped = ZLib.createGzip({
                     memLevel: 9,
                     level: 9
                 })
                 dataStream = dataStream.pipe(zipped)
+            }
+
+            let backup = dataStream.on
+            dataStream.on = (name, callback: Function): NodeJS.ReadableStream => {
+                if (name == 'data') {
+                    let oldCallback = callback
+                    callback = (chunk) => {
+                        status.networkTransferredBytes += chunk ? chunk.length : 0
+
+                        status.show(`network transfer`)
+
+                        oldCallback(chunk)
+                    }
+                }
+                return backup.apply(dataStream, [name, callback])
             }
 
             await store.putShasBytesStream(poolDesc, useZip, dataStream)
@@ -135,6 +179,9 @@ export class HexaBackupReader {
                     nbSuccess++
                 }
             }
+
+            status.transferredFiles += batch.filter(b => !b.isDirectory).length
+
             log.dbg(`validated ${nbSuccess} files on remote store`)
         }
 
@@ -198,9 +245,6 @@ class ShasDataStream extends Stream.Readable {
     private offset
     private size
 
-    private poolStart = null
-    private poolTransferred = 0
-
     constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string, private status: any, private gauge) {
         super()
     }
@@ -208,23 +252,7 @@ class ShasDataStream extends Stream.Readable {
     async _read(size: number) {
         let askedIo = false
 
-        if (this.poolStart == null)
-            this.poolStart = Date.now()
-
-        let now = Date.now()
-        if (now > lastGauge + 1000) {
-            lastGauge = now
-
-            let elapsed = now - this.status.start
-            let speed = elapsed > 0 ? this.status.transferredBytes / elapsed : 0
-
-            let poolElapsed = now - this.poolStart
-            let poolSpeed = poolElapsed > 0 ? this.poolTransferred / poolElapsed : 0
-
-            let s = `${this.status.nbDirectories} directories, ${this.status.transferredFiles}/${this.status.nbFiles} files, ${FileSize(this.status.transferredBytes, { base: 10 })}/${FileSize(this.status.totalBytes, { base: 10 })} - current pool: ${poolSpeed.toFixed(2)} kb/s - global: ${speed.toFixed(2)} kb/s - current file: ${this.status.currentFile ? this.status.currentFile.fileName : '-'}`
-
-            this.gauge.show(s, this.status.transferredBytes / this.status.totalBytes)
-        }
+        this.status.show(`reading pool`)
 
         while (!askedIo) {
             if (this.fd == null) {
@@ -258,7 +286,6 @@ class ShasDataStream extends Stream.Readable {
                     FsTools.closeFile(this.fd)
                     this.fd = null
 
-                    this.status.transferredFiles++
                     this.status.currentFile = null
                 }
                 else {
@@ -271,10 +298,10 @@ class ShasDataStream extends Stream.Readable {
                     this.offset += length
                     this.size -= length
 
-                    this.status.transferredBytes += length
-                    this.poolTransferred += length
-
                     let buffer = await FsTools.readFile(this.fd, offset, length)
+
+                    this.status.dataTransferredBytes += length
+                    this.status.transferredBytes += length
 
                     this.push(buffer)
                 }
