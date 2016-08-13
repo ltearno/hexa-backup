@@ -88,7 +88,7 @@ export class HexaBackupReader {
             dataTransferredBytes: 0,
             networkTransferredBytes: 0,
             transferredFiles: 0,
-            currentFile: null,
+            lastSentFile: null,
 
             show: (text) => {
                 let now = Date.now()
@@ -100,12 +100,31 @@ export class HexaBackupReader {
                     let dataTranferSpeed = elapsed > 0 ? status.dataTransferredBytes / elapsed : 0
                     let networkTranferSpeed = elapsed > 0 ? status.networkTransferredBytes / elapsed : 0
 
-                    let s = `${status.nbDirectories} directories, ${status.transferredFiles}/${status.nbFiles} files, ${FileSize(status.transferredBytes, { base: 10 })}/${FileSize(status.totalBytes, { base: 10 })} - data speed: ${dataTranferSpeed.toFixed(2)} kb/s - network speed: ${networkTranferSpeed.toFixed(2)} kb/s`
+                    let eta = '-'
+                    let rest = (status.totalBytes - status.transferredBytes) / 1000
+                    if (dataTranferSpeed > 0 && rest > 0) {
+                        let etaSecond = rest / dataTranferSpeed
+                        eta = `${etaSecond.toFixed(0)} second(s)`
+                        if (etaSecond > 60) {
+                            let etaMinute = etaSecond / 60
+                            eta = `${etaMinute.toFixed(0)} minute(s)`
+                            if (etaMinute > 60) {
+                                let etaHour = etaMinute / 60
+                                eta = `${etaHour.toFixed(2)} hours`
+                                if (etaHour > 24) {
+                                    let etaDay = etaHour / 24
+                                    eta = `${etaDay.toFixed(2)} days`
+                                }
+                            }
+                        }
+                    }
+
+                    let s = `${status.nbDirectories} directories, ${status.transferredFiles}/${status.nbFiles} files, ${FileSize(status.transferredBytes, { base: 10 })}/${FileSize(status.totalBytes, { base: 10 })} - data speed: ${dataTranferSpeed.toFixed(2)} kb/s - network speed: ${networkTranferSpeed.toFixed(2)} kb/s - ETA: ${eta}`
 
                     s += ' - ' + text
 
-                    if (status.currentFile)
-                        s += ` - current file: ${status.currentFile.fileName}`
+                    if (status.lastSentFile)
+                        s += ` - last sent file: ${status.lastSentFile.fileName}`
 
                     this.gauge().show(s, status.transferredBytes / status.totalBytes)
                 }
@@ -270,7 +289,7 @@ class ShasDataStream extends Stream.Readable {
                 this.offset = fileDesc.offset
                 this.size = fileDesc.size
 
-                this.status.currentFile = fileDesc
+                this.status.lastSentFile = fileDesc
 
                 log.dbg(`read ${fileName}`)
             }
@@ -285,8 +304,6 @@ class ShasDataStream extends Stream.Readable {
                     log.dbg(`close file`)
                     FsTools.closeFile(this.fd)
                     this.fd = null
-
-                    this.status.currentFile = null
                 }
                 else {
                     log.dbg(`read ${length} @ ${this.offset}`)
