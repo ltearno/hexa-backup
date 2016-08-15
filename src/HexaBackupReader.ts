@@ -81,6 +81,7 @@ export class HexaBackupReader {
 
         let status = {
             start: null,
+            transferredBytesForSpeed: 0,
             nbFiles: 0,
             nbDirectories: 0,
             totalBytes: 0,
@@ -98,15 +99,23 @@ export class HexaBackupReader {
 
                     let s = `${status.nbDirectories} directories, ${status.transferredFiles}/${status.nbFiles} files, ${FileSize(status.transferredBytes, { base: 10 })}/${FileSize(status.totalBytes, { base: 10 })}`
 
+
+                    let compression = 1
+                    if (status.networkTransferredBytes > 0) {
+                        compression = status.dataTransferredBytes / status.networkTransferredBytes
+
+                        s += ` - compression: ${compression.toFixed(2)}`
+                    }
+
                     if (status.start) {
                         let elapsed = now - status.start
-                        let dataTranferSpeed = elapsed > 0 ? status.dataTransferredBytes / elapsed : 0
-                        let networkTranferSpeed = elapsed > 0 ? status.networkTransferredBytes / elapsed : 0
+                        let networkTranferSpeed = elapsed > 0 ? status.transferredBytesForSpeed / elapsed : 0
 
                         let eta = '-'
                         let rest = (status.totalBytes - status.transferredBytes) / 1000
-                        if (dataTranferSpeed > 0 && rest > 0) {
-                            let etaSecond = rest / dataTranferSpeed
+                        if (networkTranferSpeed > 0 && rest > 0) {
+                            let etaSecond = rest / networkTranferSpeed
+                            etaSecond /= compression
                             eta = `${etaSecond.toFixed(0)} second(s)`
                             if (etaSecond > 60) {
                                 let etaMinute = etaSecond / 60
@@ -122,7 +131,7 @@ export class HexaBackupReader {
                             }
                         }
 
-                        s += ` - data speed: ${dataTranferSpeed.toFixed(2)} kb/s - network speed: ${networkTranferSpeed.toFixed(2)} kb/s - ETA: ${eta}`
+                        s += ` - network speed: ${networkTranferSpeed.toFixed(2)} kb/s - ETA: ${eta}`
                     }
 
                     if (text)
@@ -163,7 +172,9 @@ export class HexaBackupReader {
             let poolDesc = this.createPoolDescription(uniqueShas, currentSizes)
             let dataStream: NodeJS.ReadableStream = new ShasDataStream(poolDesc, this.rootPath, status, this.gauge())
 
-            batch.forEach((i) => status.transferredBytes += currentSizes[i.contentSha] || 0)
+            batch.forEach((i) => {
+                status.transferredBytes += currentSizes[i.contentSha] || 0
+            })
 
             if (useZip) {
                 let zipped = ZLib.createGzip({
@@ -173,25 +184,33 @@ export class HexaBackupReader {
                 dataStream = dataStream.pipe(zipped)
             }
 
+            status.transferredBytesForSpeed = 0
+            status.start = Date.now()
+
             let backup = dataStream.on
             dataStream.on = (name, callback: Function): NodeJS.ReadableStream => {
                 if (name == 'data') {
                     let oldCallback = callback
                     callback = (chunk) => {
-                        if (status.start == null)
-                            status.start = Date.now()
-
                         status.networkTransferredBytes += chunk ? chunk.length : 0
+                        status.transferredBytesForSpeed += chunk ? chunk.length : 0
 
                         status.show(`network transfer`)
 
                         oldCallback(chunk)
+
+                        if (status.transferredBytesForSpeed > 20 * 1024) {
+                            status.transferredBytesForSpeed = 0
+                            status.start = Date.now()
+                        }
                     }
                 }
                 return backup.apply(dataStream, [name, callback])
             }
 
             await store.putShasBytesStream(poolDesc, useZip, dataStream)
+
+            status.start = null
 
             let pushResult = await store.pushFileDescriptors(this.clientId, transactionId, batch)
             let nbError = 0
