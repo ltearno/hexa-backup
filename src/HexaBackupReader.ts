@@ -79,6 +79,8 @@ export class HexaBackupReader {
 
         let lastGauge = 0
 
+        let statusInterval = setInterval(() => status.update(), 1000)
+
         let status = {
             start: null,
             transferredBytesForSpeed: 0,
@@ -90,10 +92,14 @@ export class HexaBackupReader {
             networkTransferredBytes: 0,
             transferredFiles: 0,
             lastSentFile: null,
+            lastText: null,
 
             show: (text) => {
-                let now = Date.now()
+                status.lastText = text
+            },
 
+            update: () => {
+                let now = Date.now()
                 if (now > lastGauge + 1000) {
                     lastGauge = now
 
@@ -133,8 +139,8 @@ export class HexaBackupReader {
                         s += ` - network speed: ${networkTranferSpeed.toFixed(2)} kb/s - ETA: ${eta}`
                     }
 
-                    if (text)
-                        s += ' - ' + text
+                    if (status.lastText)
+                        s += ' - ' + status.lastText
 
                     if (status.lastSentFile)
                         s += ` - last sent file: ${status.lastSentFile.fileName}`
@@ -265,6 +271,7 @@ export class HexaBackupReader {
         log(`commit transaction ${this.clientId}::${transactionId}`);
         await store.commitTransaction(this.clientId, transactionId);
 
+        clearInterval(statusInterval)
         log('snapshot sent.');
     }
 
