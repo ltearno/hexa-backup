@@ -223,11 +223,8 @@ export class RPCClient {
                                     }
                                 })
 
-                                if (!res) {
-                                    log.dbg('saturation RESEAU !!!!')
-
+                                if (!res)
                                     callInfo.stream.pause()
-                                }
                             })
 
                             callInfo.stream.on('error', (error) => {

@@ -1,3 +1,5 @@
+let Gauge = require('gauge');
+
 const colors = require('colors/safe')
 
 class Logger {
@@ -7,7 +9,13 @@ class Logger {
         'err': true
     };
 
-    private id: string;
+    private id: string
+
+    private statusInterval: NodeJS.Timer = null
+    private statusCallback: () => { message: string; completed: number; } = null
+    private lastStatus: { message: string; completed: number; } = null
+
+    private _gauge: any = null
 
     constructor(id: string) {
         this.id = ('                  ' + id).slice(-17);
@@ -31,6 +39,8 @@ class Logger {
 
     output(level: string, message) {
         if (level in Logger.config && Logger.config[level]) {
+            this.hideGauge()
+
             let s
             if (message == "" || message == undefined || message == null)
                 s = ''
@@ -50,6 +60,34 @@ class Logger {
 
             console.log(s)
         }
+    }
+
+    setStatus(callback: () => { message: string; completed: number; }) {
+        if (this.statusInterval == null)
+            this.statusInterval = setInterval(() => this.updateStatus(), 1000)
+
+        this.statusCallback = callback
+    }
+
+    private updateStatus() {
+        if (this.statusCallback == null)
+            return
+
+        this.lastStatus = this.statusCallback()
+
+        this.gauge().show(this.lastStatus.message || '(no status)', this.lastStatus.completed)
+    }
+
+    private gauge() {
+        if (this._gauge == null)
+            this._gauge = new Gauge()
+
+        return this._gauge
+    }
+
+    private hideGauge() {
+        if (this._gauge)
+            this._gauge.hide()
     }
 }
 
@@ -74,6 +112,7 @@ function LoggerBuilder(id: string): {
     loggerFunction.err = (message) => logger.err(message);
     loggerFunction.conf = (level, show) => logger.conf(level, show);
     loggerFunction.output = (level, message) => logger.output(level, message);
+    loggerFunction.setStatus = (callback) => logger.setStatus(callback);
 
     return loggerFunction;
 }

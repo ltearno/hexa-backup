@@ -11,16 +11,85 @@ import { WorkPool } from './WorkPool'
 import * as Stream from 'stream'
 import * as ZLib from 'zlib'
 
-let Gauge = require('gauge');
 let FileSize = require('filesize')
 
 const log = require('./Logger')('HexaBackupReader');
 
+class Status {
+    start = null;
+    transferredBytesForSpeed = 0;
+    nbFiles = 0;
+    nbDirectories = 0;
+    totalBytes = 0;
+    transferredBytes = 0;
+    dataTransferredBytes = 0;
+    networkTransferredBytes = 0;
+    transferredFiles = 0;
+    lastSentFile = null;
+    text = null;
+
+    show(text) {
+        this.text = text
+    }
+
+    statusGiver(): () => { message: string; completed: number; } {
+        return () => {
+            let now = Date.now()
+
+            let s = `${this.nbDirectories} directories, ${this.transferredFiles}/${this.nbFiles} files, ${FileSize(this.transferredBytes, { base: 10 })}/${FileSize(this.totalBytes, { base: 10 })}`
+
+            let compression = 1
+            if (this.networkTransferredBytes > 0) {
+                compression = this.dataTransferredBytes / this.networkTransferredBytes
+
+                s += ` - compression: ${compression.toFixed(2)}`
+            }
+
+            if (this.start) {
+                let elapsed = now - this.start
+                let networkTranferSpeed = elapsed > 0 ? this.transferredBytesForSpeed / elapsed : 0
+
+                let eta = '-'
+                let rest = (this.totalBytes - this.transferredBytes) / 1000
+                if (networkTranferSpeed > 0 && rest > 0) {
+                    let etaSecond = rest / networkTranferSpeed
+                    etaSecond /= compression
+                    eta = `${etaSecond.toFixed(0)} second(s)`
+                    if (etaSecond > 60) {
+                        let etaMinute = etaSecond / 60
+                        eta = `${etaMinute.toFixed(0)} minute(s)`
+                        if (etaMinute > 60) {
+                            let etaHour = etaMinute / 60
+                            eta = `${etaHour.toFixed(2)} hours`
+                            if (etaHour > 24) {
+                                let etaDay = etaHour / 24
+                                eta = `${etaDay.toFixed(2)} days`
+                            }
+                        }
+                    }
+                }
+
+                s += ` - network speed: ${networkTranferSpeed.toFixed(2)} kb/s - ETA: ${eta}`
+            }
+
+            if (this.text)
+                s += ' - ' + this.text
+
+            if (this.lastSentFile)
+                s += ` - last seen file: ${this.lastSentFile.fileName}`
+
+            return {
+                message: s,
+                completed: this.transferredBytes / this.totalBytes
+            }
+        }
+    }
+}
+
 export class HexaBackupReader {
     private rootPath: string;
     private shaCache: ShaCache;
-    private ignoredNames = ['.hb-cache', '.git', '.metadata']
-    private _gauge: any = null
+    private ignoredNames = ['.hb-cache', '.hb-object', '.hb-refs', '.git', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures']
 
     constructor(rootPath: string, private clientId: string) {
         this.rootPath = fsPath.resolve(rootPath);
@@ -79,76 +148,8 @@ export class HexaBackupReader {
 
         let lastGauge = 0
 
-        let statusInterval = setInterval(() => status.update(), 1000)
-
-        let status = {
-            start: null,
-            transferredBytesForSpeed: 0,
-            nbFiles: 0,
-            nbDirectories: 0,
-            totalBytes: 0,
-            transferredBytes: 0,
-            dataTransferredBytes: 0,
-            networkTransferredBytes: 0,
-            transferredFiles: 0,
-            lastSentFile: null,
-            lastText: null,
-
-            show: (text) => {
-                status.lastText = text
-            },
-
-            update: () => {
-                let now = Date.now()
-                if (now > lastGauge + 1000) {
-                    lastGauge = now
-
-                    let s = `${status.nbDirectories} directories, ${status.transferredFiles}/${status.nbFiles} files, ${FileSize(status.transferredBytes, { base: 10 })}/${FileSize(status.totalBytes, { base: 10 })}`
-
-                    let compression = 1
-                    if (status.networkTransferredBytes > 0) {
-                        compression = status.dataTransferredBytes / status.networkTransferredBytes
-
-                        s += ` - compression: ${compression.toFixed(2)}`
-                    }
-
-                    if (status.start) {
-                        let elapsed = now - status.start
-                        let networkTranferSpeed = elapsed > 0 ? status.transferredBytesForSpeed / elapsed : 0
-
-                        let eta = '-'
-                        let rest = (status.totalBytes - status.transferredBytes) / 1000
-                        if (networkTranferSpeed > 0 && rest > 0) {
-                            let etaSecond = rest / networkTranferSpeed
-                            etaSecond /= compression
-                            eta = `${etaSecond.toFixed(0)} second(s)`
-                            if (etaSecond > 60) {
-                                let etaMinute = etaSecond / 60
-                                eta = `${etaMinute.toFixed(0)} minute(s)`
-                                if (etaMinute > 60) {
-                                    let etaHour = etaMinute / 60
-                                    eta = `${etaHour.toFixed(2)} hours`
-                                    if (etaHour > 24) {
-                                        let etaDay = etaHour / 24
-                                        eta = `${etaDay.toFixed(2)} days`
-                                    }
-                                }
-                            }
-                        }
-
-                        s += ` - network speed: ${networkTranferSpeed.toFixed(2)} kb/s - ETA: ${eta}`
-                    }
-
-                    if (status.lastText)
-                        s += ' - ' + status.lastText
-
-                    if (status.lastSentFile)
-                        s += ` - last sent file: ${status.lastSentFile.fileName}`
-
-                    this.gauge().show(s, status.transferredBytes / status.totalBytes)
-                }
-            }
-        }
+        let status = new Status()
+        log.setStatus(status.statusGiver())
 
         let poolWorkerNb = 0
 
@@ -169,7 +170,7 @@ export class HexaBackupReader {
                 }
             }
 
-            status.show(`beginning work pool transfer ${poolWorkerNb}`)
+            status.show(`beginning work pool transfer ${poolWorkerNb} of ${batch.length} items`)
 
             let shas = {}
             batch.forEach((b) => shas[b.contentSha] = b)
@@ -204,11 +205,11 @@ export class HexaBackupReader {
                         status.networkTransferredBytes += chunk ? chunk.length : 0
                         status.transferredBytesForSpeed += chunk ? chunk.length : 0
 
-                        status.show(`network transfer`)
+                        status.show(`network transfer, pool ${poolWorkerNb} of ${batch.length} items`)
 
                         oldCallback(chunk)
 
-                        if (status.transferredBytesForSpeed > 20 * 1024) {
+                        if (status.transferredBytesForSpeed > 1 * 1024 * 1024) {
                             status.transferredBytesForSpeed = 0
                             status.start = Date.now()
                         }
@@ -253,6 +254,7 @@ export class HexaBackupReader {
                 status.nbFiles++
 
             status.totalBytes += fileDesc.size
+            status.lastSentFile = { fileName: fileDesc.name }
 
             filesList.push(fileDesc)
 
@@ -275,19 +277,9 @@ export class HexaBackupReader {
         log(`commit transaction ${this.clientId}::${transactionId}`);
         await store.commitTransaction(this.clientId, transactionId);
 
-        clearInterval(statusInterval)
+        log.setStatus(null)
+
         log('snapshot sent.');
-    }
-
-    private hideGauge() {
-        if (this._gauge)
-            this._gauge.hide()
-    }
-
-    private gauge() {
-        if (this._gauge == null)
-            this._gauge = new Gauge()
-        return this._gauge
     }
 }
 
@@ -304,8 +296,6 @@ class ShasDataStream extends Stream.Readable {
 
     async _read(size: number) {
         let askedIo = false
-
-        this.status.show(`reading pool`)
 
         let readden = 0
 
@@ -346,8 +336,6 @@ class ShasDataStream extends Stream.Readable {
                     this.status.lastSentFile = null
                 }
                 else {
-                    log.dbg(`read ${length} @ ${this.offset}`)
-
                     askedIo = true
 
                     let offset = this.offset
@@ -355,7 +343,7 @@ class ShasDataStream extends Stream.Readable {
                     this.offset += length
                     this.size -= length
 
-                    this.status.show(`reading pool, reading file`)
+                    this.status.show(`reading pool, reading file ${length} @ ${offset}`)
 
                     let buffer = await FsTools.readFile(this.fd, offset, length)
 

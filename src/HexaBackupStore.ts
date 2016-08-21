@@ -133,6 +133,8 @@ export class HexaBackupStore implements IHexaBackupStore {
             }
         }
 
+        log(`validated ${descriptors.length} descriptors in transaction ${transactionId}`)
+
         return res
     }
 
