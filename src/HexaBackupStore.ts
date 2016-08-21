@@ -1,6 +1,7 @@
 import fsPath = require('path')
 import { ReferenceRepository } from './ReferenceRepository'
 import { ObjectRepository } from './ObjectRepository'
+import { ShaCache } from './ShaCache';
 import * as Model from './Model'
 import * as Stream from 'stream'
 import * as FS from 'fs'
@@ -26,6 +27,7 @@ export class HexaBackupStore implements IHexaBackupStore {
     private rootPath: string;
     private objectRepository: ObjectRepository;
     private referenceRepository: ReferenceRepository;
+    private shaCache: ShaCache;
 
     private sourceStateCache: { [key: string]: Model.SourceState } = {};
     private lastTimeSavedClientState = 0;
@@ -33,7 +35,9 @@ export class HexaBackupStore implements IHexaBackupStore {
     constructor(rootPath: string) {
         this.rootPath = fsPath.resolve(rootPath);
 
-        this.objectRepository = new ObjectRepository(fsPath.join(this.rootPath, '.hb-object'));
+        this.shaCache = new ShaCache(fsPath.join(this.rootPath, '.hb-cache'));
+
+        this.objectRepository = new ObjectRepository(fsPath.join(this.rootPath, '.hb-object'), this.shaCache);
 
         this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'));
     }

@@ -1,5 +1,6 @@
 import fs = require('fs');
 import fsPath = require('path');
+import { ShaCache } from './ShaCache';
 import * as HashTools from './HashTools';
 import * as FsTools from './FsTools';
 import * as Stream from 'stream'
@@ -17,7 +18,7 @@ export interface ShaPoolDescriptor {
 export class ObjectRepository {
     private rootPath: string;
 
-    constructor(rootPath: string) {
+    constructor(rootPath: string, private shaCache: ShaCache) {
         this.rootPath = fsPath.resolve(rootPath);
         if (!fs.existsSync(this.rootPath))
             fs.mkdirSync(this.rootPath);
@@ -236,7 +237,12 @@ export class ObjectRepository {
 
             try {
                 let contentFileName = this.contentFileName(contentSha)
-                let storedContentSha = await HashTools.hashFile(contentFileName)
+                let storedContentSha:string
+                if(this.shaCache)
+                    storedContentSha = await this.shaCache.hashFile(contentFileName)
+                else
+                    storedContentSha = await HashTools.hashFile(contentFileName)
+
                 let stat = fs.statSync(contentFileName)
                 if (storedContentSha == contentSha && contentSize == stat.size) {
                     resolve(true)
@@ -244,7 +250,6 @@ export class ObjectRepository {
                 else {
                     log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, stored sha (${stat.size} bytes) ${storedContentSha}`)
 
-                    //fs.unlink(contentFileName, (err) => resolve(false))
                     fs.rename(contentFileName, contentFileName + '.bak', (err) => resolve(false))
                 }
             } catch (error) {
@@ -284,7 +289,7 @@ class ShaPoolStream extends Stream.Writable {
             if (this.fd && this.offset == this.size) {
                 fs.closeSync(this.fd)
 
-                log(`written sha ${this.desc.sha} on disk`)
+                log(`written sha ${this.desc.sha} on disk, size: ${this.size}`)
 
                 this.desc = null
                 this.fd = null
