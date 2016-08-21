@@ -154,7 +154,7 @@ export class HexaBackupReader {
 
         let poolWorker = async (batch: Model.FileDescriptor[]) => {
             poolWorkerNb++
-            
+
             status.show(`beginning work pool ${poolWorkerNb} of ${batch.length} items, hashing...`)
 
             for (let i in batch) {
@@ -262,7 +262,7 @@ export class HexaBackupReader {
         while (filesList.length > 0) {
             let currentPool = []
             let currentPoolFileSize = 0
-            while (filesList.length > 0 && currentPoolFileSize < 1024 * 1024 * 5) {
+            while (filesList.length > 0 && currentPoolFileSize < 1024 * 1024 * 50) {
                 let desc = filesList.shift()
                 currentPool.push(desc)
                 currentPoolFileSize += desc.size
