@@ -21,28 +21,24 @@ class Status {
     nbFiles = 0;
     nbDirectories = 0;
     totalBytes = 0;
-    transferredBytes = 0;
+    logicalTransferredBytes = 0;
     dataTransferredBytes = 0;
     networkTransferredBytes = 0;
     transferredFiles = 0;
     lastSentFile = null;
     text = null;
 
-    show(text) {
-        this.text = text
-    }
-
     statusGiver(): () => { message: string; completed: number; } {
         return () => {
             let now = Date.now()
 
-            let s = `${this.nbDirectories} directories, ${this.transferredFiles}/${this.nbFiles} files, ${FileSize(this.transferredBytes, { base: 10 })}/${FileSize(this.totalBytes, { base: 10 })}`
+            let s = `${this.nbDirectories} directories, ${this.transferredFiles}/${this.nbFiles} files, ${FileSize(this.logicalTransferredBytes, { base: 10 })}/${FileSize(this.totalBytes, { base: 10 })}`
 
             let compression = 1
             if (this.networkTransferredBytes > 0) {
                 compression = this.dataTransferredBytes / this.networkTransferredBytes
 
-                s += ` - compression: ${compression.toFixed(2)}`
+                s += ` - compression: ${compression.toFixed(2)} (total ${((this.logicalTransferredBytes - this.dataTransferredBytes + this.networkTransferredBytes) / this.totalBytes).toFixed(2)}%)`
             }
 
             if (this.start) {
@@ -50,7 +46,7 @@ class Status {
                 let networkTranferSpeed = elapsed > 0 ? this.transferredBytesForSpeed / elapsed : 0
 
                 let eta = '-'
-                let rest = (this.totalBytes - this.transferredBytes) / 1000
+                let rest = (this.totalBytes - this.logicalTransferredBytes) / 1000
                 if (networkTranferSpeed > 0 && rest > 0) {
                     let etaSecond = rest / networkTranferSpeed
                     etaSecond /= compression
@@ -80,7 +76,7 @@ class Status {
 
             return {
                 message: s,
-                completed: this.transferredBytes / this.totalBytes
+                completed: this.logicalTransferredBytes / this.totalBytes
             }
         }
     }
@@ -156,21 +152,21 @@ export class HexaBackupReader {
         let poolWorker = async (batch: Model.FileDescriptor[]) => {
             poolWorkerNb++
 
-            status.show(`beginning work pool ${poolWorkerNb} of ${batch.length} items, hashing...`)
+            status.text = `beginning work pool ${poolWorkerNb} of ${batch.length} items, hashing...`
 
             for (let i in batch) {
                 let b = batch[i]
                 if (!b.isDirectory) {
                     let fileName = fsPath.join(this.rootPath, b.name)
 
-                    status.show(`hashing ${fileName} (${i} / ${batch.length})`)
+                    status.text = `hashing ${fileName} (${i} / ${batch.length})`
 
                     let sha = await this.shaCache.hashFile(fileName)
                     b.contentSha = sha
                 }
             }
 
-            status.show(`beginning work pool transfer ${poolWorkerNb} of ${batch.length} items`)
+            status.text = `beginning work pool transfer ${poolWorkerNb} with ${batch.length} items`
 
             let shas = {}
             batch.forEach((b) => shas[b.contentSha] = b)
@@ -178,12 +174,13 @@ export class HexaBackupReader {
             for (let i in shas)
                 uniqueShas.push(shas[i])
 
+            status.text = `asking current sha states, pool ${poolWorkerNb} with ${batch.length} items`
             let currentSizes = await store.hasShaBytes(uniqueShas.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
             let poolDesc = this.createPoolDescription(uniqueShas, currentSizes)
             let dataStream: NodeJS.ReadableStream = new ShasDataStream(poolDesc, this.rootPath, status)
 
             batch.forEach((i) => {
-                status.transferredBytes += currentSizes[i.contentSha] || 0
+                status.logicalTransferredBytes += currentSizes[i.contentSha] || 0
             })
 
             if (useZip) {
@@ -205,7 +202,7 @@ export class HexaBackupReader {
                         status.networkTransferredBytes += chunk ? chunk.length : 0
                         status.transferredBytesForSpeed += chunk ? chunk.length : 0
 
-                        status.show(`network transfer, pool ${poolWorkerNb} of ${batch.length} items`)
+                        status.text = `network transfer, pool ${poolWorkerNb} of ${batch.length} items`
 
                         oldCallback(chunk)
 
@@ -218,10 +215,12 @@ export class HexaBackupReader {
                 return backup.apply(dataStream, [name, callback])
             }
 
+            status.text = `pushing sha byte streams, pool ${poolWorkerNb} of ${batch.length} items`
             await store.putShasBytesStream(poolDesc, useZip, dataStream)
 
             status.start = null
 
+            status.text = `pushing file descriptors, pool ${poolWorkerNb} of ${batch.length} items`
             let pushResult = await store.pushFileDescriptors(this.clientId, transactionId, batch)
             let nbError = 0
             let nbSuccess = 0
@@ -243,7 +242,7 @@ export class HexaBackupReader {
 
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames)
 
-        status.show(`listing files...`)
+        status.text = `listing files...`
 
         let filesList = []
 
@@ -258,7 +257,7 @@ export class HexaBackupReader {
 
             filesList.push(fileDesc)
 
-            status.show(`listing files ${status.nbDirectories} directories and ${status.nbFiles} files, total: ${FileSize(status.totalBytes, { base: 10 })}`)
+            status.text = `listing files ${status.nbDirectories} directories and ${status.nbFiles} files, total: ${FileSize(status.totalBytes, { base: 10 })}`
         })
 
         while (filesList.length > 0) {
@@ -274,8 +273,11 @@ export class HexaBackupReader {
                 await poolWorker(currentPool)
         }
 
-        log(`commit transaction ${this.clientId}::${transactionId}`);
-        await store.commitTransaction(this.clientId, transactionId);
+        status.text = `committing transaction ${this.clientId}::${transactionId}`
+
+        await store.commitTransaction(this.clientId, transactionId)
+
+        log(`committed transaction ${this.clientId}::${transactionId}`)
 
         log.setStatus(null)
 
@@ -290,7 +292,7 @@ class ShasDataStream extends Stream.Readable {
     private offset
     private size
 
-    constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string, private status: any) {
+    constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string, private status: Status) {
         super()
     }
 
@@ -317,7 +319,7 @@ class ShasDataStream extends Stream.Readable {
 
                 this.status.lastSentFile = fileDesc
 
-                this.status.show(`reading pool, opening file`)
+                this.status.text = `reading pool, opening file`
 
                 log.dbg(`read ${fileName}`)
             }
@@ -343,14 +345,14 @@ class ShasDataStream extends Stream.Readable {
                     this.offset += length
                     this.size -= length
 
-                    this.status.show(`reading pool, reading file ${length} @ ${offset}`)
+                    this.status.text = `reading pool, reading file ${length} @ ${offset}`
 
                     let buffer = await FsTools.readFile(this.fd, offset, length)
 
                     readden += buffer.length
 
                     this.status.dataTransferredBytes += buffer.length
-                    this.status.transferredBytes += buffer.length
+                    this.status.logicalTransferredBytes += buffer.length
 
                     this.push(buffer)
                 }

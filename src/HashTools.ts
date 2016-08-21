@@ -32,11 +32,15 @@ export async function hashFile(fileName: string): Promise<string> {
             return;
         }
 
+        log.dbg(`hashing ${fileName}`)
+
         let input = fs.createReadStream(fileName);
 
         input.on('data', chunk => {
             hash.update(chunk);
         }).on('end', () => {
+            log.dbg(`finished hashing ${fileName}`)
+
             resolve(hash.digest('hex'));
         }).on('error', () => {
             log.err(`error reading ${fileName}`);

@@ -39,8 +39,6 @@ class Logger {
 
     output(level: string, message) {
         if (level in Logger.config && Logger.config[level]) {
-            this.hideGauge()
-
             let s
             if (message == "" || message == undefined || message == null)
                 s = ''

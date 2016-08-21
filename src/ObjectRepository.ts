@@ -310,7 +310,7 @@ class ShaPoolStream extends Stream.Writable {
                 this.offset = desc.offset
                 this.size = desc.offset + desc.size
 
-                log.dbg(`open for writing pool ${fileName}`)
+                log(`writing sha ${desc.sha} for '${fileName}''`)
             }
 
             let length = chunk.length - offsetInChunk
