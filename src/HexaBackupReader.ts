@@ -99,7 +99,6 @@ export class HexaBackupReader {
 
                     let s = `${status.nbDirectories} directories, ${status.transferredFiles}/${status.nbFiles} files, ${FileSize(status.transferredBytes, { base: 10 })}/${FileSize(status.totalBytes, { base: 10 })}`
 
-
                     let compression = 1
                     if (status.networkTransferredBytes > 0) {
                         compression = status.dataTransferredBytes / status.networkTransferredBytes
@@ -153,7 +152,7 @@ export class HexaBackupReader {
                 if (!b.isDirectory) {
                     let fileName = fsPath.join(this.rootPath, b.name)
 
-                    status.show(`hashing ${fileName}`)
+                    status.show(`hashing ${fileName} (${i} / ${batch.length})`)
 
                     let sha = await this.shaCache.hashFile(fileName)
                     b.contentSha = sha
@@ -170,7 +169,7 @@ export class HexaBackupReader {
 
             let currentSizes = await store.hasShaBytes(uniqueShas.map((fileDesc) => fileDesc.contentSha).filter((sha) => sha != null))
             let poolDesc = this.createPoolDescription(uniqueShas, currentSizes)
-            let dataStream: NodeJS.ReadableStream = new ShasDataStream(poolDesc, this.rootPath, status, this.gauge())
+            let dataStream: NodeJS.ReadableStream = new ShasDataStream(poolDesc, this.rootPath, status)
 
             batch.forEach((i) => {
                 status.transferredBytes += currentSizes[i.contentSha] || 0
@@ -233,11 +232,10 @@ export class HexaBackupReader {
 
         let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames)
 
-        this.gauge().show(`listing files...`, 0)
+        status.show(`listing files...`)
 
         let filesList = []
 
-        let lastNb = 0
         await directoryLister.readDir(async (fileDesc) => {
             if (fileDesc.isDirectory)
                 status.nbDirectories++
@@ -247,10 +245,7 @@ export class HexaBackupReader {
             status.totalBytes += fileDesc.size
 
             filesList.push(fileDesc)
-            if (lastNb < status.nbFiles + 100) {
-                lastNb = status.nbFiles
-                this.gauge().show(`listing files ${status.nbDirectories} directories and ${status.nbFiles} files, total: ${FileSize(status.totalBytes, { base: 10 })}`)
-            }
+            status.show(`listing files ${status.nbDirectories} directories and ${status.nbFiles} files, total: ${FileSize(status.totalBytes, { base: 10 })}`)
         })
 
         while (filesList.length > 0) {
@@ -291,7 +286,7 @@ class ShasDataStream extends Stream.Readable {
     private offset
     private size
 
-    constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string, private status: any, private gauge) {
+    constructor(private poolDesc: Model.ShaPoolDescriptor[], private rootPath: string, private status: any) {
         super()
     }
 
