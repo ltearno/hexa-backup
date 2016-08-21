@@ -245,6 +245,7 @@ export class HexaBackupReader {
             status.totalBytes += fileDesc.size
 
             filesList.push(fileDesc)
+
             status.show(`listing files ${status.nbDirectories} directories and ${status.nbFiles} files, total: ${FileSize(status.totalBytes, { base: 10 })}`)
         })
 
@@ -295,7 +296,9 @@ class ShasDataStream extends Stream.Readable {
 
         this.status.show(`reading pool`)
 
-        while (!askedIo) {
+        let readden = 0
+
+        while ((!askedIo) && readden < size) {
             if (this.fd == null) {
                 if (this.poolDesc.length == 0) {
                     this.push(null)
@@ -313,6 +316,8 @@ class ShasDataStream extends Stream.Readable {
 
                 this.status.lastSentFile = fileDesc
 
+                this.status.show(`reading pool, opening file`)
+
                 log.dbg(`read ${fileName}`)
             }
 
@@ -326,6 +331,8 @@ class ShasDataStream extends Stream.Readable {
                     log.dbg(`close file`)
                     FsTools.closeFile(this.fd)
                     this.fd = null
+
+                    this.status.lastSentFile = null
                 }
                 else {
                     log.dbg(`read ${length} @ ${this.offset}`)
@@ -337,10 +344,14 @@ class ShasDataStream extends Stream.Readable {
                     this.offset += length
                     this.size -= length
 
+                    this.status.show(`reading pool, reading file`)
+
                     let buffer = await FsTools.readFile(this.fd, offset, length)
 
-                    this.status.dataTransferredBytes += length
-                    this.status.transferredBytes += length
+                    readden += buffer.length
+
+                    this.status.dataTransferredBytes += buffer.length
+                    this.status.transferredBytes += buffer.length
 
                     this.push(buffer)
                 }
