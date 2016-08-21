@@ -150,8 +150,12 @@ export class HexaBackupReader {
             }
         }
 
+        let poolWorkerNb = 0
+
         let poolWorker = async (batch: Model.FileDescriptor[]) => {
-            status.show(`beginning work pool of ${batch.length} items, hashing...`)
+            poolWorkerNb++
+            
+            status.show(`beginning work pool ${poolWorkerNb} of ${batch.length} items, hashing...`)
 
             for (let i in batch) {
                 let b = batch[i]
@@ -165,7 +169,7 @@ export class HexaBackupReader {
                 }
             }
 
-            status.show(`beginning work pool transfer`)
+            status.show(`beginning work pool transfer ${poolWorkerNb}`)
 
             let shas = {}
             batch.forEach((b) => shas[b.contentSha] = b)
