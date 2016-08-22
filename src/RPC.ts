@@ -40,16 +40,11 @@ export class RPCServer {
             socketDataToMessage(socket)
 
             socket.on('message', (chunk) => {
-                //log(`received message length: ${chunk.length}`)
-                //log(`received message ${chunk.toString('hex')}`)
-
                 let streamStub = new StreamStub(socket)
                 let args = Serialization.deserialize(chunk, () => streamStub);
 
                 let messageType: number = args[0]
                 args.shift()
-
-                //log(`received messagetype ${messageType}`)
 
                 if (messageType == RPC_MSG_CALL) {
                     let callId = args[0];
@@ -168,9 +163,6 @@ export class RPCClient {
                 socketDataToMessage(this.socket)
 
                 this.socket.on('message', (chunk) => {
-                    //log(`received message length: ${chunk.length}`)
-                    //log(`received message ${chunk.toString('hex')}`)
-
                     let response = Serialization.deserialize(chunk, null);
 
                     let messageType = response[0]

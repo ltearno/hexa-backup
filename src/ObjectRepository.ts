@@ -237,8 +237,8 @@ export class ObjectRepository {
 
             try {
                 let contentFileName = this.contentFileName(contentSha)
-                let storedContentSha:string
-                if(this.shaCache)
+                let storedContentSha: string
+                if (this.shaCache)
                     storedContentSha = await this.shaCache.hashFile(contentFileName)
                 else
                     storedContentSha = await HashTools.hashFile(contentFileName)
@@ -310,7 +310,7 @@ class ShaPoolStream extends Stream.Writable {
                 this.offset = desc.offset
                 this.size = desc.offset + desc.size
 
-                log(`writing sha ${desc.sha} for '${fileName}''`)
+                log(`writing sha ${desc.sha}, beginning @ ${this.offset}, size = ${this.size}`)
             }
 
             let length = chunk.length - offsetInChunk
