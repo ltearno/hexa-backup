@@ -319,7 +319,7 @@ class ShasDataStream extends Stream.Readable {
 
                 this.status.lastSentFile = fileDesc
 
-                this.status.text = `reading pool, opening file`
+                this.status.text = `reading pool, opening file ${fileDesc.fileName}`
 
                 log.dbg(`read ${fileName}`)
             }
