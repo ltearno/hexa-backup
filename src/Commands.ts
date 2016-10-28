@@ -139,10 +139,16 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
         if (prefix && !fileDesc.name.startsWith(prefix))
             continue
 
+        console.log(`fetching ${fileDesc.name}`)
+
         let destinationFilePath = fsPath.join(destinationDirectory, fileDesc.name)
 
         if (fileDesc.isDirectory) {
-            fs.mkdirSync(destinationFilePath)
+            try {
+                fs.mkdirSync(destinationFilePath)
+            } catch (error) {
+                log("error : " + error)
+            }
         }
         else {
             let fileLength = await store.hasOneShaBytes(fileDesc.contentSha)
