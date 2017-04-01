@@ -85,7 +85,7 @@ class Status {
 export class HexaBackupReader {
     private rootPath: string;
     private shaCache: ShaCache;
-    private ignoredNames = ['.hb-cache', '.hb-object', '.hb-refs', '.git', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
+    private ignoredNames = ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
 
     constructor(rootPath: string, private clientId: string) {
         this.rootPath = fsPath.resolve(rootPath);
