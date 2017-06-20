@@ -2,3 +2,4 @@ node_modules/
 target/
 .hb-object/
 .hb-refs/
+.hb-cache/
