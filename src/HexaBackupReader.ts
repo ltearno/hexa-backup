@@ -240,7 +240,7 @@ export class HexaBackupReader {
             log.dbg(`validated ${nbSuccess} files on remote store`)
         }
 
-        let directoryLister = new DirectoryLister(this.rootPath, this.shaCache, this.ignoredNames)
+        let directoryLister = new DirectoryLister(this.rootPath, this.ignoredNames)
 
         status.text = `listing files...`
 
@@ -365,7 +365,7 @@ class ShasDataStream extends Stream.Readable {
 }
 
 class DirectoryLister {
-    constructor(private path: string, private shaCache: ShaCache, private ignoredNames: string[]) {
+    constructor(private path: string, private ignoredNames: string[]) {
     }
 
     async readDir(callback: (fileDesc: Model.FileDescriptor) => Promise<void>) {
@@ -399,8 +399,6 @@ class DirectoryLister {
 
                 await callback(desc);
             }
-
-            this.shaCache.flushToDisk();
         }
     }
 }

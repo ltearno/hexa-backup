@@ -102,12 +102,12 @@
             "name": "Test",
             "type": "node",
             "request": "launch",
-            "program": "${workspaceRoot}/target/hexa-backup-tests.js",
+            "program": "${workspaceRoot}/target/test.js",
             "stopOnEntry": false,
             "args": [
                 "--debug"
             ],
-            "cwd": "C:\\tmp",
+            "cwd": "D:\\tmp",
             "preLaunchTask": null,
             "runtimeExecutable": null,
             "runtimeArgs": [
@@ -116,7 +116,7 @@
             "env": {
                 "NODE_ENV": "development"
             },
-            "externalConsole": false,
+            "console": "internalConsole",
             "sourceMaps": true,
             "outDir": "${workspaceRoot}/target"
         },

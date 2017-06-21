@@ -82,15 +82,14 @@ export class HexaBackupStore implements IHexaBackupStore {
 
         log(`validating ${descriptors.length} descriptors in transaction ${transactionId}`)
 
+        let clientState = await this.getSourceState(sourceId);
+        if (clientState.currentTransactionId != transactionId) {
+            log.err(`source is pushing with a bad transaction id !`)
+            return res
+        }
+
         for (let d in descriptors) {
             let fileDesc = descriptors[d]
-
-            let clientState = await this.getSourceState(sourceId);
-            if (clientState.currentTransactionId != transactionId) {
-                log.err(`source is pushing with a bad transaction id !`)
-                res[fileDesc.contentSha] = false
-                continue
-            }
 
             if (fileDesc.name in clientState.currentTransactionContent) {
                 let current = clientState.currentTransactionContent[fileDesc.name];

@@ -35,7 +35,7 @@ export class ShaCache {
     async hashFile(fullFileName: string): Promise<string> {
         return new Promise<string>(async (resolve, reject) => {
             if (!fsPath.isAbsolute(fullFileName))
-                throw "path should be absolute";
+                reject("path should be absolute")
 
             let stat = fs.statSync(fullFileName);
 

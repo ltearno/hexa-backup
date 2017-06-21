@@ -229,12 +229,10 @@ export class ObjectRepository {
     }
 
     async validateSha(contentSha: string, contentSize: number) {
-        return new Promise<boolean>(async (resolve, reject) => {
-            if (contentSha == HashTools.EMPTY_PAYLOAD_SHA) {
-                resolve(true);
-                return;
-            }
+        if (contentSha == HashTools.EMPTY_PAYLOAD_SHA)
+            return Promise.resolve(true)
 
+        return new Promise<boolean>(async (resolve, reject) => {
             try {
                 let contentFileName = this.contentFileName(contentSha)
                 let storedContentSha: string
@@ -244,7 +242,7 @@ export class ObjectRepository {
                     storedContentSha = await HashTools.hashFile(contentFileName)
 
                 let stat = fs.statSync(contentFileName)
-                if (storedContentSha == contentSha && contentSize == stat.size) {
+                if (contentSize == stat.size && storedContentSha == contentSha) {
                     resolve(true)
                 }
                 else {
