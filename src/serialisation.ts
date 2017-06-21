@@ -54,7 +54,7 @@ const TYPE_NULL = 2;
 const TYPE_UNDEFINED = 3;
 const TYPE_STREAM = 4;
 
-export function serialize(args: any[], streamReceiver: (stream: Stream.Readable) => void): Buffer {
+export function serialize(args: any[], streamReceiver: (stream: Stream.Readable) => void = null): Buffer {
     let currentOffset = 0;
     let buffer: GrowingBuffer = new GrowingBuffer();
     currentOffset += buffer.writeByte(currentOffset, args.length);
@@ -72,7 +72,7 @@ export function serialize(args: any[], streamReceiver: (stream: Stream.Readable)
             else if (arg instanceof Stream.Stream) {
                 currentOffset += buffer.writeByte(currentOffset, TYPE_STREAM)
                 if (streamReceiver)
-                    streamReceiver(arg)
+                    streamReceiver(arg as Stream.Readable)
             }
             else if (arg instanceof Buffer) {
                 currentOffset += buffer.writeByte(currentOffset, TYPE_BUFFER)

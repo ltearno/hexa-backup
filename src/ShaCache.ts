@@ -1,11 +1,15 @@
+import * as FsTools from './FsTools';
 import fs = require('fs');
 import fsPath = require('path');
 import * as HashTools from './HashTools';
+
+const log = require('./Logger')('ShaCache');
 
 export class ShaCache {
     private cacheDirectory: string;
     private cache: any;
     private dirtyCache: boolean = false;
+    private flushInterval = null
 
     constructor(cacheDirectory: string) {
         this.cacheDirectory = fsPath.resolve(cacheDirectory);
@@ -26,9 +30,11 @@ export class ShaCache {
 
     flushToDisk() {
         if (this.dirtyCache) {
+            log.dbg(`STORING SHA CACHE...`)
             let cacheFileName = fsPath.join(this.cacheDirectory, 'data');
             fs.writeFileSync(cacheFileName, JSON.stringify(this.cache), 'utf8');
             this.dirtyCache = false;
+            log.dbg(`STORED SHA CACHE`)
         }
     }
 
@@ -37,7 +43,7 @@ export class ShaCache {
             if (!fsPath.isAbsolute(fullFileName))
                 reject("path should be absolute")
 
-            let stat = fs.statSync(fullFileName);
+            let stat = await FsTools.stat(fullFileName);
 
             if (fullFileName in this.cache) {
                 let cacheInfo = this.cache[fullFileName];
@@ -57,8 +63,12 @@ export class ShaCache {
             this.cache[fullFileName] = cacheInfo;
             this.dirtyCache = true;
 
-            if (stat.size > 10 * 1024 * 1024)
-                this.flushToDisk();
+            if (!this.flushInterval) {
+                this.flushInterval = setTimeout(() => {
+                    this.flushToDisk()
+                    this.flushInterval = null
+                }, 1000)
+            }
 
             resolve(contentSha);
         });

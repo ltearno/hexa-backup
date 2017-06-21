@@ -35,7 +35,7 @@ export class HexaBackupStore implements IHexaBackupStore {
     constructor(rootPath: string) {
         this.rootPath = fsPath.resolve(rootPath);
 
-        this.shaCache = null;// new ShaCache(fsPath.join(this.rootPath, '.hb-cache'));
+        this.shaCache = new ShaCache(fsPath.join(this.rootPath, '.hb-cache'));
 
         this.objectRepository = new ObjectRepository(fsPath.join(this.rootPath, '.hb-object'), this.shaCache);
 

@@ -6,6 +6,7 @@ import * as Stream from 'stream'
 import * as Net from 'net'
 import * as Serialization from './serialisation'
 import { ShaCache } from './ShaCache'
+import { HexaBackupStore } from './HexaBackupStore'
 
 const log = require('./Logger')('Tests');
 
@@ -100,7 +101,8 @@ class DirectoryLister extends Stream.Readable {
 }
 
 
-
+const MSG_TYPE_ASK_SHA_STATUS = 0
+const MSG_TYPE_REP_SHA_STATUS = 1
 
 
 let port = 5001
@@ -108,10 +110,21 @@ let port = 5001
 let server = Net.createServer((socket) => {
     log('client connected')
 
-    socket.on('message', (message) => {
-        let response = Serialization.deserialize(message, null)
+    let store = new HexaBackupStore('D:\\tmp\\tmp-store')
 
-        //log(`received message of length ${message.length} from client`)
+    socket.on('message', async (message) => {
+        let [messageType, content] = Serialization.deserialize(message, null)
+
+        switch (messageType) {
+            case MSG_TYPE_ASK_SHA_STATUS:
+                let sha = content
+                let size = await store.hasOneShaBytes(sha)
+                sendPayloadToSocket(Serialization.serialize([MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
+                break
+
+            default:
+                log.err(`unknown rx msg type ${messageType}`)
+        }
     })
 
     socketDataToMessage(socket)
@@ -133,9 +146,73 @@ let socket = new Net.Socket()
 socket.on('connect', () => {
     log(`connected to ${server}:${port}`)
 
+    initCommunication(socket)
+})
+
+socket.connect(port, "localhost")
+
+
+
+function sendPayloadToSocket(payload, socket) {
+    let header = new Buffer(4)
+    header.writeInt32LE(payload.length, 0)
+    socket.write(header)
+    return socket.write(payload)
+}
+
+
+function initCommunication(socket) {
+    let readyAskShaStatusPayloads = []
+
+    function writeSomeData() {
+        if (readyAskShaStatusPayloads.length > 0) {
+            let payload = readyAskShaStatusPayloads.shift()
+
+            let isDraining = sendPayloadToSocket(payload, socket)
+            if (!isDraining)
+                filesAndShasPipe.pause()
+        }
+    }
+
     socket.on('message', (message) => {
-        //let response = Serialization.deserialize(chunk, null)
-        //log(`received message of length ${chunk.length} from server`)
+        let [messageType, content] = Serialization.deserialize(message, null)
+
+        switch (messageType) {
+            case MSG_TYPE_REP_SHA_STATUS:
+                let sha = content[0]
+                let size = content[1]
+                log(`received size for sha ${sha} : ${size}`)
+                break
+
+            default:
+                log.err(`received unknown msg type ${messageType}`)
+        }
+    })
+
+    let directoryLister = new DirectoryLister('d:\\tmp\\tmp', ['.git', 'exp-cache'])
+    let shaProcessor = new ShaProcessor()
+    let filesAndShasPipe = directoryLister.pipe(shaProcessor)
+    filesAndShasPipe.on('data', (chunk: FileAndShaInfo) => {
+        if (!chunk.isDirectory) {
+            // need to send the sha to the store, to know if it has it already
+            let payload = Serialization.serialize([MSG_TYPE_ASK_SHA_STATUS, chunk.contentSha])
+
+            readyAskShaStatusPayloads.push(payload)
+
+            writeSomeData()
+        }
+        else {
+            // this item should be directly add to the TX
+        }
+    })
+
+    socket.on('drain', () => {
+        filesAndShasPipe.resume()
+    })
+
+    filesAndShasPipe.on('end', () => {
+        log(`finished inputs`)
+        socket.end()
     })
 
     socketDataToMessage(socket)
@@ -143,50 +220,8 @@ socket.on('connect', () => {
     socket.on('close', () => {
         log('connection to server closed')
     })
-})
+}
 
-socket.connect(port, "localhost")
-
-
-
-
-
-
-
-let directoryLister = new DirectoryLister('d:\\tmp\\tmp', ['.git', 'exp-cache'])
-let shaProcessor = new ShaProcessor()
-
-
-//let readable = FS.createReadStream('D:\\Tmp\\tmp\\MVI_0545.MOV')
-
-let piped = directoryLister.pipe(shaProcessor)
-
-piped.on('data', (chunk: Buffer) => {
-    //log(`send data to network`)
-
-    log(`piped ${JSON.stringify(chunk)}`)
-
-    let payload = Serialization.serialize([chunk], (s) => s)
-
-    let header = new Buffer(4)
-    header.writeInt32LE(payload.length, 0)
-    socket.write(header)
-    let isDraining = socket.write(payload)
-    if (!isDraining) {
-        //log(`network full`)
-        piped.pause()
-    }
-})
-
-socket.on('drain', () => {
-    //log(`network drain`)
-    piped.resume()
-})
-
-piped.on('end', () => {
-    log(`finished reading file`)
-    socket.end()
-})
 
 
 

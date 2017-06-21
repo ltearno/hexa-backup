@@ -17,6 +17,17 @@ export async function lstat(path: string) {
     });
 }
 
+export async function stat(path: string) {
+    return new Promise<fs.Stats>((resolve, reject) => {
+        fs.stat(path, (err, stats) => {
+            if (err)
+                reject(err)
+            else
+                resolve(stats)
+        });
+    });
+}
+
 export async function openFile(fileName: string, flags: string) {
     return new Promise<number>((resolve, reject) => {
         fs.open(fileName, flags, (err, fd) => {
