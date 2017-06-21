@@ -32,19 +32,24 @@ class ShaProcessor extends Stream.Transform {
     }
 
     async _transform(chunk: FileInfo, encoding, callback: (err, data) => void) {
+        let err = null
+        let value = null
+
         if (chunk.isDirectory) {
-            callback(null, Object.assign({ contentSha: null }, chunk))
+            value = Object.assign({ contentSha: null }, chunk)
         }
         else {
             try {
                 let sha = await this.shaCache.hashFile(chunk.name)
-
-                let o: FileAndShaInfo = Object.assign({ contentSha: sha }, chunk)
-                callback(null, o)
-            } catch (err) {
-                log(`ERROR SHAING ${err}`)
+                value = Object.assign({ contentSha: sha }, chunk)
+            } catch (e) {
+                log(`ERROR SHAING ${e}`)
+                err = e
             }
         }
+
+        log(`ShaProcessor::emit ${value} ${err}`)
+        callback(err, value)
     }
 }
 
@@ -89,12 +94,13 @@ class DirectoryLister extends Stream.Readable {
                 else
                     desc.size = stat.size
 
+                log(`DirectoryLister::emit ${desc.name}`)
                 this.push(desc)
             }
         }
 
         if (!this.awaitingReaddir && this.stack.length == 0) {
-            log(`END OF LIST OF FILES`)
+            log(`DirectoryLister::end`)
             this.push(null)
         }
     }
@@ -116,11 +122,13 @@ let server = Net.createServer((socket) => {
     socket.on('message', async (message) => {
         let [messageType, content] = Serialization.deserialize(message, null)
 
+        log(`RECEIV DEOM CLIENT`)
+
         switch (messageType) {
             case MSG_TYPE_ASK_SHA_STATUS:
                 let sha = content
                 let size = await store.hasOneShaBytes(sha)
-                sendPayloadToSocket(Serialization.serialize([MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
+                sendMessageToSocket(Serialization.serialize([MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
                 break
 
             case MSG_TYPE_ADD_SHA_IN_TX:
@@ -159,113 +167,166 @@ socket.connect(port, "localhost")
 
 
 
-function sendPayloadToSocket(payload, socket) {
+
+
+class AddShaInTxPayloadsStream extends Stream.Transform {
+    constructor() {
+        super({ objectMode: true })
+    }
+
+    async _transform(fileAndShaInfo: FileAndShaInfo, encoding, callback: (err, data) => void) {
+        this.push(Serialization.serialize([MSG_TYPE_ADD_SHA_IN_TX, fileAndShaInfo]))
+    }
+}
+
+/**
+ * Receives {sha, file, offset} and outputs buffers containings the sha bytes blocks
+ */
+class ShaBytesPayloadsStream extends Stream.Transform {
+
+}
+
+class ClientStatus {
+    askShaStatusPayloadsStream = new AskShaStatusPayloadsStream(this)
+    addShaInTxPayloadsStream = new AddShaInTxPayloadsStream()
+
+    pendingAskShaStatus: FileAndShaInfo[] = []
+    pendingSendShaBytes: { fileInfo: FileAndShaInfo; offset: number; }[] = []
+
+    constructor(private socket: Net.Socket) {
+    }
+
+    start() {
+        this.askShaStatusPayloadsStream.on('data', (chunk) => {
+            let isDraining = sendMessageToSocket(chunk, this.socket)
+            if (!isDraining) {
+                this.addShaInTxPayloadsStream.pause()
+                this.askShaStatusPayloadsStream.pause()
+            }
+        })
+
+        this.askShaStatusPayloadsStream.on('end', () => {
+            log(`finished reading file list and hashing`)
+            this.askShaStatusPayloadsStream = null
+        })
+
+        this.addShaInTxPayloadsStream.on('data', (chunk) => {
+            let isDraining = sendMessageToSocket(chunk, this.socket)
+            if (!isDraining) {
+                this.addShaInTxPayloadsStream.pause()
+                this.askShaStatusPayloadsStream.pause()
+            }
+        })
+
+        this.addShaInTxPayloadsStream.on('end', () => {
+            log(`finished adding shas in tx`)
+            this.addShaInTxPayloadsStream = null
+        })
+
+        let directoryLister = new DirectoryLister('d:\\tmp\\tmp', ['.git', 'exp-cache'])
+        let shaProcessor = new ShaProcessor()
+        directoryLister
+            .pipe(shaProcessor)
+            .pipe(this.askShaStatusPayloadsStream)
+
+        this.socket.on('drain', () => {
+            if (this.askShaStatusPayloadsStream)
+                this.askShaStatusPayloadsStream.resume()
+            if (this.addShaInTxPayloadsStream)
+                this.addShaInTxPayloadsStream.resume()
+        })
+
+        let me = this
+
+        this.socket.on('message', (message) => {
+            let [messageType, content] = Serialization.deserialize(message, null)
+
+            switch (messageType) {
+                case MSG_TYPE_REP_SHA_STATUS:
+                    let sha = content[0]
+                    let size = content[1]
+
+                    if (this.pendingAskShaStatus.length == 0) {
+                        log.err(`error, received an unknown SHA size !`)
+                        return
+                    }
+
+                    let matchedPending = this.pendingAskShaStatus.shift()
+                    if (matchedPending.contentSha != sha) {
+                        log.err(`error, received a non matched SHA size ! ${matchedPending.contentSha} / ${sha}`)
+                        return
+                    }
+
+                    log(`received ${sha} remote size, still waiting for ${this.pendingAskShaStatus.length}`)
+                    if (matchedPending.size != size) {
+                        /*if (size < matchedPending.size)
+                            pendingSendShaBytes.push({ fileInfo: matchedPending, offset: size })
+                        else {
+                            log(`warning : remote sha ${sha} is bigger than expected, restarting transfer`)
+                            pendingSendShaBytes.push({ fileInfo: matchedPending, offset: 0 })
+                        }*/
+                        log(`SHOULD UPLOAD SOME BYTES !`)
+                    }
+                    else {
+                        this.addShaInTxPayloadsStream.write(matchedPending)
+                    }
+
+                    break
+
+                default:
+                    log.err(`received unknown msg type ${messageType}`)
+            }
+        })
+
+        this.socket.on('close', () => {
+            log('connection to server closed')
+        })
+
+        socketDataToMessage(this.socket)
+    }
+
+    addToTransaction(fileAndShaInfo: FileAndShaInfo) {
+        this.addShaInTxPayloadsStream.write(fileAndShaInfo)
+    }
+
+    addPendingAskShaStatus(fileAndShaInfo: FileAndShaInfo) {
+        this.pendingAskShaStatus.push(fileAndShaInfo)
+    }
+}
+
+class AskShaStatusPayloadsStream extends Stream.Transform {
+    constructor(private clientStatus: ClientStatus) {
+        super({ objectMode: true })
+    }
+
+    async _transform(fileAndShaInfo: FileAndShaInfo, encoding, callback: (err, data) => void) {
+        if (fileAndShaInfo.isDirectory)
+            this.clientStatus.addToTransaction(fileAndShaInfo)
+        else {
+            this.push(Serialization.serialize([MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha]))
+            this.clientStatus.addPendingAskShaStatus(fileAndShaInfo)
+        }
+
+        callback(null, null)
+    }
+}
+
+
+function initCommunication(socket: Net.Socket) {
+    let clientStatus = new ClientStatus(socket)
+
+    clientStatus.start()
+}
+
+
+
+
+function sendMessageToSocket(payload, socket) {
     let header = new Buffer(4)
     header.writeInt32LE(payload.length, 0)
     socket.write(header)
     return socket.write(payload)
 }
-
-
-function initCommunication(socket: Net.Socket) {
-    let readyAskShaStatusPayloads = []
-
-    let readyAddFileInTxPayloads = []
-
-    let pendingAskShaStatus: FileAndShaInfo[] = []
-
-    let pendingSendShaBytes: { fileInfo: FileAndShaInfo; offset: number; }[] = []
-
-    function writeSomeData() {
-        let isDraining = true
-
-        while (isDraining && readyAddFileInTxPayloads.length > 0) {
-            let payload = readyAddFileInTxPayloads.shift()
-
-            isDraining = sendPayloadToSocket(payload, socket)
-        }
-
-        while (isDraining && false) {
-        }
-
-        while (isDraining && readyAskShaStatusPayloads.length > 0) {
-            let payload = readyAskShaStatusPayloads.shift()
-
-            isDraining = sendPayloadToSocket(payload, socket)
-            if (!isDraining && filesAndShasPipe)
-                filesAndShasPipe.pause()
-        }
-
-        if (isDraining && filesAndShasPipe)
-            filesAndShasPipe.resume()
-    }
-
-    socket.on('message', (message) => {
-        let [messageType, content] = Serialization.deserialize(message, null)
-
-        switch (messageType) {
-            case MSG_TYPE_REP_SHA_STATUS:
-                let sha = content[0]
-                let size = content[1]
-
-                let matchedPending = pendingAskShaStatus.shift()
-
-                log(`received size for ${matchedPending.contentSha == sha} sha ${sha} : ${size}`)
-
-                if (matchedPending.size != size) {
-                    if (size < matchedPending.size)
-                        pendingSendShaBytes.push({ fileInfo: matchedPending, offset: size })
-                    else {
-                        log(`warning : remote sha ${sha} is bigger than expected, restarting transfer`)
-                        pendingSendShaBytes.push({ fileInfo: matchedPending, offset: 0 })
-                    }
-                }
-                else {
-                    readyAddFileInTxPayloads.push(Serialization.serialize([MSG_TYPE_ADD_SHA_IN_TX, matchedPending]))
-                }
-
-                writeSomeData()
-
-                break
-
-            default:
-                log.err(`received unknown msg type ${messageType}`)
-        }
-    })
-
-    let directoryLister = new DirectoryLister('d:\\tmp\\tmp', ['.git', 'exp-cache'])
-    let shaProcessor = new ShaProcessor()
-    let filesAndShasPipe = directoryLister.pipe(shaProcessor)
-    filesAndShasPipe.on('data', (fileAndShaInfo: FileAndShaInfo) => {
-        if (!fileAndShaInfo.isDirectory) {
-            readyAddFileInTxPayloads.push(Serialization.serialize([MSG_TYPE_ADD_SHA_IN_TX, fileAndShaInfo]))
-        }
-        else {
-            readyAskShaStatusPayloads.push(Serialization.serialize([MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha]))
-            pendingAskShaStatus.push(fileAndShaInfo)
-        }
-
-        writeSomeData()
-    })
-
-    socket.on('drain', () => {
-        writeSomeData()
-    })
-
-    filesAndShasPipe.on('end', () => {
-        log(`finished reading file list and hashing`)
-        filesAndShasPipe = null
-    })
-
-    socketDataToMessage(socket)
-
-    socket.on('close', () => {
-        log('connection to server closed')
-    })
-}
-
-
-
 
 function socketDataToMessage(socket: Net.Socket) {
     let currentMessage: Buffer = null
@@ -277,47 +338,52 @@ function socketDataToMessage(socket: Net.Socket) {
     socket.on('data', (chunk: Buffer) => {
         let offsetInSource = 0
 
-        while (true) {
-            if (currentMessageBytesToFill === 0 && currentMessage) {
-                socket.emit('message', currentMessage)
-                currentMessage = null
-            }
-
-            if (offsetInSource >= chunk.length)
-                break
-
-            if (currentMessageBytesToFill === 0) {
-                let counterLength = 4 - counterBufferOffset
-                if (chunk.length - offsetInSource < counterLength)
-                    counterLength = chunk.length - offsetInSource
-
-                chunk.copy(counterBuffer, counterBufferOffset, offsetInSource, offsetInSource + counterLength)
-                counterBufferOffset += counterLength
-                offsetInSource += counterLength
-
-                if (counterBufferOffset == 4) {
-                    // get length
-                    currentMessageBytesToFill = counterBuffer.readInt32LE(0)
-                    counterBufferOffset = 0
-
-                    // allocate next buffer
-                    currentMessage = new Buffer(currentMessageBytesToFill)
+        try {
+            while (true) {
+                if (currentMessageBytesToFill === 0 && currentMessage) {
+                    socket.emit('message', currentMessage)
+                    currentMessage = null
                 }
 
-                continue
-            }
+                if (offsetInSource >= chunk.length)
+                    break
 
-            // copy some bytes
-            let copyLength = chunk.length - offsetInSource
-            if (copyLength > currentMessageBytesToFill)
-                copyLength = currentMessageBytesToFill
+                if (currentMessageBytesToFill === 0) {
+                    let counterLength = 4 - counterBufferOffset
+                    if (chunk.length - offsetInSource < counterLength)
+                        counterLength = chunk.length - offsetInSource
 
-            if (copyLength > 0) {
-                let offsetInDest = currentMessage.length - currentMessageBytesToFill
-                chunk.copy(currentMessage, offsetInDest, offsetInSource, offsetInSource + copyLength)
-                currentMessageBytesToFill -= copyLength
-                offsetInSource += copyLength
+                    chunk.copy(counterBuffer, counterBufferOffset, offsetInSource, offsetInSource + counterLength)
+                    counterBufferOffset += counterLength
+                    offsetInSource += counterLength
+
+                    if (counterBufferOffset == 4) {
+                        // get length
+                        currentMessageBytesToFill = counterBuffer.readInt32LE(0)
+                        counterBufferOffset = 0
+
+                        // allocate next buffer
+                        currentMessage = new Buffer(currentMessageBytesToFill)
+                    }
+
+                    continue
+                }
+
+                // copy some bytes
+                let copyLength = chunk.length - offsetInSource
+                if (copyLength > currentMessageBytesToFill)
+                    copyLength = currentMessageBytesToFill
+
+                if (copyLength > 0) {
+                    let offsetInDest = currentMessage.length - currentMessageBytesToFill
+                    chunk.copy(currentMessage, offsetInDest, offsetInSource, offsetInSource + copyLength)
+                    currentMessageBytesToFill -= copyLength
+                    offsetInSource += copyLength
+                }
             }
+        }
+        catch (e) {
+            log.err(`error processing socket incoming data`)
         }
     })
 }
