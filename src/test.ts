@@ -103,6 +103,7 @@ class DirectoryLister extends Stream.Readable {
 
 const MSG_TYPE_ASK_SHA_STATUS = 0
 const MSG_TYPE_REP_SHA_STATUS = 1
+const MSG_TYPE_ADD_SHA_IN_TX = 2
 
 
 let port = 5001
@@ -120,6 +121,11 @@ let server = Net.createServer((socket) => {
                 let sha = content
                 let size = await store.hasOneShaBytes(sha)
                 sendPayloadToSocket(Serialization.serialize([MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
+                break
+
+            case MSG_TYPE_ADD_SHA_IN_TX:
+                let fileInfo = content as FileAndShaInfo
+                log(`RCV ADD SHA IN TX ${JSON.stringify(fileInfo)}`)
                 break
 
             default:
@@ -161,17 +167,37 @@ function sendPayloadToSocket(payload, socket) {
 }
 
 
-function initCommunication(socket) {
+function initCommunication(socket: Net.Socket) {
     let readyAskShaStatusPayloads = []
 
+    let readyAddFileInTxPayloads = []
+
+    let pendingAskShaStatus: FileAndShaInfo[] = []
+
+    let pendingSendShaBytes: { fileInfo: FileAndShaInfo; offset: number; }[] = []
+
     function writeSomeData() {
-        if (readyAskShaStatusPayloads.length > 0) {
+        let isDraining = true
+
+        while (isDraining && readyAddFileInTxPayloads.length > 0) {
+            let payload = readyAddFileInTxPayloads.shift()
+
+            isDraining = sendPayloadToSocket(payload, socket)
+        }
+
+        while (isDraining && false) {
+        }
+
+        while (isDraining && readyAskShaStatusPayloads.length > 0) {
             let payload = readyAskShaStatusPayloads.shift()
 
-            let isDraining = sendPayloadToSocket(payload, socket)
-            if (!isDraining)
+            isDraining = sendPayloadToSocket(payload, socket)
+            if (!isDraining && filesAndShasPipe)
                 filesAndShasPipe.pause()
         }
+
+        if (isDraining && filesAndShasPipe)
+            filesAndShasPipe.resume()
     }
 
     socket.on('message', (message) => {
@@ -181,7 +207,25 @@ function initCommunication(socket) {
             case MSG_TYPE_REP_SHA_STATUS:
                 let sha = content[0]
                 let size = content[1]
-                log(`received size for sha ${sha} : ${size}`)
+
+                let matchedPending = pendingAskShaStatus.shift()
+
+                log(`received size for ${matchedPending.contentSha == sha} sha ${sha} : ${size}`)
+
+                if (matchedPending.size != size) {
+                    if (size < matchedPending.size)
+                        pendingSendShaBytes.push({ fileInfo: matchedPending, offset: size })
+                    else {
+                        log(`warning : remote sha ${sha} is bigger than expected, restarting transfer`)
+                        pendingSendShaBytes.push({ fileInfo: matchedPending, offset: 0 })
+                    }
+                }
+                else {
+                    readyAddFileInTxPayloads.push(Serialization.serialize([MSG_TYPE_ADD_SHA_IN_TX, matchedPending]))
+                }
+
+                writeSomeData()
+
                 break
 
             default:
@@ -192,27 +236,25 @@ function initCommunication(socket) {
     let directoryLister = new DirectoryLister('d:\\tmp\\tmp', ['.git', 'exp-cache'])
     let shaProcessor = new ShaProcessor()
     let filesAndShasPipe = directoryLister.pipe(shaProcessor)
-    filesAndShasPipe.on('data', (chunk: FileAndShaInfo) => {
-        if (!chunk.isDirectory) {
-            // need to send the sha to the store, to know if it has it already
-            let payload = Serialization.serialize([MSG_TYPE_ASK_SHA_STATUS, chunk.contentSha])
-
-            readyAskShaStatusPayloads.push(payload)
-
-            writeSomeData()
+    filesAndShasPipe.on('data', (fileAndShaInfo: FileAndShaInfo) => {
+        if (!fileAndShaInfo.isDirectory) {
+            readyAddFileInTxPayloads.push(Serialization.serialize([MSG_TYPE_ADD_SHA_IN_TX, fileAndShaInfo]))
         }
         else {
-            // this item should be directly add to the TX
+            readyAskShaStatusPayloads.push(Serialization.serialize([MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha]))
+            pendingAskShaStatus.push(fileAndShaInfo)
         }
+
+        writeSomeData()
     })
 
     socket.on('drain', () => {
-        filesAndShasPipe.resume()
+        writeSomeData()
     })
 
     filesAndShasPipe.on('end', () => {
-        log(`finished inputs`)
-        socket.end()
+        log(`finished reading file list and hashing`)
+        filesAndShasPipe = null
     })
 
     socketDataToMessage(socket)
