@@ -31,6 +31,10 @@ class ShaProcessor extends Stream.Transform {
         this.shaCache = new ShaCache('d:\\tmp\\tmp\\exp-cache')
     }
 
+    _flush(callback) {
+        callback()
+    }
+
     async _transform(chunk: FileInfo, encoding, callback: (err, data) => void) {
         let err = null
         let value = null
@@ -110,6 +114,7 @@ class DirectoryLister extends Stream.Readable {
 const MSG_TYPE_ASK_SHA_STATUS = 0
 const MSG_TYPE_REP_SHA_STATUS = 1
 const MSG_TYPE_ADD_SHA_IN_TX = 2
+const MSG_TYPE_SHA_BYTES = 3
 
 
 let port = 5001
@@ -174,20 +179,53 @@ class AddShaInTxPayloadsStream extends Stream.Transform {
         super({ objectMode: true })
     }
 
+    _flush(callback) {
+        callback()
+    }
+
     async _transform(fileAndShaInfo: FileAndShaInfo, encoding, callback: (err, data) => void) {
         this.push(Serialization.serialize([MSG_TYPE_ADD_SHA_IN_TX, fileAndShaInfo]))
     }
 }
 
 /**
- * Receives {sha, file, offset} and outputs buffers containings the sha bytes blocks
+ * Receives a file's raw bytes and send them by block
  */
 class ShaBytesPayloadsStream extends Stream.Transform {
+    constructor(private fileInfo: FileAndShaInfo, private offset: number) {
+        super({ objectMode: true })
 
+        let fsAny = fs as any
+        let fileBytesStream = fsAny.createReadStream(fileInfo.name, {
+            flags: 'r',
+            encoding: null,
+            start: offset
+        })
+
+        fileBytesStream.pipe(this)
+    }
+
+    _flush(callback) {
+        callback()
+    }
+
+    async _transform(buffer: Buffer, encoding, callback: (err, data) => void) {
+        this.push(Serialization.serialize([MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, buffer]))
+        this.offset + buffer.length
+    }
+}
+
+type ReadableStream = Stream.Readable | Stream.Transform
+
+interface StreamInfo {
+    name: string;
+    stream: ReadableStream;
+    readable: boolean;
 }
 
 class ClientStatus {
-    askShaStatusPayloadsStream = new AskShaStatusPayloadsStream(this)
+    streams: StreamInfo[] = []
+
     addShaInTxPayloadsStream = new AddShaInTxPayloadsStream()
 
     pendingAskShaStatus: FileAndShaInfo[] = []
@@ -196,47 +234,65 @@ class ClientStatus {
     constructor(private socket: Net.Socket) {
     }
 
+    private addStream(name: string, stream: ReadableStream) {
+        let si = {
+            name,
+            stream,
+            readable: false
+        }
+
+        this.streams.push(si)
+
+        this.initStream(si)
+    }
+
+    private pauseStreams() {
+        for (let stream of this.streams)
+            stream.stream.pause()
+    }
+
+    private resumeStreams() {
+        for (let stream of this.streams) {
+            stream.stream.resume()
+        }
+    }
+
+    private initStream(stream: StreamInfo) {
+        stream.stream.on('data', (chunk) => {
+            let isDraining = sendMessageToSocket(chunk, this.socket)
+            if (!isDraining) {
+                this.pauseStreams()
+            }
+        })
+
+        stream.stream.on('end', () => {
+            log(`finished source stream ${stream.name}`)
+            this.streams = this.streams.filter(s => s != stream)
+
+            if (this.streams.length == 0)
+                log(`FINISHED WORK !`)
+        })
+    }
+
     start() {
-        this.askShaStatusPayloadsStream.on('data', (chunk) => {
-            let isDraining = sendMessageToSocket(chunk, this.socket)
-            if (!isDraining) {
-                this.addShaInTxPayloadsStream.pause()
-                this.askShaStatusPayloadsStream.pause()
-            }
-        })
+        let askShaStatusPayloadsStream = new AskShaStatusPayloadsStream(this)
+        this.addStream("FILES AND DIRECTORY LISTING", askShaStatusPayloadsStream)
+        this.addStream("ADD SHA IN TRANSACTION", this.addShaInTxPayloadsStream)
 
-        this.askShaStatusPayloadsStream.on('end', () => {
-            log(`finished reading file list and hashing`)
-            this.askShaStatusPayloadsStream = null
-        })
-
-        this.addShaInTxPayloadsStream.on('data', (chunk) => {
-            let isDraining = sendMessageToSocket(chunk, this.socket)
-            if (!isDraining) {
-                this.addShaInTxPayloadsStream.pause()
-                this.askShaStatusPayloadsStream.pause()
-            }
-        })
-
-        this.addShaInTxPayloadsStream.on('end', () => {
-            log(`finished adding shas in tx`)
-            this.addShaInTxPayloadsStream = null
+        askShaStatusPayloadsStream.on('end', () => {
+            this.resumeStreams()
+            this.addShaInTxPayloadsStream.end()
         })
 
         let directoryLister = new DirectoryLister('d:\\tmp\\tmp', ['.git', 'exp-cache'])
         let shaProcessor = new ShaProcessor()
         directoryLister
             .pipe(shaProcessor)
-            .pipe(this.askShaStatusPayloadsStream)
+            .pipe(askShaStatusPayloadsStream)
 
         this.socket.on('drain', () => {
-            if (this.askShaStatusPayloadsStream)
-                this.askShaStatusPayloadsStream.resume()
-            if (this.addShaInTxPayloadsStream)
-                this.addShaInTxPayloadsStream.resume()
+            this.resumeStreams()
         })
-
-        let me = this
 
         this.socket.on('message', (message) => {
             let [messageType, content] = Serialization.deserialize(message, null)
@@ -297,6 +353,10 @@ class ClientStatus {
 class AskShaStatusPayloadsStream extends Stream.Transform {
     constructor(private clientStatus: ClientStatus) {
         super({ objectMode: true })
+    }
+
+    _flush(callback) {
+        callback()
     }
 
     async _transform(fileAndShaInfo: FileAndShaInfo, encoding, callback: (err, data) => void) {
