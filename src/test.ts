@@ -390,6 +390,30 @@ class ClientStatus {
     }
 
     start() {
+        let ignoredDirs = ['.git', 'exp-cache']
+        let directoryLister = new DirectoryLister(backupedDirectory, ignoredDirs)
+
+        log(`preparing...`)
+
+        let total = {
+            nbDirectories: 0,
+            nbFiles: 0,
+            bytes: 0
+        }
+
+        directoryLister.on('end', () => {
+            log(`prepared to send ${total.nbDirectories} directories, ${total.nbFiles} files and ${total.bytes / (1024 * 1024 * 1024)} Gb`)
+            this.startSending()
+        })
+
+        directoryLister.on('data', (file: FileInfo) => {
+            total.nbDirectories += file.isDirectory ? 1 : 0
+            total.nbFiles += file.isDirectory ? 0 : 1
+            total.bytes += file.size
+        })
+    }
+
+    startSending() {
         this.socket.on('drain', () => {
             this.isNetworkDraining = true
             this.maybeSendBytesToNetwork()
