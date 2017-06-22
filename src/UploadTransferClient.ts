@@ -136,31 +136,57 @@ class AddShaInTxPayloadsStream extends Stream.Transform {
 /**
  * Receives a file's raw bytes and send them by block
  */
-class ShaBytesPayloadsStream extends Stream.Transform {
+class ShaBytesPayloadsStream extends Stream.Readable {
+    private fileBytesStream = null
+    private waitingReadable = false
+
     constructor(private clientStatus: UploadTransferClient, private fileInfo: UploadTransferModel.FileAndShaInfo, private offset: number) {
         super({ objectMode: true })
-
-        let fsAny = fs as any
-        let fileBytesStream = fsAny.createReadStream(fileInfo.name, {
-            flags: 'r',
-            encoding: null,
-            start: offset
-        })
-
-        fileBytesStream.pipe(this)
     }
 
-    _flush(callback) {
-        this.clientStatus.addToTransaction(this.fileInfo)
-        this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
-        callback(null, null)
+    _read(size) {
+        if (this.fileBytesStream == null) {
+            log(`OPEN FILE ${this.fileInfo.name}`)
+            let fsAny = fs as any
+            this.fileBytesStream = fsAny.createReadStream(this.fileInfo.name, {
+                flags: 'r',
+                encoding: null,
+                start: this.offset
+            })
+
+            this.fileBytesStream.on('end', () => {
+                this.clientStatus.addToTransaction(this.fileInfo)
+                this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
+                this.push(null)
+
+                log(`CLOSE FILE ${this.fileInfo.name}`)
+            })
+
+            this.fileBytesStream.on('readable', () => {
+                if (this.waitingReadable)
+                    this.readAndMaybePushBuffer()
+            })
+        }
+
+        this.readAndMaybePushBuffer()
     }
 
-    async _transform(buffer: Buffer, encoding, callback: (err, data) => void) {
+    private readAndMaybePushBuffer() {
+        this.waitingReadable = false
+        let buffer: Buffer = this.fileBytesStream.read()
+        if (buffer != null)
+            this.pushBuffer(buffer)
+        else
+            this.waitingReadable = true
+    }
+
+    private maybePushBuffer() {
+
+    }
+
+    private pushBuffer(buffer: Buffer) {
         this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, buffer]))
         this.offset += buffer.length
-
-        callback(null, null)
     }
 }
 
@@ -252,7 +278,9 @@ export class UploadTransferClient {
             let si = this.streams[i]
 
             while (this.isNetworkDraining) {
-                let chunk = si.stream.read(1)
+                if (i != this.streams.length - 1)
+                    log(`try read from s depth ${this.streams.length - 1 - i}`)
+                let chunk = si.stream.read()
                 if (chunk == null) {
                     break
                 }
@@ -285,7 +313,9 @@ export class UploadTransferClient {
     }
 
     start() {
-        let directoryLister = new DirectoryLister(this.pushedDirectory, this.ignoredDirs)
+        this.startSending()
+
+        /*let directoryLister = new DirectoryLister(this.pushedDirectory, this.ignoredDirs)
 
         log(`preparing...`)
 
@@ -304,7 +334,7 @@ export class UploadTransferClient {
             total.nbDirectories += file.isDirectory ? 1 : 0
             total.nbFiles += file.isDirectory ? 0 : 1
             total.bytes += file.size
-        })
+        })*/
     }
 
     private startSending() {
