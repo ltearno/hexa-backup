@@ -28,7 +28,7 @@ export class ShaCache {
         }
     }
 
-    flushToDisk() {
+    private flushToDisk() {
         if (this.dirtyCache) {
             log.dbg(`STORING SHA CACHE...`)
             let cacheFileName = fsPath.join(this.cacheDirectory, 'data');
@@ -64,10 +64,10 @@ export class ShaCache {
             this.dirtyCache = true;
 
             if (!this.flushInterval) {
-                this.flushInterval = setTimeout(() => {
+                this.flushInterval = setInterval(() => {
                     this.flushToDisk()
                     this.flushInterval = null
-                }, 1000)
+                }, 30000)
             }
 
             resolve(contentSha);

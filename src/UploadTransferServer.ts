@@ -73,6 +73,8 @@ export class UploadTransferServer {
                     case UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT: {
                         let sha = param1
 
+                        log(`finished sha transfer ${sha}`)
+
                         shaWriter.write({ sha, offset: -1, buffer: null })
                         break
                     }
