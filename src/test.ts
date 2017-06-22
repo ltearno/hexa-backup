@@ -52,7 +52,6 @@ class ShaProcessor extends Stream.Transform {
             }
         }
 
-        log(`ShaProcessor::emit ${value} ${err}`)
         callback(err, value)
     }
 }
@@ -98,13 +97,11 @@ class DirectoryLister extends Stream.Readable {
                 else
                     desc.size = stat.size
 
-                log(`DirectoryLister::emit ${desc.name}`)
                 this.push(desc)
             }
         }
 
         if (!this.awaitingReaddir && this.stack.length == 0) {
-            log(`DirectoryLister::end`)
             this.push(null)
         }
     }
@@ -126,8 +123,6 @@ let server = Net.createServer((socket) => {
 
     socket.on('message', async (message) => {
         let [messageType, content] = Serialization.deserialize(message, null)
-
-        log(`RECEIV DEOM CLIENT`)
 
         switch (messageType) {
             case MSG_TYPE_ASK_SHA_STATUS:
@@ -184,7 +179,7 @@ class AddShaInTxPayloadsStream extends Stream.Transform {
     }
 
     async _transform(fileAndShaInfo: FileAndShaInfo, encoding, callback: (err, data) => void) {
-        this.push(Serialization.serialize([MSG_TYPE_ADD_SHA_IN_TX, fileAndShaInfo]))
+        callback(null, Serialization.serialize([MSG_TYPE_ADD_SHA_IN_TX, fileAndShaInfo]))
     }
 }
 
@@ -210,7 +205,7 @@ class ShaBytesPayloadsStream extends Stream.Transform {
     }
 
     async _transform(buffer: Buffer, encoding, callback: (err, data) => void) {
-        this.push(Serialization.serialize([MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, buffer]))
+        callback(null, Serialization.serialize([MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, buffer]))
         this.offset + buffer.length
     }
 }
@@ -258,13 +253,6 @@ class ClientStatus {
     }
 
     private initStream(stream: StreamInfo) {
-        stream.stream.on('data', (chunk) => {
-            let isDraining = sendMessageToSocket(chunk, this.socket)
-            if (!isDraining) {
-                this.pauseStreams()
-            }
-        })
-
         stream.stream.on('end', () => {
             log(`finished source stream ${stream.name}`)
             this.streams = this.streams.filter(s => s != stream)
@@ -272,17 +260,25 @@ class ClientStatus {
             if (this.streams.length == 0)
                 log(`FINISHED WORK !`)
         })
+
+        stream.stream.on('data', (chunk) => {
+            log(`DATA FROM STREAM '${stream.name}'`)
+            let isDraining = sendMessageToSocket(chunk, this.socket)
+            if (!isDraining) {
+                this.pauseStreams()
+            }
+        })
     }
 
     start() {
         let askShaStatusPayloadsStream = new AskShaStatusPayloadsStream(this)
-        this.addStream("FILES AND DIRECTORY LISTING", askShaStatusPayloadsStream)
-        this.addStream("ADD SHA IN TRANSACTION", this.addShaInTxPayloadsStream)
+        this.addStream("AskShaStatus", askShaStatusPayloadsStream)
+        this.addStream("AddShaInTransaction", this.addShaInTxPayloadsStream)
 
-        askShaStatusPayloadsStream.on('end', () => {
+        /*askShaStatusPayloadsStream.on('end', () => {
             this.resumeStreams()
-            this.addShaInTxPayloadsStream.end()
-        })
+            //this.addShaInTxPayloadsStream.end()
+        })*/
 
         let directoryLister = new DirectoryLister('d:\\tmp\\tmp', ['.git', 'exp-cache'])
         let shaProcessor = new ShaProcessor()
@@ -313,7 +309,7 @@ class ClientStatus {
                         return
                     }
 
-                    log(`received ${sha} remote size, still waiting for ${this.pendingAskShaStatus.length}`)
+                    //log(`received ${sha} remote size, still waiting for ${this.pendingAskShaStatus.length}`)
                     if (matchedPending.size != size) {
                         /*if (size < matchedPending.size)
                             pendingSendShaBytes.push({ fileInfo: matchedPending, offset: size })
@@ -321,10 +317,10 @@ class ClientStatus {
                             log(`warning : remote sha ${sha} is bigger than expected, restarting transfer`)
                             pendingSendShaBytes.push({ fileInfo: matchedPending, offset: 0 })
                         }*/
-                        log(`SHOULD UPLOAD SOME BYTES !`)
+                        log(`SHOULD UPLOAD ${matchedPending.size - size} BYTES for ${sha}`)
                     }
                     else {
-                        this.addShaInTxPayloadsStream.write(matchedPending)
+                        this.addToTransaction(matchedPending)
                     }
 
                     break
@@ -342,7 +338,8 @@ class ClientStatus {
     }
 
     addToTransaction(fileAndShaInfo: FileAndShaInfo) {
-        this.addShaInTxPayloadsStream.write(fileAndShaInfo)
+        for (let i = 0; i < 10; i++)
+            this.addShaInTxPayloadsStream.write(fileAndShaInfo)
     }
 
     addPendingAskShaStatus(fileAndShaInfo: FileAndShaInfo) {
