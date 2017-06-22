@@ -1,3 +1,4 @@
+import * as Net from 'net'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
 import { HexaBackupReader } from './HexaBackupReader'
 import { RPCClient, RPCServer } from './RPC'
@@ -6,6 +7,8 @@ import * as FsTools from './FsTools'
 import * as Model from './Model'
 import fsPath = require('path')
 import * as fs from 'fs'
+import * as UploadTransferServer from './UploadTransferServer'
+import * as UploadTransferClient from './UploadTransferClient'
 
 const log = require('./Logger')('Commands')
 
@@ -188,6 +191,37 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
     }
 }
 
+export async function pushFast(sourceId, pushedDirectory, storeIp, storePort) {
+    return new Promise((accept, reject) => {
+        console.log(`push options :`)
+        console.log(`  directory: ${pushedDirectory}`);
+        console.log(`  source: ${sourceId}`);
+        console.log(`  server: ${storeIp}:${storePort}`);
+        console.log();
+
+        let socket = new Net.Socket()
+
+        socket.on('connect', () => {
+            log(`connected to ${storeIp}:${storePort}`);
+
+            let client = new UploadTransferClient.UploadTransferClient(pushedDirectory, sourceId, socket);
+            client.start()
+        })
+
+        socket.on('close', () => {
+            log('connection closed')
+            accept()
+        })
+
+        socket.on('error', (err) => {
+            socket.end()
+            reject(err)
+        })
+
+        socket.connect(storePort, storeIp)
+    })
+}
+
 export async function push(sourceId, pushedDirectory, storeIp: string, storePort, useZip: boolean) {
     console.log(`push options :`)
     console.log(`  directory: ${pushedDirectory}`);
@@ -241,6 +275,9 @@ export async function store(directory, port) {
     console.log('server intialisation');
     let rpcServer = new RPCServer();
     rpcServer.listen(port, store);
+
+    let transferServer = new UploadTransferServer.UploadTransferServer()
+    transferServer.listen(port + 1, store)
 
     console.log(`ready on port ${port} !`);
 }

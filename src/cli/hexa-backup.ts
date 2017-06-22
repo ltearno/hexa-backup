@@ -183,6 +183,26 @@ async function run() {
             }
         },
         {
+            id: "pushFast",
+            verbs: ["pushFast"],
+            options: {
+                sourceId: defaultSourceId,
+                storeIp: "localhost",
+                storePort: 5006,
+                pushedDirectory: '.'
+            },
+            executor: async (options) => {
+                const sourceId = options['sourceId']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const pushedDirectory = fsPath.resolve(options['pushedDirectory'])
+
+                await Commands.pushFast(sourceId, pushedDirectory, storeIp, storePort)
+
+                process.exit(0)
+            }
+        },
+        {
             id: "store",
             verbs: ["store"],
             options: {
