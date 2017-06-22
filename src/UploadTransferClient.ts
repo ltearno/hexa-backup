@@ -229,6 +229,16 @@ export class UploadTransferClient {
 
     private isNetworkDraining: boolean = true
 
+    status = {
+        phase: "uninit",
+        toSync: {
+            nbFiles: 0,
+            nbDirectories: 0,
+            nbBytes: 0
+        },
+        nbAddedInTx: 0
+    }
+
     constructor(private pushedDirectory: string, private sourceId: string, private socket: Net.Socket) {
         this.addShaInTxPayloadsStream = new AddShaInTxPayloadsStream(pushedDirectory)
     }
@@ -241,7 +251,7 @@ export class UploadTransferClient {
         }
 
         this.streams.push(si)
-        log(`added stream ${si.name}, count=${this.streams.length}`)
+        log.dbg(`added stream ${si.name}, count=${this.streams.length}`)
         this.initStream(si)
     }
 
@@ -250,7 +260,7 @@ export class UploadTransferClient {
             this.isNetworkDraining = true
 
             this.streams = this.streams.filter(s => s != stream)
-            log(`finished source stream ${stream.name}, ${this.streams.length} left`)
+            log.dbg(`finished source stream ${stream.name}, ${this.streams.length} left`)
 
             if (this.streams.length == 0)
                 log(`FINISHED WORK !`)
@@ -307,32 +317,40 @@ export class UploadTransferClient {
         }
     }
 
-    start() {
-        this.startSending()
-
-        /*let directoryLister = new DirectoryLister(this.pushedDirectory, this.ignoredDirs)
-
-        log(`preparing...`)
-
-        let total = {
-            nbDirectories: 0,
-            nbFiles: 0,
-            bytes: 0
+    private giveStatus() {
+        return {
+            message: `${this.status.phase}, ${this.status.nbAddedInTx} added files, ${this.pendingAskShaStatus.size} pending ask-sha-status`,
+            completed: .5
         }
+    }
 
-        directoryLister.on('end', () => {
-            log(`prepared to send ${total.nbDirectories} directories, ${total.nbFiles} files and ${total.bytes / (1024 * 1024 * 1024)} Gb`)
+    start() {
+        log.setStatus(() => this.giveStatus())
+
+        this.status.phase = 'preparing'
+
+        if (0 * 1 == 1) {
             this.startSending()
-        })
+        }
+        else {
+            let directoryLister = new DirectoryLister(this.pushedDirectory, this.ignoredDirs)
 
-        directoryLister.on('data', (file: UploadTransferModel.FileInfo) => {
-            total.nbDirectories += file.isDirectory ? 1 : 0
-            total.nbFiles += file.isDirectory ? 0 : 1
-            total.bytes += file.size
-        })*/
+            directoryLister.on('end', () => {
+                log(`prepared to send ${this.status.toSync.nbDirectories} directories, ${this.status.toSync.nbFiles} files and ${this.status.toSync.nbBytes / (1024 * 1024 * 1024)} Gb`)
+                this.startSending()
+            })
+
+            directoryLister.on('data', (file: UploadTransferModel.FileInfo) => {
+                this.status.toSync.nbDirectories += file.isDirectory ? 1 : 0
+                this.status.toSync.nbFiles += file.isDirectory ? 0 : 1
+                this.status.toSync.nbBytes += file.size
+            })
+        }
     }
 
     private startSending() {
+        this.status.phase = 'sending'
+
         this.socket.on('drain', () => {
             this.isNetworkDraining = true
             this.maybeSendBytesToNetwork()
@@ -444,6 +462,8 @@ export class UploadTransferClient {
     }
 
     addToTransaction(fileAndShaInfo: UploadTransferModel.FileAndShaInfo) {
+        this.status.nbAddedInTx++
+
         this.addShaInTxPayloadsStream.write(fileAndShaInfo)
     }
 
