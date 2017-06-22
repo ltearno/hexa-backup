@@ -112,7 +112,7 @@ export class ObjectRepository {
             this.openedShaFiles.delete(sha)
             await FsTools.closeFile(openedFile)
 
-            log(`closed sha file ${sha}, still ${this.openedShaFiles.size} entries`)
+            log.dbg(`closed sha file ${sha}, still ${this.openedShaFiles.size} entries`)
         }
 
         let contentFileName = this.contentFileName(sha)

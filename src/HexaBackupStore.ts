@@ -84,7 +84,7 @@ export class HexaBackupStore implements IHexaBackupStore {
     async pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }> {
         let res: { [sha: string]: boolean } = {}
 
-        log(`validating ${descriptors.length} descriptors in transaction ${transactionId}`)
+        log.dbg(`validating ${descriptors.length} descriptors in transaction ${transactionId}`)
 
         let clientState = await this.getSourceState(sourceId);
         if (clientState.currentTransactionId != transactionId) {
@@ -140,7 +140,7 @@ export class HexaBackupStore implements IHexaBackupStore {
             }
         }
 
-        log(`validated ${descriptors.length} descriptors in transaction ${transactionId}`)
+        log.dbg(`validated ${descriptors.length} descriptors in transaction ${transactionId}`)
 
         return res
     }

@@ -140,13 +140,12 @@ class ShaBytesPayloadsStream extends Stream.Readable {
     private fileBytesStream = null
     private waitingReadable = false
 
-    constructor(private clientStatus: UploadTransferClient, private fileInfo: UploadTransferModel.FileAndShaInfo, private offset: number) {
+    constructor(private clientStatus: UploadTransferClient, public fileInfo: UploadTransferModel.FileAndShaInfo, public offset: number) {
         super({ objectMode: true })
     }
 
     _read(size) {
         if (this.fileBytesStream == null) {
-            log(`OPEN FILE ${this.fileInfo.name}`)
             let fsAny = fs as any
             this.fileBytesStream = fsAny.createReadStream(this.fileInfo.name, {
                 flags: 'r',
@@ -158,8 +157,6 @@ class ShaBytesPayloadsStream extends Stream.Readable {
                 this.clientStatus.addToTransaction(this.fileInfo)
                 this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
                 this.push(null)
-
-                log(`CLOSE FILE ${this.fileInfo.name}`)
             })
 
             this.fileBytesStream.on('readable', () => {
@@ -244,9 +241,7 @@ export class UploadTransferClient {
         }
 
         this.streams.push(si)
-
         log(`added stream ${si.name}, count=${this.streams.length}`)
-
         this.initStream(si)
     }
 
@@ -278,8 +273,8 @@ export class UploadTransferClient {
             let si = this.streams[i]
 
             while (this.isNetworkDraining) {
-                if (i != this.streams.length - 1)
-                    log(`try read from s depth ${this.streams.length - 1 - i}`)
+                //if (i != this.streams.length - 1)
+                //    log(`try read from s depth ${this.streams.length - 1 - i}`)
                 let chunk = si.stream.read()
                 if (chunk == null) {
                     break
@@ -396,7 +391,7 @@ export class UploadTransferClient {
                             offset = 0
                         }
 
-                        this.addStream(`FileTransfert from ${offset} ${matchedPending.name} `, true, new ShaBytesPayloadsStream(this, matchedPending, offset))
+                        this.enqueueFileStream(matchedPending, offset)
                     }
                     else {
                         this.addToTransaction(matchedPending)
@@ -420,6 +415,32 @@ export class UploadTransferClient {
         let clientId = "test"
 
         this.isNetworkDraining = Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, clientId]), this.socket)
+    }
+
+    private currentShaBytesStream: ShaBytesPayloadsStream = null
+    private pendingShaBytesStreams: ShaBytesPayloadsStream[] = []
+
+    private enqueueFileStream(matchedPending, offset) {
+        let stream = new ShaBytesPayloadsStream(this, matchedPending, offset)
+        stream.on('end', () => {
+            if (this.currentShaBytesStream != stream)
+                log.err(`werido`)
+            this.currentShaBytesStream = null
+            this.maybeConsumeShaBytesStream()
+        })
+
+        this.pendingShaBytesStreams.push(stream)
+
+        if (this.pendingShaBytesStreams.length == 1)
+            this.maybeConsumeShaBytesStream()
+    }
+
+    private maybeConsumeShaBytesStream() {
+        if (this.pendingShaBytesStreams.length > 0 && this.currentShaBytesStream == null) {
+            let nextStream = this.pendingShaBytesStreams.shift()
+            this.currentShaBytesStream = nextStream
+            this.addStream(`ShaBytes ${nextStream.fileInfo.name}@${nextStream.offset}`, false, nextStream)
+        }
     }
 
     addToTransaction(fileAndShaInfo: UploadTransferModel.FileAndShaInfo) {
