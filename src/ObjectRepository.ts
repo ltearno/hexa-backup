@@ -106,29 +106,42 @@ export class ObjectRepository {
 
     private openedShaFiles = new Map<string, number>()
 
+    async validateShaBytes(sha: string) {
+        let openedFile = this.openedShaFiles.get(sha)
+        if (openedFile) {
+            this.openedShaFiles.delete(sha)
+            await FsTools.closeFile(openedFile)
+
+            log(`closed sha file ${sha}, still ${this.openedShaFiles.size} entries`)
+        }
+
+        let contentFileName = this.contentFileName(sha)
+        let storedContentSha = this.shaCache ? await this.shaCache.hashFile(contentFileName) : await HashTools.hashFile(contentFileName)
+
+        if (sha != storedContentSha) {
+            log.err(`wrong storage bytes for sha ${sha}`)
+            fs.rename(contentFileName, contentFileName + '.bak', (err) => { })
+        }
+
+        return sha == storedContentSha
+    }
+
     async putShaBytes(sha: string, offset: number, data: Buffer) {
         if (sha == HashTools.EMPTY_PAYLOAD_SHA)
             return 0
 
         try {
-            //log.dbg(`put bytes for ${sha} @${offset}, size=${data.byteLength}`)
+            log.dbg(`put bytes for ${sha} @${offset}, size=${data.byteLength}`)
 
             let contentFileName = this.contentFileName(sha)
 
-            let fd = this.openedShaFiles.get(contentFileName)
+            let fd = this.openedShaFiles.get(sha)
             if (!fd) {
                 fd = await FsTools.openFile(contentFileName, 'w')
-                this.openedShaFiles.set(contentFileName, fd)
+                this.openedShaFiles.set(sha, fd)
             }
 
             await FsTools.writeFileBuffer(fd, offset, data)
-
-            //await FsTools.closeFile(fd)
-
-            let stat = await FsTools.stat(contentFileName)
-            let totalSize = stat.size
-            if (totalSize != (offset + data.byteLength))
-                log.err(`inconsistent object file size : ${totalSize} != (${offset} + ${data.byteLength})`)
 
             return data.length
         }

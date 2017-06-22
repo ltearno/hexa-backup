@@ -61,6 +61,10 @@ export class HexaBackupStore implements IHexaBackupStore {
         return this.objectRepository.hasOneShaBytes(sha)
     }
 
+    async validateShaBytes(sha: string) {
+        return this.objectRepository.validateShaBytes(sha)
+    }
+
     async putShaBytes(sha: string, offset: number, data: Buffer) {
         return this.objectRepository.putShaBytes(sha, offset, data);
     }
@@ -111,11 +115,15 @@ export class HexaBackupStore implements IHexaBackupStore {
                 validated = true;
             }
             else {
-                validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
-                if (validated)
-                    clientState.currentTransactionContent[fileDesc.name] = fileDesc
-                else
-                    log.err(`cannot validate sha ${fileDesc.contentSha} for file ${fileDesc.name}`)
+                clientState.currentTransactionContent[fileDesc.name] = fileDesc;
+                validated = true;
+
+                // do not rehash because it shuold have been done already
+                /* validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
+                            if (validated)
+                                    clientState.currentTransactionContent[fileDesc.name] = fileDesc
+                                else
+                                    log.log(`cannot validate sha ${fileDesc.contentSha} for file ${fileDesc.name}, this is surely due to a duplicated file which content is actually being transferred`)*/
             }
 
             if (validated) {
