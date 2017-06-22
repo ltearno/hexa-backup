@@ -104,7 +104,9 @@ export class ObjectRepository {
         return res[sha]
     }
 
-    async putShaBytes(sha: string, offset: number, data: Buffer): Promise<number> {
+    private openedShaFiles = new Map<string, number>()
+
+    putShaBytes(sha: string, offset: number, data: Buffer): Promise<number> {
         return new Promise<number>((resolve, reject) => {
             if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
                 resolve(0)
@@ -114,7 +116,7 @@ export class ObjectRepository {
             log.dbg(`put bytes for ${sha} @${offset}, size=${data.byteLength}`)
 
             let contentFileName = this.contentFileName(sha);
-            fs.open(contentFileName, 'a', (err, fd) => {
+            fs.open(contentFileName, 'w', (err, fd) => {
                 if (err) {
                     log.err(`putShaBytes: opening ${contentFileName}, err='${err}'`)
                     reject(err)

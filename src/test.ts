@@ -121,20 +121,46 @@ let server = Net.createServer((socket) => {
 
     let store = new HexaBackupStore('D:\\tmp\\tmp-store')
 
+    class ShaWriter extends Stream.Writable {
+        constructor() {
+            super({ objectMode: true })
+        }
+
+        async _write(data, encoding, callback) {
+            await store.putShaBytes(data.sha, data.offset, data.buffer)
+            callback()
+        }
+    }
+
+    let shaWriter = new ShaWriter()
+
     socket.on('message', async (message) => {
-        let [messageType, content] = Serialization.deserialize(message, null)
+        let [messageType, param1 = null, param2 = null, param3 = null] = Serialization.deserialize(message, null)
+
+        //log(`SERVER RCV TYPE ${messageType}`)
 
         switch (messageType) {
-            case MSG_TYPE_ASK_SHA_STATUS:
-                let sha = content
+            case MSG_TYPE_ASK_SHA_STATUS: {
+                let sha = param1
+                let reqId = param2
                 let size = await store.hasOneShaBytes(sha)
-                sendMessageToSocket(Serialization.serialize([MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
+                sendMessageToSocket(Serialization.serialize([MSG_TYPE_REP_SHA_STATUS, [reqId, size]]), socket)
                 break
+            }
 
-            case MSG_TYPE_ADD_SHA_IN_TX:
-                let fileInfo = content as FileAndShaInfo
-                log(`RCV ADD SHA IN TX ${JSON.stringify(fileInfo)}`)
+            case MSG_TYPE_ADD_SHA_IN_TX: {
+                let fileInfo = param1 as FileAndShaInfo
                 break
+            }
+
+            case MSG_TYPE_SHA_BYTES: {
+                let sha = param1
+                let offset = param2
+                let buffer = param3
+
+                shaWriter.write({ sha, offset, buffer })
+                break
+            }
 
             default:
                 log.err(`unknown rx msg type ${messageType}`)
@@ -187,7 +213,7 @@ class AddShaInTxPayloadsStream extends Stream.Transform {
  * Receives a file's raw bytes and send them by block
  */
 class ShaBytesPayloadsStream extends Stream.Transform {
-    constructor(private fileInfo: FileAndShaInfo, private offset: number) {
+    constructor(private clientStatus: ClientStatus, private fileInfo: FileAndShaInfo, private offset: number) {
         super({ objectMode: true })
 
         let fsAny = fs as any
@@ -201,12 +227,15 @@ class ShaBytesPayloadsStream extends Stream.Transform {
     }
 
     _flush(callback) {
-        callback()
+        this.clientStatus.addToTransaction(this.fileInfo)
+        callback(null, null)
     }
 
     async _transform(buffer: Buffer, encoding, callback: (err, data) => void) {
-        callback(null, Serialization.serialize([MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, buffer]))
-        this.offset + buffer.length
+        this.push(Serialization.serialize([MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, buffer]))
+        this.offset += buffer.length
+
+        callback(null, null)
     }
 }
 
@@ -215,7 +244,6 @@ type ReadableStream = Stream.Readable | Stream.Transform
 interface StreamInfo {
     name: string;
     stream: ReadableStream;
-    readable: boolean;
 }
 
 class ClientStatus {
@@ -223,8 +251,10 @@ class ClientStatus {
 
     addShaInTxPayloadsStream = new AddShaInTxPayloadsStream()
 
-    pendingAskShaStatus: FileAndShaInfo[] = []
+    pendingAskShaStatus: Map<number, FileAndShaInfo> = new Map()
     pendingSendShaBytes: { fileInfo: FileAndShaInfo; offset: number; }[] = []
+
+    private isNetworkDraining: boolean = true
 
     constructor(private socket: Net.Socket) {
     }
@@ -232,53 +262,63 @@ class ClientStatus {
     private addStream(name: string, stream: ReadableStream) {
         let si = {
             name,
-            stream,
-            readable: false
+            stream
         }
 
         this.streams.push(si)
 
+        log(`added stream ${si.name}`)
+
         this.initStream(si)
-    }
-
-    private pauseStreams() {
-        for (let stream of this.streams)
-            stream.stream.pause()
-    }
-
-    private resumeStreams() {
-        for (let stream of this.streams) {
-            stream.stream.resume()
-        }
     }
 
     private initStream(stream: StreamInfo) {
         stream.stream.on('end', () => {
+            this.isNetworkDraining = true
+
             log(`finished source stream ${stream.name}`)
             this.streams = this.streams.filter(s => s != stream)
 
             if (this.streams.length == 0)
                 log(`FINISHED WORK !`)
+            else
+                this.maybeSendBytesToNetwork()
         })
 
-        stream.stream.on('data', (chunk) => {
-            log(`DATA FROM STREAM '${stream.name}'`)
-            let isDraining = sendMessageToSocket(chunk, this.socket)
-            if (!isDraining) {
-                this.pauseStreams()
-            }
+        stream.stream.on('readable', () => {
+            this.maybeSendBytesToNetwork()
         })
+    }
+
+    private maybeSendBytesToNetwork() {
+        if (!this.isNetworkDraining)
+            return
+
+        //log(`TRY SEND BYTES`)
+
+        for (let i = this.streams.length - 1; i >= 0; i--) {
+            let si = this.streams[i]
+
+            while (this.isNetworkDraining) {
+                let chunk = si.stream.read(1)
+                if (chunk == null) {
+                    //log(`NOTHING IN STREAM ${si.name}`)
+                    break
+                }
+
+                //log(`CHUNK FROM ${si.name}`)
+
+                this.isNetworkDraining = sendMessageToSocket(chunk, this.socket)
+            }
+        }
+
+        // log(`GONE SENDING BYTES, DRAINING : ${this.isNetworkDraining}`)
     }
 
     start() {
         let askShaStatusPayloadsStream = new AskShaStatusPayloadsStream(this)
         this.addStream("AskShaStatus", askShaStatusPayloadsStream)
         this.addStream("AddShaInTransaction", this.addShaInTxPayloadsStream)
-
-        /*askShaStatusPayloadsStream.on('end', () => {
-            this.resumeStreams()
-            //this.addShaInTxPayloadsStream.end()
-        })*/
 
         let directoryLister = new DirectoryLister('d:\\tmp\\tmp', ['.git', 'exp-cache'])
         let shaProcessor = new ShaProcessor()
@@ -287,37 +327,39 @@ class ClientStatus {
             .pipe(askShaStatusPayloadsStream)
 
         this.socket.on('drain', () => {
-            this.resumeStreams()
+            this.isNetworkDraining = true
+            this.maybeSendBytesToNetwork()
         })
+
+        let registeredShasForSending = new Set<string>()
 
         this.socket.on('message', (message) => {
             let [messageType, content] = Serialization.deserialize(message, null)
 
             switch (messageType) {
                 case MSG_TYPE_REP_SHA_STATUS:
-                    let sha = content[0]
+                    let reqId = content[0]
                     let size = content[1]
 
-                    if (this.pendingAskShaStatus.length == 0) {
-                        log.err(`error, received an unknown SHA size !`)
+                    let matchedPending = this.pendingAskShaStatus.get(reqId)
+                    if (!matchedPending) {
+                        log.err(`error, received a non matched SHA size, reqId=${reqId}`)
                         return
                     }
 
-                    let matchedPending = this.pendingAskShaStatus.shift()
-                    if (matchedPending.contentSha != sha) {
-                        log.err(`error, received a non matched SHA size ! ${matchedPending.contentSha} / ${sha}`)
-                        return
-                    }
+                    this.pendingAskShaStatus.delete(reqId)
 
                     //log(`received ${sha} remote size, still waiting for ${this.pendingAskShaStatus.length}`)
-                    if (matchedPending.size != size) {
-                        /*if (size < matchedPending.size)
-                            pendingSendShaBytes.push({ fileInfo: matchedPending, offset: size })
-                        else {
-                            log(`warning : remote sha ${sha} is bigger than expected, restarting transfer`)
-                            pendingSendShaBytes.push({ fileInfo: matchedPending, offset: 0 })
-                        }*/
-                        log(`SHOULD UPLOAD ${matchedPending.size - size} BYTES for ${sha}`)
+                    if (matchedPending.size != size && !registeredShasForSending.has(matchedPending.contentSha)) {
+                        registeredShasForSending.add(matchedPending.contentSha)
+
+                        let offset = size
+                        if (size > matchedPending.size) {
+                            log(`warning : remote sha ${matchedPending.contentSha} is bigger than expected, restarting transfer`)
+                            offset = 0
+                        }
+
+                        this.addStream(`FileTransfert from ${offset} ${matchedPending.name}`, new ShaBytesPayloadsStream(this, matchedPending, offset))
                     }
                     else {
                         this.addToTransaction(matchedPending)
@@ -335,19 +377,23 @@ class ClientStatus {
         })
 
         socketDataToMessage(this.socket)
+
+        this.isNetworkDraining = true
+        this.maybeSendBytesToNetwork()
     }
 
     addToTransaction(fileAndShaInfo: FileAndShaInfo) {
-        for (let i = 0; i < 10; i++)
-            this.addShaInTxPayloadsStream.write(fileAndShaInfo)
+        this.addShaInTxPayloadsStream.write(fileAndShaInfo)
     }
 
-    addPendingAskShaStatus(fileAndShaInfo: FileAndShaInfo) {
-        this.pendingAskShaStatus.push(fileAndShaInfo)
+    addPendingAskShaStatus(reqId: number, fileAndShaInfo: FileAndShaInfo) {
+        this.pendingAskShaStatus.set(reqId, fileAndShaInfo)
     }
 }
 
 class AskShaStatusPayloadsStream extends Stream.Transform {
+    private nextAskShaStatusReqId = 1
+
     constructor(private clientStatus: ClientStatus) {
         super({ objectMode: true })
     }
@@ -360,8 +406,9 @@ class AskShaStatusPayloadsStream extends Stream.Transform {
         if (fileAndShaInfo.isDirectory)
             this.clientStatus.addToTransaction(fileAndShaInfo)
         else {
-            this.push(Serialization.serialize([MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha]))
-            this.clientStatus.addPendingAskShaStatus(fileAndShaInfo)
+            let reqId = this.nextAskShaStatusReqId++
+            this.push(Serialization.serialize([MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha, reqId]))
+            this.clientStatus.addPendingAskShaStatus(reqId, fileAndShaInfo)
         }
 
         callback(null, null)
