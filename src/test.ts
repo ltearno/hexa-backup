@@ -119,7 +119,7 @@ const MSG_TYPE_SHA_BYTES = 3
 const MSG_TYPE_SHA_BYTES_COMMIT = 4
 const MSG_TYPE_ASK_BEGIN_TX = 5 // (clientId)
 const MSG_TYPE_REP_BEGIN_TX = 6 // (txId)
-const MSG_TYPE_REP_COMMIT_TX = 7
+const MSG_TYPE_COMMIT_TX = 7
 
 
 let port = 5001
@@ -127,7 +127,7 @@ let port = 5001
 let server = Net.createServer((socket) => {
     log('client connected')
 
-    let store = new HexaBackupStore('D:\\tmp\\tmp-store')
+    let store = new HexaBackupStore('G:\\tmp')
 
     class ShaWriter extends Stream.Writable {
         constructor() {
@@ -192,6 +192,12 @@ let server = Net.createServer((socket) => {
                 let sha = param1
 
                 shaWriter.write({ sha, offset: -1, buffer: null })
+                break
+            }
+
+            case MSG_TYPE_COMMIT_TX: {
+                await store.commitTransaction(currentClientId, currentTxId)
+                socket.end()
                 break
             }
 
@@ -330,6 +336,8 @@ class ClientStatus {
                 log(`FINISHED WORK !`)
             else
                 this.maybeSendBytesToNetwork()
+
+            this.maybeCloseAddInTxStream()
         })
 
         stream.stream.on('readable', () => {
@@ -362,6 +370,25 @@ class ClientStatus {
         // log(`GONE SENDING BYTES, DRAINING : ${this.isNetworkDraining }`)
     }
 
+    private moreAskShaStatusToCome = true
+
+    private isAddInTxStreamToBeClosed() {
+        return this.addShaInTxPayloadsStream
+            && (!this.moreAskShaStatusToCome)
+            && (!this.streams.some(si => si.stream instanceof ShaBytesPayloadsStream))
+            && (this.pendingAskShaStatus.size == 0)
+    }
+
+    private maybeCloseAddInTxStream() {
+        if (this.isAddInTxStreamToBeClosed()) {
+            this.addShaInTxPayloadsStream.end()
+            this.addShaInTxPayloadsStream = null
+
+            sendMessageToSocket(Serialization.serialize([MSG_TYPE_COMMIT_TX]), this.socket)
+            //this.socket.end() // server will do that ;)
+        }
+    }
+
     start() {
         this.socket.on('drain', () => {
             this.isNetworkDraining = true
@@ -382,6 +409,11 @@ class ClientStatus {
                     let askShaStatusPayloadsStream = new AskShaStatusPayloadsStream(this)
                     this.addStream("AskShaStatus", askShaStatusPayloadsStream)
                     this.addStream("AddShaInTransaction", this.addShaInTxPayloadsStream)
+
+                    askShaStatusPayloadsStream.on('end', () => {
+                        this.moreAskShaStatusToCome = false
+                        this.maybeCloseAddInTxStream()
+                    })
 
                     let directoryLister = new DirectoryLister(backupedDirectory, ['.git', 'exp-cache'])
                     let shaProcessor = new ShaProcessor()
@@ -421,6 +453,8 @@ class ClientStatus {
                     else {
                         this.addToTransaction(matchedPending)
                     }
+
+                    this.maybeCloseAddInTxStream()
 
                     break
 
