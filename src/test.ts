@@ -70,7 +70,9 @@ class DirectoryLister extends Stream.Readable {
         if (this.awaitingReaddir)
             return
 
-        if (this.stack.length > 0) {
+        let pushedSome = false
+
+        while (!pushedSome && this.stack.length > 0) {
             let currentPath = this.stack.pop();
 
             this.awaitingReaddir = true
@@ -98,6 +100,7 @@ class DirectoryLister extends Stream.Readable {
                     desc.size = stat.size
 
                 this.push(desc)
+                pushedSome = true
             }
         }
 
@@ -150,6 +153,7 @@ let server = Net.createServer((socket) => {
 
             case MSG_TYPE_ADD_SHA_IN_TX: {
                 let fileInfo = param1 as FileAndShaInfo
+                log(`addedInTx: ${fileInfo.name}`)
                 break
             }
 

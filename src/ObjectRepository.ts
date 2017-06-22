@@ -106,40 +106,36 @@ export class ObjectRepository {
 
     private openedShaFiles = new Map<string, number>()
 
-    putShaBytes(sha: string, offset: number, data: Buffer): Promise<number> {
-        return new Promise<number>((resolve, reject) => {
-            if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
-                resolve(0)
-                return
+    async putShaBytes(sha: string, offset: number, data: Buffer) {
+        if (sha == HashTools.EMPTY_PAYLOAD_SHA)
+            return 0
+
+        try {
+            //log.dbg(`put bytes for ${sha} @${offset}, size=${data.byteLength}`)
+
+            let contentFileName = this.contentFileName(sha)
+
+            let fd = this.openedShaFiles.get(contentFileName)
+            if (!fd) {
+                fd = await FsTools.openFile(contentFileName, 'w')
+                this.openedShaFiles.set(contentFileName, fd)
             }
 
-            log.dbg(`put bytes for ${sha} @${offset}, size=${data.byteLength}`)
+            await FsTools.writeFileBuffer(fd, offset, data)
 
-            let contentFileName = this.contentFileName(sha);
-            fs.open(contentFileName, 'w', (err, fd) => {
-                if (err) {
-                    log.err(`putShaBytes: opening ${contentFileName}, err='${err}'`)
-                    reject(err)
-                    return
-                }
+            //await FsTools.closeFile(fd)
 
-                fs.write(fd, data, 0, data.byteLength, offset, (err, written, buffer) => {
-                    fs.close(fd, (err) => {
-                        if (err) {
-                            log.err(`putShaBytes: closing ${contentFileName}, err='${err}'`)
-                            reject(err)
-                            return
-                        }
+            let stat = await FsTools.stat(contentFileName)
+            let totalSize = stat.size
+            if (totalSize != (offset + data.byteLength))
+                log.err(`inconsistent object file size : ${totalSize} != (${offset} + ${data.byteLength})`)
 
-                        let totalSize = fs.statSync(contentFileName).size
-                        if (totalSize != (offset + data.byteLength))
-                            log.err(`inconsistent object file size : ${totalSize} != (${offset} + ${data.byteLength})`)
-
-                        resolve(written)
-                    });
-                });
-            });
-        });
+            return data.length
+        }
+        catch (e) {
+            log.err(`putShaBytes: error ${e}`)
+            throw e
+        }
     }
 
     putShaBytesStream(sha: string, offset: number, stream: Stream.Readable): Promise<boolean> {
