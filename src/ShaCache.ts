@@ -2,6 +2,7 @@ import * as FsTools from './FsTools';
 import fs = require('fs');
 import fsPath = require('path');
 import * as HashTools from './HashTools';
+import * as Stream from 'stream'
 
 const log = require('./Logger')('ShaCache');
 
@@ -26,6 +27,53 @@ export class ShaCache {
         catch (error) {
             this.cache = {};
         }
+    }
+
+    private temporaryFiles = {}
+
+    /**
+     * Returns the id of the temporary file
+     */
+    createTemporaryFile(): string {
+        let id = `temp_${Date.now()}`
+        this.temporaryFiles[id] = null
+        return id
+    }
+
+    appendToTemporaryFile(fileId: string, payload: string) {
+        if (!(fileId in this.temporaryFiles))
+            throw `illegal temp file id ${fileId}`
+
+        if (!this.temporaryFiles[fileId]) {
+            this.temporaryFiles[fileId] = fs.openSync(fsPath.join(this.cacheDirectory, fileId), 'wx')
+            if (!this.temporaryFiles[fileId])
+                throw `cannot open temp file ${fileId}`
+        }
+
+        fs.writeSync(this.temporaryFiles[fileId], payload, 0, 'utf8')
+    }
+
+    /**
+     * Close the temporary file and returns a stream to read it.
+     * When the stream is closed, the temp file is deleted
+     */
+    closeTemporaryFileAndReadAsStream(fileId: string): Stream.Readable {
+        if (!(fileId in this.temporaryFiles))
+            throw `illegal temp file id ${fileId} for close and read`
+
+        if (!this.temporaryFiles[fileId])
+            return null
+
+        fs.closeSync(this.temporaryFiles[fileId])
+        delete this.temporaryFiles[fileId]
+
+        let stream = fs.createReadStream(fsPath.join(this.cacheDirectory, fileId), { encoding: 'utf8' })
+
+        stream.on('end', () => {
+            fs.unlinkSync(fsPath.join(this.cacheDirectory, fileId))
+        })
+
+        return stream
     }
 
     private flushToDisk() {

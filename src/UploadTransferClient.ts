@@ -329,7 +329,7 @@ export class UploadTransferClient {
 
         this.status.phase = 'preparing'
 
-        if (0 * 1 == 1) {
+        if (1 * 1 == 1) {
             this.startSending()
         }
         else {
