@@ -169,8 +169,7 @@ export class HexaBackupStore implements IHexaBackupStore {
             return this.sourceStateCache[sourceId];
 
         let clientStateReferenceName = `client_${sourceId}`;
-        let sourceState: Model.SourceState = await this.referenceRepository.get(clientStateReferenceName);
-        log(`SOURCE STATE ${sourceId} : ${JSON.stringify(sourceState)}`)
+        let sourceState: Model.SourceState = await this.referenceRepository.get(clientStateReferenceName)
 
         if (sourceState == null) {
             sourceState = {
