@@ -133,9 +133,6 @@ class AddShaInTxPayloadsStream extends Stream.Transform {
     }
 }
 
-/**
- * Receives a file's raw bytes and send them by block
- */
 class ShaBytesPayloadsStream extends Stream.Readable {
     private fileBytesStream = null
     private currentItem = null
@@ -204,6 +201,8 @@ class ShaBytesPayloadsStream extends Stream.Readable {
     }
 
     private pushBuffer(buffer: Buffer) {
+        this.client.status.shaBytesSent += buffer.byteLength
+
         this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES, this.currentItem.fileInfo.contentSha, this.currentItem.offset, buffer]))
         this.currentItem.offset += buffer.length
     }
@@ -237,7 +236,7 @@ class AskShaStatusPayloadsStream extends Stream.Transform {
 
 
 
-
+const GIGABYTE = 1024 * 1024 * 1024
 
 export class UploadTransferClient {
     private streams: StreamInfo[] = []
@@ -250,14 +249,23 @@ export class UploadTransferClient {
 
     private isNetworkDraining: boolean = true
 
-    private status = {
+    status = {
         phase: "uninit",
         toSync: {
             nbFiles: 0,
             nbDirectories: 0,
             nbBytes: 0
         },
-        nbAddedInTx: 0
+        shaBytesSent: 0,
+        nbAddedInTx: 0, // nb files & dirs in tx
+        nbBytesInTx: 0 // equivalent of number of bytes of content actually in the tx
+    }
+
+    private giveStatus() {
+        return {
+            message: `${this.status.phase}, ${this.status.nbAddedInTx}/${this.status.toSync.nbDirectories + this.status.toSync.nbFiles} added files, ${this.status.nbBytesInTx / GIGABYTE}/${this.status.toSync.nbBytes / GIGABYTE} Gb, ${this.pendingAskShaStatus.size} pending sha status, ${this.status.shaBytesSent / GIGABYTE} sha Gb sent`,
+            completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : 0
+        }
     }
 
     constructor(private pushedDirectory: string, private sourceId: string, private socket: Net.Socket) {
@@ -342,13 +350,6 @@ export class UploadTransferClient {
 
             Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_COMMIT_TX]), this.socket)
             //this.socket.end() // server will do that ;)
-        }
-    }
-
-    private giveStatus() {
-        return {
-            message: `${this.status.phase}, ${this.status.nbAddedInTx} added files, ${this.pendingAskShaStatus.size} pending ask-sha-status`,
-            completed: .5
         }
     }
 
@@ -471,6 +472,7 @@ export class UploadTransferClient {
 
     addToTransaction(fileAndShaInfo: UploadTransferModel.FileAndShaInfo) {
         this.status.nbAddedInTx++
+        this.status.nbBytesInTx += fileAndShaInfo.size
 
         this.addShaInTxPayloadsStream.write(fileAndShaInfo)
     }
