@@ -40,16 +40,10 @@ export async function history(sourceId, storeIp, storePort, verbose) {
         return
     }
 
-    if (sourceState.currentTransactionId && sourceState.currentTransactionContent) {
+    if (sourceState.currentTransactionId) {
         let emptySha = '                                                                '
         console.log()
         console.log(`current transaction ${sourceState.currentTransactionId}`)
-        if (verbose) {
-            for (let k in sourceState.currentTransactionContent) {
-                let fd = sourceState.currentTransactionContent[k]
-                console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha}  ${fd.name}`);
-            }
-        }
     }
 
     let directoryDescriptorShaToShow = null

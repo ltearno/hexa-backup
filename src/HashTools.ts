@@ -17,30 +17,25 @@ export function hashString(value: string) {
 }
 
 export async function hashFile(fileName: string): Promise<string> {
-    return new Promise<string>(async (resolve, reject) => {
-        try {
-            let stat = await FsTools.lstat(fileName);
-            if (stat.size == 0) {
-                resolve(EMPTY_PAYLOAD_SHA);
-                return;
-            }
+    try {
+        let stat = await FsTools.lstat(fileName);
+        if (stat.size == 0)
+            return EMPTY_PAYLOAD_SHA
 
-            log.dbg(`hashing ${fileName}`)
+        log.dbg(`hashing ${fileName}`)
 
-            let input = fs.createReadStream(fileName);
+        let input = fs.createReadStream(fileName)
 
-            let sha = await this.hashStream(input)
+        let sha = await this.hashStream(input)
 
-            log.dbg(`finished hashing ${fileName}`)
+        log.dbg(`finished hashing ${fileName}`)
 
-            return sha
-        }
-        catch (error) {
-            log.err(`error ${fileName}`);
-            reject(`error ${fileName}`);
-            return;
-        }
-    });
+        return sha
+    }
+    catch (error) {
+        log.err(`error ${fileName}`);
+        throw `error hashing ${fileName}`
+    }
 }
 
 export function hashStream(input: Stream.Readable): Promise<string> {

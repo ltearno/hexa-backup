@@ -106,9 +106,9 @@
             "stopOnEntry": false,
             "args": [
                 "--debug",
-                "pushFast"
+                "history"
             ],
-            "cwd": "D:\\tmp",
+            "cwd": "D:\\Documents\\Repos",
             "preLaunchTask": null,
             "runtimeExecutable": null,
             "runtimeArgs": [

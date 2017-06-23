@@ -138,25 +138,46 @@ class AddShaInTxPayloadsStream extends Stream.Transform {
  */
 class ShaBytesPayloadsStream extends Stream.Readable {
     private fileBytesStream = null
+    private currentItem = null
     private waitingReadable = false
+    private fileQueue: { fileInfo: UploadTransferModel.FileAndShaInfo; offset: number; }[] = []
 
-    constructor(private client: UploadTransferClient, public fileInfo: UploadTransferModel.FileAndShaInfo, public offset: number) {
+    constructor(private client: UploadTransferClient) {
         super({ objectMode: true })
     }
 
+    enqueueFile(fileInfo: UploadTransferModel.FileAndShaInfo, offset: number) {
+        this.fileQueue.push({ fileInfo, offset })
+        if (this.waitingReadable)
+            this.readAndMaybePushBuffer()
+    }
+
+    endQueue() {
+        this.push(null)
+    }
+
     _read(size) {
-        if (this.fileBytesStream == null) {
+        if (this.fileBytesStream == null || this.currentItem == null) {
+            if (this.fileQueue.length == 0) {
+                this.waitingReadable = true
+                return
+            }
+
+            this.currentItem = this.fileQueue.shift()
+
             let fsAny = fs as any
-            this.fileBytesStream = fsAny.createReadStream(this.fileInfo.name, {
+            this.fileBytesStream = fsAny.createReadStream(this.currentItem.fileInfo.name, {
                 flags: 'r',
                 encoding: null,
-                start: this.offset
+                start: this.currentItem.offset
             })
 
             this.fileBytesStream.on('end', () => {
-                this.client.addToTransaction(this.fileInfo)
-                this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
-                this.push(null)
+                this.client.addToTransaction(this.currentItem.fileInfo)
+                this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.currentItem.fileInfo.contentSha]))
+
+                this.currentItem = null
+                this.fileBytesStream = null
             })
 
             this.fileBytesStream.on('readable', () => {
@@ -169,17 +190,22 @@ class ShaBytesPayloadsStream extends Stream.Readable {
     }
 
     private readAndMaybePushBuffer() {
-        this.waitingReadable = false
-        let buffer: Buffer = this.fileBytesStream.read()
-        if (buffer != null)
-            this.pushBuffer(buffer)
-        else
+        if (this.fileBytesStream) {
+            this.waitingReadable = false
+            let buffer: Buffer = this.fileBytesStream.read()
+            if (buffer != null)
+                this.pushBuffer(buffer)
+            else
+                this.waitingReadable = true
+        }
+        else {
             this.waitingReadable = true
+        }
     }
 
     private pushBuffer(buffer: Buffer) {
-        this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, buffer]))
-        this.offset += buffer.length
+        this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES, this.currentItem.fileInfo.contentSha, this.currentItem.offset, buffer]))
+        this.currentItem.offset += buffer.length
     }
 }
 
@@ -214,18 +240,17 @@ class AskShaStatusPayloadsStream extends Stream.Transform {
 
 
 export class UploadTransferClient {
-    streams: StreamInfo[] = []
+    private streams: StreamInfo[] = []
+    private addShaInTxPayloadsStream
+    private shaBytesPayloadsStream: ShaBytesPayloadsStream = null
+    private pendingAskShaStatus: Map<number, UploadTransferModel.FileAndShaInfo> = new Map()
+    private pendingSendShaBytes: { fileInfo: UploadTransferModel.FileAndShaInfo; offset: number; }[] = []
 
-    addShaInTxPayloadsStream
-
-    pendingAskShaStatus: Map<number, UploadTransferModel.FileAndShaInfo> = new Map()
-    pendingSendShaBytes: { fileInfo: UploadTransferModel.FileAndShaInfo; offset: number; }[] = []
-
-    ignoredDirs = ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
+    private ignoredDirs = ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
 
     private isNetworkDraining: boolean = true
 
-    status = {
+    private status = {
         phase: "uninit",
         toSync: {
             nbFiles: 0,
@@ -237,6 +262,7 @@ export class UploadTransferClient {
 
     constructor(private pushedDirectory: string, private sourceId: string, private socket: Net.Socket) {
         this.addShaInTxPayloadsStream = new AddShaInTxPayloadsStream(pushedDirectory)
+        this.shaBytesPayloadsStream = new ShaBytesPayloadsStream(this)
     }
 
     private addStream(name: string, blocking: boolean, stream: ReadableStream) {
@@ -296,11 +322,17 @@ export class UploadTransferClient {
 
     private moreAskShaStatusToCome = true
 
+    private maybeCloseShaBytesStream() {
+        if (!this.moreAskShaStatusToCome && this.pendingAskShaStatus.size == 0) {
+            this.shaBytesPayloadsStream.endQueue()
+        }
+    }
+
     private isAddInTxStreamToBeClosed() {
         return this.addShaInTxPayloadsStream
             && (!this.moreAskShaStatusToCome)
-            && (!this.streams.some(si => si.stream instanceof ShaBytesPayloadsStream))
             && (this.pendingAskShaStatus.size == 0)
+            && (!this.shaBytesPayloadsStream)
     }
 
     private maybeCloseAddInTxStream() {
@@ -366,9 +398,16 @@ export class UploadTransferClient {
                     let askShaStatusPayloadsStream = new AskShaStatusPayloadsStream(this)
                     this.addStream("AskShaStatus", false, askShaStatusPayloadsStream)
                     this.addStream("AddShaInTransaction", false, this.addShaInTxPayloadsStream)
+                    this.addStream("ShaBytes", false, this.shaBytesPayloadsStream)
 
                     askShaStatusPayloadsStream.on('end', () => {
                         this.moreAskShaStatusToCome = false
+                        this.maybeCloseShaBytesStream()
+                        this.maybeCloseAddInTxStream()
+                    })
+
+                    this.shaBytesPayloadsStream.on('end', () => {
+                        this.shaBytesPayloadsStream = null
                         this.maybeCloseAddInTxStream()
                     })
 
@@ -405,12 +444,13 @@ export class UploadTransferClient {
                             offset = 0
                         }
 
-                        this.enqueueFileStream(matchedPending, offset)
+                        this.shaBytesPayloadsStream.enqueueFile(matchedPending, offset)
                     }
                     else {
                         this.addToTransaction(matchedPending)
                     }
 
+                    this.maybeCloseShaBytesStream()
                     this.maybeCloseAddInTxStream()
 
                     break
@@ -426,35 +466,7 @@ export class UploadTransferClient {
 
         Socket2Message.socketDataToMessage(this.socket)
 
-        let clientId = "test"
-
-        this.isNetworkDraining = Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, clientId]), this.socket)
-    }
-
-    private currentShaBytesStream: ShaBytesPayloadsStream = null
-    private pendingShaBytesStreams: ShaBytesPayloadsStream[] = []
-
-    private enqueueFileStream(matchedPending, offset) {
-        let stream = new ShaBytesPayloadsStream(this, matchedPending, offset)
-        stream.on('end', () => {
-            if (this.currentShaBytesStream != stream)
-                log.err(`werido`)
-            this.currentShaBytesStream = null
-            this.maybeConsumeShaBytesStream()
-        })
-
-        this.pendingShaBytesStreams.push(stream)
-
-        if (this.pendingShaBytesStreams.length == 1)
-            this.maybeConsumeShaBytesStream()
-    }
-
-    private maybeConsumeShaBytesStream() {
-        if (this.pendingShaBytesStreams.length > 0 && this.currentShaBytesStream == null) {
-            let nextStream = this.pendingShaBytesStreams.shift()
-            this.currentShaBytesStream = nextStream
-            this.addStream(`ShaBytes ${nextStream.fileInfo.name}@${nextStream.offset}`, false, nextStream)
-        }
+        this.isNetworkDraining = Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, this.sourceId]), this.socket)
     }
 
     addToTransaction(fileAndShaInfo: UploadTransferModel.FileAndShaInfo) {

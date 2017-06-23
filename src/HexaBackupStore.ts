@@ -97,11 +97,9 @@ export class HexaBackupStore implements IHexaBackupStore {
         }
 
         for (let fileDesc of descriptors) {
-            this.shaCache.appendToTemporaryFile(transactionId, JSON.stringify(fileDesc))
-            if (this.transactionTempFilesState[transactionId])
+            this.shaCache.appendToTemporaryFile(transactionId, (this.transactionTempFilesState[transactionId].firstWrite ? '' : ',') + JSON.stringify(fileDesc))
+            if (this.transactionTempFilesState[transactionId].firstWrite)
                 this.transactionTempFilesState[transactionId].firstWrite = false
-            else
-                this.shaCache.appendToTemporaryFile(transactionId, ',')
 
             // Note : do not rehash because it should have been done already, but could be possible here to be more safe
 
@@ -172,24 +170,22 @@ export class HexaBackupStore implements IHexaBackupStore {
 
         let clientStateReferenceName = `client_${sourceId}`;
         let sourceState: Model.SourceState = await this.referenceRepository.get(clientStateReferenceName);
+        log(`SOURCE STATE ${sourceId} : ${JSON.stringify(sourceState)}`)
 
-        // old version had a big data structure here. Prune it to free memory !
-        if ("currentTransactionContent" in sourceState)
-            delete sourceState["currentTransactionContent"];
-
-        let save = false;
         if (sourceState == null) {
             sourceState = {
-                currentTransactionId: null,
-                currentCommitSha: null
+                currentTransactionId: `SOURCE ${sourceId} NOT FOUND !`,
+                currentCommitSha: `SOURCE ${sourceId} NOT FOUND !`
             };
-            save = true;
+        }
+        else {
+            // old version had a big data structure here. Prune it to free memory !
+            if ("currentTransactionContent" in sourceState)
+                delete sourceState["currentTransactionContent"];
+
+            this.sourceStateCache[sourceId] = sourceState;
         }
 
-        if (save)
-            await this.storeClientState(sourceId, sourceState, true);
-
-        this.sourceStateCache[sourceId] = sourceState;
         return sourceState;
     }
 

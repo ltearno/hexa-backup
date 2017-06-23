@@ -29,7 +29,7 @@ export class ShaCache {
         }
     }
 
-    private temporaryFiles = {}
+    private temporaryFiles: { [key: string]: { fd: number; offset: number; } } = {}
 
     /**
      * Returns the id of the temporary file
@@ -45,12 +45,19 @@ export class ShaCache {
             throw `illegal temp file id ${fileId}`
 
         if (!this.temporaryFiles[fileId]) {
-            this.temporaryFiles[fileId] = fs.openSync(fsPath.join(this.cacheDirectory, fileId), 'wx')
-            if (!this.temporaryFiles[fileId])
+            this.temporaryFiles[fileId] = {
+                fd: fs.openSync(fsPath.join(this.cacheDirectory, fileId), 'wx'),
+                offset: 0
+            }
+
+            if (!this.temporaryFiles[fileId].fd)
                 throw `cannot open temp file ${fileId}`
         }
 
-        fs.writeSync(this.temporaryFiles[fileId], payload, 0, 'utf8')
+        let buffer = new Buffer(payload, 'utf8')
+
+        fs.writeSync(this.temporaryFiles[fileId].fd, buffer, 0, buffer.byteLength, this.temporaryFiles[fileId].offset)
+        this.temporaryFiles[fileId].offset += buffer.byteLength
     }
 
     /**
@@ -64,7 +71,7 @@ export class ShaCache {
         if (!this.temporaryFiles[fileId])
             return null
 
-        fs.closeSync(this.temporaryFiles[fileId])
+        fs.closeSync(this.temporaryFiles[fileId].fd)
         delete this.temporaryFiles[fileId]
 
         let stream = fs.createReadStream(fsPath.join(this.cacheDirectory, fileId), { encoding: 'utf8' })
