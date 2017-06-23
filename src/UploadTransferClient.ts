@@ -140,7 +140,7 @@ class ShaBytesPayloadsStream extends Stream.Readable {
     private fileBytesStream = null
     private waitingReadable = false
 
-    constructor(private clientStatus: UploadTransferClient, public fileInfo: UploadTransferModel.FileAndShaInfo, public offset: number) {
+    constructor(private client: UploadTransferClient, public fileInfo: UploadTransferModel.FileAndShaInfo, public offset: number) {
         super({ objectMode: true })
     }
 
@@ -154,7 +154,7 @@ class ShaBytesPayloadsStream extends Stream.Readable {
             })
 
             this.fileBytesStream.on('end', () => {
-                this.clientStatus.addToTransaction(this.fileInfo)
+                this.client.addToTransaction(this.fileInfo)
                 this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
                 this.push(null)
             })
@@ -175,10 +175,6 @@ class ShaBytesPayloadsStream extends Stream.Readable {
             this.pushBuffer(buffer)
         else
             this.waitingReadable = true
-    }
-
-    private maybePushBuffer() {
-
     }
 
     private pushBuffer(buffer: Buffer) {
