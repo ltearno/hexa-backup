@@ -108,7 +108,7 @@
                 "--debug",
                 "pushFast"
             ],
-            "cwd": "C:\\tmp",
+            "cwd": "D:\\tmp",
             "preLaunchTask": null,
             "runtimeExecutable": null,
             "runtimeArgs": [

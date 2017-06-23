@@ -24,17 +24,49 @@ export class ObjectRepository {
             fs.mkdirSync(this.rootPath);
     }
 
-    async storePayload(payload: string) {
-        return new Promise<string>(async (resolve, reject) => {
-            let sha = HashTools.hashString(payload)
+    async storePayload(payload: string): Promise<string> {
+        let sha = HashTools.hashString(payload)
 
-            let buffer = new Buffer(payload, 'utf8')
+        let buffer = new Buffer(payload, 'utf8')
 
-            if (await this.hasOneShaBytes(sha) != buffer.byteLength)
-                await this.putShaBytes(sha, 0, buffer);
+        if (await this.hasOneShaBytes(sha) != buffer.byteLength)
+            await this.putShaBytes(sha, 0, buffer);
 
-            resolve(sha);
-        });
+        return sha
+    }
+
+    async storeObjectFromStream(stream: Stream.Readable): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
+            log.dbg(`store object by stream`)
+
+            let contentFileName = this.tempFileName()
+
+            let fileStream = (<any>fs).createWriteStream(contentFileName, { flags: 'wx' })
+
+            stream.pipe(fileStream)
+
+            stream.on('error', (err) => {
+                log.err('error receiving stream !')
+                fileStream.close()
+                reject(err)
+            })
+
+            fileStream.on('finish', async () => {
+                try {
+                    log.dbg(`stream finished !`)
+                    fileStream.close()
+
+                    let sha = await HashTools.hashFile(contentFileName)
+
+                    fs.renameSync(contentFileName, this.contentFileName(sha))
+
+                    resolve(sha)
+                }
+                catch (err) {
+                    reject(err)
+                }
+            })
+        })
     }
 
     async storeObject(object: any) {
@@ -275,6 +307,10 @@ export class ObjectRepository {
         if (!fs.existsSync(directory))
             fs.mkdirSync(directory);
         return fsPath.join(this.rootPath, prefix, `${sha}`);
+    }
+
+    private tempFileName() {
+        return fsPath.join(this.rootPath, `temp_${Date.now()}`);
     }
 }
 

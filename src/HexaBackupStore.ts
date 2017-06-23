@@ -43,14 +43,9 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     async startOrContinueSnapshotTransaction(sourceId: string): Promise<string> {
-        let sourceState: Model.SourceState = await this.getSourceState(sourceId)
-
-        if (sourceState.currentTransactionId == null)
-            sourceState.currentTransactionId = await this.openTransaction(sourceId)
-
-        log(`source ${sourceId} starts or continues transaction ${sourceState.currentTransactionId}`)
-
-        return sourceState.currentTransactionId
+        let txId = await this.openTransaction(sourceId)
+        log(`source ${sourceId} starts or continues transaction ${txId}`)
+        return txId
     }
 
     async hasShaBytes(shas: string[]) {
@@ -81,7 +76,12 @@ export class HexaBackupStore implements IHexaBackupStore {
         return this.objectRepository.readShaBytes(sha, offset, length)
     }
 
+    private transactionTempFilesState: { [key: string]: { firstWrite: boolean, } } = {}
+
     async pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }> {
+        if (!descriptors || descriptors.length == 0)
+            return {}
+
         let res: { [sha: string]: boolean } = {}
 
         log.dbg(`validating ${descriptors.length} descriptors in transaction ${transactionId}`)
@@ -92,52 +92,22 @@ export class HexaBackupStore implements IHexaBackupStore {
             return res
         }
 
-        for (let d in descriptors) {
-            let fileDesc = descriptors[d]
+        if (this.transactionTempFilesState[transactionId].firstWrite) {
+            this.shaCache.appendToTemporaryFile(transactionId, '{"files":[')
+        }
 
-            if (fileDesc.name in clientState.currentTransactionContent) {
-                let current = clientState.currentTransactionContent[fileDesc.name];
-                if (current != null) {
-                    if (current.contentSha == fileDesc.contentSha
-                        && current.isDirectory == fileDesc.isDirectory
-                        && current.lastWrite == fileDesc.lastWrite
-                        && current.name == fileDesc.name
-                        && current.size == fileDesc.size) {
-                        res[fileDesc.contentSha] = true
-                        continue
-                    }
-                }
-            }
+        for (let fileDesc of descriptors) {
+            this.shaCache.appendToTemporaryFile(transactionId, JSON.stringify(fileDesc))
+            if (this.transactionTempFilesState[transactionId])
+                this.transactionTempFilesState[transactionId].firstWrite = false
+            else
+                this.shaCache.appendToTemporaryFile(transactionId, ',')
 
-            let validated = false;
-            if (fileDesc.isDirectory) {
-                clientState.currentTransactionContent[fileDesc.name] = fileDesc;
-                validated = true;
-            }
-            else {
-                clientState.currentTransactionContent[fileDesc.name] = fileDesc;
-                validated = true;
+            // Note : do not rehash because it should have been done already, but could be possible here to be more safe
 
-                // do not rehash because it shuold have been done already
-                /* validated = await this.objectRepository.validateSha(fileDesc.contentSha, fileDesc.size);
-                            if (validated)
-                                    clientState.currentTransactionContent[fileDesc.name] = fileDesc
-                                else
-                                    log.log(`cannot validate sha ${fileDesc.contentSha} for file ${fileDesc.name}, this is surely due to a duplicated file which content is actually being transferred`)*/
-            }
+            log.dbg(`validated ${fileDesc.name} isDir=${fileDesc.isDirectory}, sha=${fileDesc.contentSha} from '${sourceId}' tx ${transactionId}`)
 
-            if (validated) {
-                await this.storeClientState(sourceId, clientState, false)
-
-                log.dbg(`validated ${fileDesc.name} (${fileDesc.contentSha}) from '${sourceId}'`)
-
-                res[fileDesc.contentSha] = true
-                continue
-            }
-            else {
-                res[fileDesc.contentSha] = false
-                continue
-            }
+            res[fileDesc.contentSha] = true
         }
 
         log.dbg(`validated ${descriptors.length} descriptors in transaction ${transactionId}`)
@@ -156,8 +126,9 @@ export class HexaBackupStore implements IHexaBackupStore {
             }
 
             // prepare and store directory descriptor
-            let descriptor = await this.createDirectoryDescriptor(clientState.currentTransactionContent);
-            let descriptorSha = await this.objectRepository.storeObject(descriptor);
+            this.shaCache.appendToTemporaryFile(transactionId, ']}') // closing the JSON structure
+            let transactionStream = this.shaCache.closeTemporaryFileAndReadAsStream(transactionId)
+            let descriptorSha = await this.objectRepository.storeObjectFromStream(transactionStream);
 
             // check if state changed
             let saveCommit = true;
@@ -190,7 +161,6 @@ export class HexaBackupStore implements IHexaBackupStore {
             }
 
             clientState.currentTransactionId = null;
-            clientState.currentTransactionContent = null;
             await this.storeClientState(sourceId, clientState, true);
             resolve();
         });
@@ -202,11 +172,15 @@ export class HexaBackupStore implements IHexaBackupStore {
 
         let clientStateReferenceName = `client_${sourceId}`;
         let sourceState: Model.SourceState = await this.referenceRepository.get(clientStateReferenceName);
+
+        // old version had a big data structure here. Prune it to free memory !
+        if ("currentTransactionContent" in sourceState)
+            delete sourceState["currentTransactionContent"];
+
         let save = false;
         if (sourceState == null) {
             sourceState = {
                 currentTransactionId: null,
-                currentTransactionContent: null,
                 currentCommitSha: null
             };
             save = true;
@@ -230,12 +204,11 @@ export class HexaBackupStore implements IHexaBackupStore {
     private async openTransaction(sourceId: string) {
         let sourceState = await this.getSourceState(sourceId);
 
-        if (sourceState.currentTransactionId == null) {
-            sourceState.currentTransactionId = `tx_${Date.now()}`;
-            sourceState.currentTransactionContent = {};
+        sourceState.currentTransactionId = this.shaCache.createTemporaryFile();
 
-            await this.storeClientState(sourceId, sourceState, true);
-        }
+        this.transactionTempFilesState[sourceState.currentTransactionId] = { firstWrite: true }
+
+        await this.storeClientState(sourceId, sourceState, true);
 
         return sourceState.currentTransactionId;
     }
