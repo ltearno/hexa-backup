@@ -98,7 +98,12 @@ class DirectoryLister extends Stream.Readable {
                 })
 
             for (let desc of filesDesc) {
-                this.push(desc)
+                try {
+                    this.push(desc)
+                }
+                catch (err) {
+                    log.err(`OhMyGod c'est ici`)
+                }
                 pushedSome = true
             }
         }
@@ -358,7 +363,7 @@ export class UploadTransferClient {
 
         this.status.phase = 'preparing'
 
-        if (1 * 1 == 1) {
+        if (0 * 1 == 1) {
             this.startSending()
         }
         else {
