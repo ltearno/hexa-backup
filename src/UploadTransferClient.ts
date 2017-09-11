@@ -53,7 +53,6 @@ class ShaProcessor extends Stream.Transform {
 
 class DirectoryLister extends Stream.Readable {
     private stack: string[]
-    private awaitingReaddir: boolean = false
 
     constructor(private path: string, private ignoredNames: string[]) {
         super({ objectMode: true })
@@ -61,21 +60,24 @@ class DirectoryLister extends Stream.Readable {
         this.stack = [this.path]
     }
 
-    async _read(size: number) {
-        if (this.awaitingReaddir)
+    private duringRead = false
+
+    _read(size: number) {
+        if (this.duringRead) {
+            log(`OllyCow`)
             return
+        }
+        this.duringRead = true
 
-        let pushedSome = false
+        let pushed = 0
+        while (this.stack.length > 0 && pushed == 0) {
+            let currentPath = this.stack.shift()
 
-        while (!pushedSome && this.stack.length > 0) {
-            let currentPath = this.stack.pop();
-
-            this.awaitingReaddir = true
-            let files = await FsTools.readDir(currentPath);
-            this.awaitingReaddir = false
-
-            let filesDesc = files
+            let toAdd = []
+            let files = FsTools.readDirSync(currentPath)
+            files
                 .filter((fileName) => !this.ignoredNames.some(name => fileName == name))
+                .sort()
                 .map(fileName => {
                     let fullFileName = fsPath.join(currentPath, fileName);
                     let stat = fs.statSync(fullFileName);
@@ -87,30 +89,22 @@ class DirectoryLister extends Stream.Readable {
                         size: stat.isDirectory() ? 0 : stat.size
                     }
                 })
-
-            if (filesDesc.length == 0)
-                continue
-
-            // important to push directories first because push is reentrant and we might find ourselves thinking the work is finished
-            filesDesc.filter(desc => desc.isDirectory)
                 .forEach(desc => {
-                    this.stack.push(desc.name)
+                    if (desc.isDirectory)
+                        toAdd.push(desc.name)
+
+                    pushed++
+                    this.push(desc)
                 })
 
-            for (let desc of filesDesc) {
-                try {
-                    this.push(desc)
-                }
-                catch (err) {
-                    log.err(`OhMyGod c'est ici`)
-                }
-                pushedSome = true
-            }
+            for (let i = toAdd.length - 1; i >= 0; i--)
+                this.stack.unshift(toAdd[i])
         }
 
-        if (!this.awaitingReaddir && this.stack.length == 0) {
+        if (this.stack.length == 0)
             this.push(null)
-        }
+
+        this.duringRead = false
     }
 }
 

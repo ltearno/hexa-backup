@@ -106,3 +106,7 @@ export async function readDir(path: string): Promise<string[]> {
         });
     });
 }
+
+export function readDirSync(path: string): string[] {
+    return fs.readdirSync(path)
+}
