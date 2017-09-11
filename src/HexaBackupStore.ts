@@ -88,7 +88,7 @@ export class HexaBackupStore implements IHexaBackupStore {
 
         let clientState = await this.getSourceState(sourceId);
         if (clientState.currentTransactionId != transactionId) {
-            log.err(`source is pushing with a bad transaction id !`)
+            log.err(`source is pushing with a bad transaction id. Currently know:${clientState.currentTransactionId}, pushed: ${transactionId}`)
             return res
         }
 
