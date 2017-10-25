@@ -10,6 +10,7 @@ import { HexaBackupStore } from './HexaBackupStore'
 import * as Model from './Model'
 import * as UploadTransferModel from './UploadTransferModel'
 import * as Socket2Message from './Socket2Message'
+import * as DirectoryLister from './directory-lister'
 
 const log = require('./Logger')('UploadTransferClient')
 
@@ -48,63 +49,6 @@ class ShaProcessor extends Stream.Transform {
         }
 
         callback(err, value)
-    }
-}
-
-class DirectoryLister extends Stream.Readable {
-    private stack: string[]
-
-    constructor(private path: string, private ignoredNames: string[]) {
-        super({ objectMode: true })
-
-        this.stack = [this.path]
-    }
-
-    private duringRead = false
-
-    _read(size: number) {
-        if (this.duringRead) {
-            log(`OllyCow`)
-            return
-        }
-        this.duringRead = true
-
-        let pushed = 0
-        while (this.stack.length > 0 && pushed == 0) {
-            let currentPath = this.stack.shift()
-
-            let toAdd = []
-            let files = FsTools.readDirSync(currentPath)
-            files
-                .filter((fileName) => !this.ignoredNames.some(name => fileName == name))
-                .sort()
-                .map(fileName => {
-                    let fullFileName = fsPath.join(currentPath, fileName);
-                    let stat = fs.statSync(fullFileName);
-
-                    return {
-                        name: fullFileName,
-                        isDirectory: stat.isDirectory(),
-                        lastWrite: stat.mtime.getTime(),
-                        size: stat.isDirectory() ? 0 : stat.size
-                    }
-                })
-                .forEach(desc => {
-                    if (desc.isDirectory)
-                        toAdd.push(desc.name)
-
-                    pushed++
-                    this.push(desc)
-                })
-
-            for (let i = toAdd.length - 1; i >= 0; i--)
-                this.stack.unshift(toAdd[i])
-        }
-
-        if (this.stack.length == 0)
-            this.push(null)
-
-        this.duringRead = false
     }
 }
 
@@ -361,7 +305,7 @@ export class UploadTransferClient {
             this.startSending()
         }
         else {
-            let directoryLister = new DirectoryLister(this.pushedDirectory, this.ignoredDirs)
+            let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, this.ignoredDirs)
 
             directoryLister.on('end', () => {
                 log(`prepared to send ${this.status.toSync.nbDirectories} directories, ${this.status.toSync.nbFiles} files and ${this.status.toSync.nbBytes / (1024 * 1024 * 1024)} Gb`)
@@ -411,7 +355,7 @@ export class UploadTransferClient {
                         this.maybeCloseAddInTxStream()
                     })
 
-                    let directoryLister = new DirectoryLister(this.pushedDirectory, this.ignoredDirs)
+                    let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, this.ignoredDirs)
                     let shaProcessor = new ShaProcessor(new ShaCache(fsPath.join(this.pushedDirectory, '.hb-cache')))
                     directoryLister
                         .pipe(shaProcessor)
