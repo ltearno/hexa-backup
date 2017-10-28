@@ -5,12 +5,13 @@ import * as FS from 'fs'
 import * as Stream from 'stream'
 import * as Net from 'net'
 import * as Serialization from './serialisation'
-import { ShaCache } from './ShaCache'
-import { HexaBackupStore } from './HexaBackupStore'
+import * as ShaCache from './ShaCache'
+import * as HexaBackupStore from './HexaBackupStore'
 import * as Model from './Model'
 import * as UploadTransferModel from './UploadTransferModel'
 import * as Socket2Message from './Socket2Message'
 import * as DirectoryLister from './directory-lister'
+import * as ShaProcessor from './sha-processor'
 
 const log = require('./Logger')('UploadTransferClient')
 
@@ -20,36 +21,6 @@ export interface StreamInfo {
     name: string;
     stream: ReadableStream;
     blocking: boolean;
-}
-
-class ShaProcessor extends Stream.Transform {
-    constructor(private shaCache: ShaCache) {
-        super({ objectMode: true })
-    }
-
-    _flush(callback) {
-        callback()
-    }
-
-    async _transform(chunk: UploadTransferModel.FileInfo, encoding, callback: (err, data) => void) {
-        let err = null
-        let value = null
-
-        if (chunk.isDirectory) {
-            value = Object.assign({ contentSha: null }, chunk)
-        }
-        else {
-            try {
-                let sha = await this.shaCache.hashFile(chunk.name)
-                value = Object.assign({ contentSha: sha }, chunk)
-            } catch (e) {
-                log(`ERROR SHAING ${e}`)
-                err = e
-            }
-        }
-
-        callback(err, value)
-    }
 }
 
 class AddShaInTxPayloadsStream extends Stream.Transform {
@@ -356,7 +327,7 @@ export class UploadTransferClient {
                     })
 
                     let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, this.ignoredDirs)
-                    let shaProcessor = new ShaProcessor(new ShaCache(fsPath.join(this.pushedDirectory, '.hb-cache')))
+                    let shaProcessor = new ShaProcessor.ShaProcessor(new ShaCache.ShaCache(fsPath.join(this.pushedDirectory, '.hb-cache')))
                     directoryLister
                         .pipe(shaProcessor)
                         .pipe(askShaStatusPayloadsStream)
