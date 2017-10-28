@@ -17,13 +17,33 @@ const log = require('./Logger')('UploadTransferClient')
 
 export type ReadableStream = Stream.Readable | Stream.Transform
 
-export interface StreamInfo {
-    name: string;
-    stream: ReadableStream;
-    blocking: boolean;
+class AskShaStatusStream extends Stream.Transform {
+    private nextAskShaStatusReqId = 1
+
+    constructor(private clientStatus: UploadTransferClient) {
+        super({ objectMode: true })
+    }
+
+    _flush(callback) {
+        callback()
+    }
+
+    async _transform(fileAndShaInfo: UploadTransferModel.FileAndShaInfo, encoding, callback: (err, data) => void) {
+        if (fileAndShaInfo.isDirectory) {
+            this.clientStatus.addToTransaction(fileAndShaInfo)
+        }
+        else {
+            let reqId = this.nextAskShaStatusReqId++
+            this.clientStatus.addPendingAskShaStatus(reqId, fileAndShaInfo)
+
+            this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha, reqId]))
+        }
+
+        callback(null, null)
+    }
 }
 
-class AddShaInTxPayloadsStream extends Stream.Transform {
+class AddShaInTxStream extends Stream.Transform {
     constructor(private backupedDirectory: string) {
         super({ objectMode: true })
     }
@@ -122,46 +142,106 @@ class ShaBytesPayloadsStream extends Stream.Readable {
     }
 }
 
-class AskShaStatusPayloadsStream extends Stream.Transform {
-    private nextAskShaStatusReqId = 1
 
-    constructor(private clientStatus: UploadTransferClient) {
-        super({ objectMode: true })
-    }
 
-    _flush(callback) {
-        callback()
-    }
-
-    async _transform(fileAndShaInfo: UploadTransferModel.FileAndShaInfo, encoding, callback: (err, data) => void) {
-        if (fileAndShaInfo.isDirectory)
-            this.clientStatus.addToTransaction(fileAndShaInfo)
-        else {
-            let reqId = this.nextAskShaStatusReqId++
-            this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha, reqId]))
-            this.clientStatus.addPendingAskShaStatus(reqId, fileAndShaInfo)
-        }
-
-        callback(null, null)
-    }
+export interface StreamInfo {
+    name: string
+    stream: ReadableStream
+    blocking: boolean
+    streamEndCallback: () => void
 }
 
+/**
+ * Stores a pool of readdable streams.
+ * 
+ * Allows to pull from them when data is available on any of them
+ */
+export class StreamEngine {
+    private streams: StreamInfo[] = []
+    private isNetworkDraining: boolean = true
+    // returns if we should consider draining after that
+    private dataReadyCallback: (chunk: any) => boolean = null
 
+    onDataReady(callback: (chunk: any) => boolean) {
+        this.dataReadyCallback = callback
+    }
+
+    addStream(name: string, blocking: boolean, stream: ReadableStream, streamEndCallback: { (): void }) {
+        let si = {
+            name,
+            stream,
+            blocking,
+            streamEndCallback
+        }
+
+        this.streams.push(si)
+        log.dbg(`added stream ${si.name}, count=${this.streams.length}`)
+        this.initStream(si)
+    }
+
+    /**
+     * Asks for data
+     */
+    drain() {
+        this.isNetworkDraining = true
+    }
+
+    maybeSendBytesToNetwork() {
+        if (!this.isNetworkDraining)
+            return
+
+        for (let i = this.streams.length - 1; i >= 0; i--) {
+            let si = this.streams[i]
+
+            while (this.isNetworkDraining) {
+                //if (i != this.streams.length - 1)
+                //    log(`try read from s depth ${this.streams.length - 1 - i}`)
+                let chunk = si.stream.read()
+                if (!chunk)
+                    break
+
+                this.isNetworkDraining = this.dataReadyCallback(chunk)
+            }
+
+            if (si.blocking)
+                break
+        }
+    }
+
+    private initStream(stream: StreamInfo) {
+        stream.stream.on('end', () => {
+            this.isNetworkDraining = true
+
+            this.streams = this.streams.filter(s => s != stream)
+            log.dbg(`finished source stream ${stream.name}, ${this.streams.length} left`)
+
+            if (this.streams.length == 0)
+                log(`FINISHED WORK !`)
+            else
+                this.maybeSendBytesToNetwork()
+
+            stream.streamEndCallback()
+        })
+
+        stream.stream.on('readable', () => {
+            this.maybeSendBytesToNetwork()
+        })
+    }
+}
 
 
 
 const GIGABYTE = 1024 * 1024 * 1024
 
 export class UploadTransferClient {
-    private streams: StreamInfo[] = []
+    private streamEngine = new StreamEngine()
+
     private addShaInTxPayloadsStream
     private shaBytesPayloadsStream: ShaBytesPayloadsStream = null
     private pendingAskShaStatus: Map<number, UploadTransferModel.FileAndShaInfo> = new Map()
     private pendingSendShaBytes: { fileInfo: UploadTransferModel.FileAndShaInfo; offset: number; }[] = []
 
-    private ignoredDirs = ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
-
-    private isNetworkDraining: boolean = true
+    private ignoredDirs = []// ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
 
     status = {
         phase: "uninit",
@@ -183,63 +263,8 @@ export class UploadTransferClient {
     }
 
     constructor(private pushedDirectory: string, private sourceId: string, private socket: Net.Socket) {
-        this.addShaInTxPayloadsStream = new AddShaInTxPayloadsStream(pushedDirectory)
+        this.addShaInTxPayloadsStream = new AddShaInTxStream(pushedDirectory)
         this.shaBytesPayloadsStream = new ShaBytesPayloadsStream(this)
-    }
-
-    private addStream(name: string, blocking: boolean, stream: ReadableStream) {
-        let si = {
-            name,
-            stream,
-            blocking
-        }
-
-        this.streams.push(si)
-        log.dbg(`added stream ${si.name}, count=${this.streams.length}`)
-        this.initStream(si)
-    }
-
-    private initStream(stream: StreamInfo) {
-        stream.stream.on('end', () => {
-            this.isNetworkDraining = true
-
-            this.streams = this.streams.filter(s => s != stream)
-            log.dbg(`finished source stream ${stream.name}, ${this.streams.length} left`)
-
-            if (this.streams.length == 0)
-                log(`FINISHED WORK !`)
-            else
-                this.maybeSendBytesToNetwork()
-
-            this.maybeCloseAddInTxStream()
-        })
-
-        stream.stream.on('readable', () => {
-            this.maybeSendBytesToNetwork()
-        })
-    }
-
-    private maybeSendBytesToNetwork() {
-        if (!this.isNetworkDraining)
-            return
-
-        for (let i = this.streams.length - 1; i >= 0; i--) {
-            let si = this.streams[i]
-
-            while (this.isNetworkDraining) {
-                //if (i != this.streams.length - 1)
-                //    log(`try read from s depth ${this.streams.length - 1 - i}`)
-                let chunk = si.stream.read()
-                if (chunk == null) {
-                    break
-                }
-
-                this.isNetworkDraining = Socket2Message.sendMessageToSocket(chunk, this.socket)
-            }
-
-            if (si.blocking)
-                break
-        }
     }
 
     private moreAskShaStatusToCome = true
@@ -294,9 +319,11 @@ export class UploadTransferClient {
     private startSending() {
         this.status.phase = 'sending'
 
+        this.streamEngine.onDataReady((chunk) => Socket2Message.sendMessageToSocket(chunk, this.socket))
+
         this.socket.on('drain', () => {
-            this.isNetworkDraining = true
-            this.maybeSendBytesToNetwork()
+            this.streamEngine.drain()
+            this.streamEngine.maybeSendBytesToNetwork()
         })
 
         let registeredShasForSending = new Set<string>()
@@ -308,12 +335,12 @@ export class UploadTransferClient {
                 case UploadTransferModel.MSG_TYPE_REP_BEGIN_TX: {
                     let txId = content
 
-                    log(`good news, we are beginning transaction ${txId}`)
+                    log(`starting transaction ${txId}`)
 
-                    let askShaStatusPayloadsStream = new AskShaStatusPayloadsStream(this)
-                    this.addStream("AskShaStatus", false, askShaStatusPayloadsStream)
-                    this.addStream("AddShaInTransaction", false, this.addShaInTxPayloadsStream)
-                    this.addStream("ShaBytes", false, this.shaBytesPayloadsStream)
+                    let askShaStatusPayloadsStream = new AskShaStatusStream(this)
+                    this.streamEngine.addStream("AskShaStatus", false, askShaStatusPayloadsStream, () => this.maybeCloseAddInTxStream())
+                    this.streamEngine.addStream("AddShaInTransaction", false, this.addShaInTxPayloadsStream, () => this.maybeCloseAddInTxStream())
+                    this.streamEngine.addStream("ShaBytes", false, this.shaBytesPayloadsStream, () => this.maybeCloseAddInTxStream())
 
                     askShaStatusPayloadsStream.on('end', () => {
                         this.moreAskShaStatusToCome = false
@@ -332,8 +359,8 @@ export class UploadTransferClient {
                         .pipe(shaProcessor)
                         .pipe(askShaStatusPayloadsStream)
 
-                    this.isNetworkDraining = true
-                    this.maybeSendBytesToNetwork()
+                    this.streamEngine.drain()
+                    this.streamEngine.maybeSendBytesToNetwork()
                     break
                 }
 
@@ -381,7 +408,9 @@ export class UploadTransferClient {
 
         Socket2Message.socketDataToMessage(this.socket)
 
-        this.isNetworkDraining = Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, this.sourceId]), this.socket)
+        let networkDrains = Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, this.sourceId]), this.socket)
+        if (networkDrains)
+            this.streamEngine.drain()
     }
 
     addToTransaction(fileAndShaInfo: UploadTransferModel.FileAndShaInfo) {
