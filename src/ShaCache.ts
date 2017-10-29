@@ -83,11 +83,15 @@ export class ShaCache {
         return stream
     }
 
+    persist() {
+        this.flushToDisk()
+    }
+
     private flushToDisk() {
         if (this.dirtyCache) {
             log.dbg(`STORING SHA CACHE...`)
             let cacheFileName = fsPath.join(this.cacheDirectory, 'data');
-            fs.writeFileSync(cacheFileName, JSON.stringify(this.cache), {encoding:'utf8'});
+            fs.writeFileSync(cacheFileName, JSON.stringify(this.cache), { encoding: 'utf8' });
             this.dirtyCache = false;
             log.dbg(`STORED SHA CACHE`)
         }

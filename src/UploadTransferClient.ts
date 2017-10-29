@@ -22,7 +22,6 @@ export class AskShaStatusStream extends Stream.Transform {
     private sentShas = new Set<string>()
 
     private sourceStreamEnded = false
-    private reservedForClose = 0
 
     constructor(private backupedDirectory: string, private streamExecutor: StreamStack) {
         super({ objectMode: true })
@@ -49,7 +48,7 @@ export class AskShaStatusStream extends Stream.Transform {
         let info = this.waitedShas.get(sha)
         this.waitedShas.delete(sha)
 
-        if (info.size == size || this.sentShas.has(info.contentSha)) {
+        if (info.size == size) {
             this.push(createAddShaInTxMessage(info, this.backupedDirectory))
         }
         else {
@@ -62,64 +61,33 @@ export class AskShaStatusStream extends Stream.Transform {
             this.streamExecutor.addStream(`${info.contentSha.substring(0, 5)} - ${info.name}`, new ShaBytesStream(info, offset, this.backupedDirectory))
         }
 
-        this.reservedForClose--
         this.maybeClose()
     }
 
     _transform(fileAndShaInfo: UploadTransferModel.FileAndShaInfo, encoding, callback: () => void) {
-        if (!this.sentShas.has(fileAndShaInfo.contentSha)) {
+        if (this.sentShas.has(fileAndShaInfo.contentSha)) {
+            this.push(createAddShaInTxMessage(fileAndShaInfo, this.backupedDirectory))
+        }
+        else {
+            this.sentShas.add(fileAndShaInfo.contentSha)
+
             if (fileAndShaInfo.isDirectory) {
                 this.push(createAddShaInTxMessage(fileAndShaInfo, this.backupedDirectory))
             }
             else {
-                this.reservedForClose++
-
                 this.waitedShas.set(fileAndShaInfo.contentSha, fileAndShaInfo)
-                this.sentShas.add(fileAndShaInfo.contentSha)
                 this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha]))
             }
-        }
-        else {
-            this.push(createAddShaInTxMessage(fileAndShaInfo, this.backupedDirectory))
         }
 
         callback()
     }
 
     private maybeClose() {
-        if (!this.reservedForClose && this.sourceStreamEnded)
+        if (!this.waitedShas.size && this.sourceStreamEnded)
             this.push(null)
     }
 }
-
-/*export class AddShaInTxStream extends Stream.Readable {
-    private buffer: Buffer[] = []
-    private waiting = false
-
-    constructor(private backupedDirectory: string) {
-        super({ objectMode: true })
-    }
-
-    addSha(fileAndShaInfo: UploadTransferModel.FileAndShaInfo) {
-        this.buffer.push(createAddShaInTxMessage(fileAndShaInfo, this.backupedDirectory))
-        this.startRead()
-    }
-
-    _read(size) {
-        this.waiting = true
-        this.startRead()
-    }
-
-    private startRead() {
-        if (this.waiting) {
-            while (this.buffer.length) {
-                this.waiting = false
-                if (!this.push(this.buffer.shift()))
-                    break
-            }
-        }
-    }
-}*/
 
 function createAddShaInTxMessage(fileAndShaInfo: UploadTransferModel.FileAndShaInfo, backupedDirectory: string) {
     let descriptor: Model.FileDescriptor = {
@@ -178,19 +146,8 @@ export class StreamStack extends Stream.Transform {
 
     private _closeWhenEmpty = false
 
-    private reservedForClose = 0
-
     constructor() {
         super({ objectMode: true })
-    }
-
-    reserveForClose() {
-        this.reservedForClose++
-    }
-
-    releaseForClose() {
-        this.reservedForClose--
-        this.maybeClose()
     }
 
     addStream(name: string, stream: ReadableStream) {
@@ -223,10 +180,8 @@ export class StreamStack extends Stream.Transform {
     }
 
     private maybeClose() {
-        if (this._closeWhenEmpty && !this.streams.length && !this.reservedForClose) {
-            log(`streamstack finished`)
+        if (this._closeWhenEmpty && !this.streams.length)
             this.push(null)
-        }
     }
 }
 
@@ -308,7 +263,9 @@ export class UploadTransferClient {
 
                     log(`starting transaction ${txId}`)
 
-                    let shaProcessor = new ShaProcessor.ShaProcessor(new ShaCache.ShaCache(fsPath.join(this.pushedDirectory, '.hb-cache')))
+                    let shaCache = new ShaCache.ShaCache(fsPath.join(this.pushedDirectory, '.hb-cache'))
+
+                    let shaProcessor = new ShaProcessor.ShaProcessor(shaCache)
                     let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, this.ignoredDirs)
 
                     this.askShaStatusPayloadsStream = new AskShaStatusStream(this.pushedDirectory, this.streamStack)
@@ -316,6 +273,7 @@ export class UploadTransferClient {
 
                     this.streamStack.addStream("AskShaStatus", this.askShaStatusPayloadsStream)
                     this.streamStack.closeWhenEmpty()
+                    this.streamStack.on('end', () => shaCache.persist())
                     break
                 }
 
