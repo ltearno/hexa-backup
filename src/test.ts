@@ -57,10 +57,10 @@ function testStreamStack2() {
     let shaProcessor = new ShaProcessor.ShaProcessor(new ShaCache.ShaCache(cacheDirectory))
     lister.pipe(shaProcessor)
 
-    lister.on('data', file => {
+    /*lister.on('data', file => {
         if (!file.isDirectory)
             stack.addStream(`${file.name}`, new UploadTransferClient.ShaBytesStream({ isDirectory: false, name: file.name, contentSha: '8765765', lastWrite: file.lastWrite, size: file.size }, 0))
-    })
+    })*/
 
     stack.addStream(`ask sha`, shaProcessor)
 
@@ -73,3 +73,5 @@ function testStreamStack2() {
 }
 
 testStreamStack2()
+
+

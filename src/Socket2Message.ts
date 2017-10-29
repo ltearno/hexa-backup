@@ -1,12 +1,29 @@
 import * as Net from 'net'
+import * as Stream from 'stream'
 
 const log = require('./Logger')('Socket2Message')
 
-export function sendMessageToSocket(payload, socket) {
+export function sendMessageToSocket(payload, socket: Net.Socket) {
     let header = new Buffer(4)
     header.writeInt32LE(payload.length, 0)
     socket.write(header)
     return socket.write(payload)
+}
+
+export class MessageToPayloadStream extends Stream.Transform {
+    constructor() {
+        super({ objectMode: true })
+    }
+
+    _transform(payload, encoding, callback) {
+        let header = new Buffer(4)
+        header.writeInt32LE(payload.length, 0)
+        this.push(header)
+
+        this.push(payload)
+        
+        callback(null, null)
+    }
 }
 
 export function socketDataToMessage(socket: Net.Socket) {

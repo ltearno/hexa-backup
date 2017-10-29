@@ -47,9 +47,8 @@ export class UploadTransferServer {
 
                     case UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS: {
                         let sha = param1
-                        let reqId = param2
                         let size = await store.hasOneShaBytes(sha)
-                        Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_SHA_STATUS, [reqId, size]]), socket)
+                        Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
                         break
                     }
 
