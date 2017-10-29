@@ -108,7 +108,7 @@
                 "--debug",
                 "pushFast"
             ],
-            "cwd": "D:\\Documents\\CV",
+            "cwd": "D:\\Tmp\\Recup",
             "preLaunchTask": null,
             "runtimeExecutable": null,
             "runtimeArgs": [
