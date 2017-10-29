@@ -147,18 +147,67 @@ class ShaBytesPayloadsStream extends Stream.Readable {
 export interface StreamInfo {
     name: string
     stream: ReadableStream
-    blocking: boolean
     streamEndCallback: () => void
 }
 
+export class StreamStack extends Stream.Transform {
+    private streams: {
+        name: string
+        stream: ReadableStream
+    }[] = []
+
+    private _closeWhenEmpty = false
+
+    constructor() {
+        super({ objectMode: true })
+    }
+
+    addStream(name: string, stream: ReadableStream) {
+        if (this.streams.length) {
+            log(`pause ${this.streams[this.streams.length - 1].name}`)
+            this.streams[this.streams.length - 1].stream.pause()
+        }
+
+        log(`addStream ${name}`)
+        this.streams.push({ name, stream })
+
+        stream.pipe(this, { end: false })
+        stream.on('end', () => {
+            log(`finishedStream ${name}`)
+            this.streams = this.streams.filter(si => si.stream != stream)
+
+            if (this.streams.length) {
+                log(`resume ${this.streams[this.streams.length - 1].name}`)
+                this.streams[this.streams.length - 1].stream.resume()
+            }
+
+            if (this._closeWhenEmpty && !this.streams.length) {
+                log(`work finished`)
+                this.push(null)
+            }
+        })
+    }
+
+    closeWhenEmpty() {
+        this._closeWhenEmpty = true
+        if (!this.streams.length)
+            this.push(null)
+    }
+
+    _transform(data, encoding, callback) {
+        callback(null, data)
+    }
+}
+
 /**
- * Stores a pool of readdable streams.
+ * Stores a pool of readable streams.
  * 
- * Allows to pull from them when data is available on any of them
+ * The stream ends when there is no more stream and no response to wait for
  */
 export class StreamEngine {
     private streams: StreamInfo[] = []
     private isNetworkDraining: boolean = true
+
     // returns if we should consider draining after that
     private dataReadyCallback: (chunk: any) => boolean = null
 
@@ -166,11 +215,10 @@ export class StreamEngine {
         this.dataReadyCallback = callback
     }
 
-    addStream(name: string, blocking: boolean, stream: ReadableStream, streamEndCallback: { (): void }) {
+    addStream(name: string, stream: ReadableStream, streamEndCallback: () => void) {
         let si = {
             name,
             stream,
-            blocking,
             streamEndCallback
         }
 
@@ -202,9 +250,6 @@ export class StreamEngine {
 
                 this.isNetworkDraining = this.dataReadyCallback(chunk)
             }
-
-            if (si.blocking)
-                break
         }
     }
 
@@ -244,7 +289,7 @@ export class UploadTransferClient {
     private ignoredDirs = []// ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
 
     status = {
-        phase: "uninit",
+        phase: "uninitialized",
         toSync: {
             nbFiles: 0,
             nbDirectories: 0,
@@ -338,9 +383,9 @@ export class UploadTransferClient {
                     log(`starting transaction ${txId}`)
 
                     let askShaStatusPayloadsStream = new AskShaStatusStream(this)
-                    this.streamEngine.addStream("AskShaStatus", false, askShaStatusPayloadsStream, () => this.maybeCloseAddInTxStream())
-                    this.streamEngine.addStream("AddShaInTransaction", false, this.addShaInTxPayloadsStream, () => this.maybeCloseAddInTxStream())
-                    this.streamEngine.addStream("ShaBytes", false, this.shaBytesPayloadsStream, () => this.maybeCloseAddInTxStream())
+                    this.streamEngine.addStream("AskShaStatus", askShaStatusPayloadsStream, () => this.maybeCloseAddInTxStream())
+                    this.streamEngine.addStream("AddShaInTransaction", this.addShaInTxPayloadsStream, () => this.maybeCloseAddInTxStream())
+                    this.streamEngine.addStream("ShaBytes", this.shaBytesPayloadsStream, () => this.maybeCloseAddInTxStream())
 
                     askShaStatusPayloadsStream.on('end', () => {
                         this.moreAskShaStatusToCome = false
@@ -365,8 +410,7 @@ export class UploadTransferClient {
                 }
 
                 case UploadTransferModel.MSG_TYPE_REP_SHA_STATUS:
-                    let reqId = content[0]
-                    let size = content[1]
+                    let [reqId, size] = content
 
                     let matchedPending = this.pendingAskShaStatus.get(reqId)
                     if (!matchedPending) {
@@ -408,9 +452,8 @@ export class UploadTransferClient {
 
         Socket2Message.socketDataToMessage(this.socket)
 
-        let networkDrains = Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, this.sourceId]), this.socket)
-        if (networkDrains)
-            this.streamEngine.drain()
+        Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, this.sourceId]), this.socket)
+        this.streamEngine.drain()
     }
 
     addToTransaction(fileAndShaInfo: UploadTransferModel.FileAndShaInfo) {
