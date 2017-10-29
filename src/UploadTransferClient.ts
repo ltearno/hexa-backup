@@ -142,6 +142,32 @@ class ShaBytesPayloadsStream extends Stream.Readable {
     }
 }
 
+export class ShaBytesStream extends Stream.Transform {
+    private fileStream: Stream.Readable
+
+    constructor(private fileInfo: UploadTransferModel.FileAndShaInfo, private offset: number) {
+        super()
+
+        let fsAny = fs as any
+        this.fileStream = fsAny.createReadStream(this.fileInfo.name, {
+            flags: 'r',
+            encoding: null,
+            start: this.offset
+        })
+
+        this.fileStream.pipe(this, { end: false })
+        this.fileStream.on('end', () => {
+            this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
+            this.push(null)
+        })
+    }
+
+    _transform(data, encoding, callback) {
+        if (data)
+            this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, data]))
+        callback(null, null)
+    }
+}
 
 
 export interface StreamInfo {
@@ -168,8 +194,9 @@ export class StreamStack extends Stream.Transform {
             this.streams[this.streams.length - 1].stream.pause()
         }
 
-        log(`addStream ${name}`)
         this.streams.push({ name, stream })
+
+        log(`[${this.streams.length}] added stream ${name}`)
 
         stream.pipe(this, { end: false })
         stream.on('end', () => {
