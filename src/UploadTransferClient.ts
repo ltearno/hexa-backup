@@ -27,7 +27,7 @@ export class AskShaStatusStream extends Stream.Transform {
 
     private fileStream: ShaBytesStream = null
 
-    constructor(private backupedDirectory: string) {
+    constructor(private backupedDirectory: string, private status: UploadStatus) {
         super({ objectMode: true })
     }
 
@@ -35,12 +35,15 @@ export class AskShaStatusStream extends Stream.Transform {
         let transform = new Stream.Transform({ objectMode: true })
         transform._transform = (fileAndShaInfo: UploadTransferModel.FileAndShaInfo, encoding, callback: () => void) => {
             if (this.sentShas.has(fileAndShaInfo.contentSha)) {
+                this.status.nbAddedInTx++
+                this.status.nbBytesInTx += fileAndShaInfo.size
                 this.push(createAddShaInTxMessage(fileAndShaInfo, this.backupedDirectory))
             }
             else {
                 this.sentShas.add(fileAndShaInfo.contentSha)
 
                 if (fileAndShaInfo.isDirectory) {
+                    this.status.nbAddedInTx++
                     this.push(createAddShaInTxMessage(fileAndShaInfo, this.backupedDirectory))
                 }
                 else {
@@ -74,6 +77,8 @@ export class AskShaStatusStream extends Stream.Transform {
         this.waitedShas.delete(sha)
 
         if (info.size == size) {
+            this.status.nbAddedInTx++
+            this.status.nbBytesInTx += info.size
             this.push(createAddShaInTxMessage(info, this.backupedDirectory))
         }
         else {
@@ -95,18 +100,23 @@ export class AskShaStatusStream extends Stream.Transform {
             if (this.sourceStream)
                 this.sourceStream.pause()
 
+
             let fileInfo = this.toSendFiles.shift()
-            this.fileStream = new ShaBytesStream(fileInfo.fileInfo, fileInfo.offset, this.backupedDirectory)
+            this.fileStream = new ShaBytesStream(fileInfo.fileInfo, fileInfo.offset, this.backupedDirectory, this.status)
             this.fileStream.pipe(this, { end: false })
             this.fileStream.on('end', () => {
                 this.fileStream = null
                 this.updateQueue()
             })
+
+            this.status.phase = `sending ${fileInfo.fileInfo.name} @ ${fileInfo.offset}, sz: ${fileInfo.fileInfo.size}`
         }
         else if (!this.fileStream && this.sourceStream) {
+            this.status.phase = `parsing directories`
             this.sourceStream.resume()
         }
         else {
+            this.status.phase = `nothing to do`
             this.maybeClose()
         }
     }
@@ -137,7 +147,7 @@ function createAddShaInTxMessage(fileAndShaInfo: UploadTransferModel.FileAndShaI
 export class ShaBytesStream extends Stream.Transform {
     private fileStream: Stream.Readable
 
-    constructor(private fileInfo: UploadTransferModel.FileAndShaInfo, private offset: number, private backupedDirectory: string) {
+    constructor(private fileInfo: UploadTransferModel.FileAndShaInfo, private offset: number, private backupedDirectory: string, private status: UploadStatus) {
         super()
 
         let fsAny = fs as any
@@ -152,6 +162,8 @@ export class ShaBytesStream extends Stream.Transform {
 
     _flush(callback) {
         this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
+        this.status.nbAddedInTx++
+        this.status.nbBytesInTx += this.fileInfo.size
         this.push(createAddShaInTxMessage(this.fileInfo, this.backupedDirectory))
         callback()
     }
@@ -160,6 +172,8 @@ export class ShaBytesStream extends Stream.Transform {
         if (data) {
             this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, data]))
             this.offset += data.length
+
+            this.status.shaBytesSent += data.length
         }
         callback(null, null)
     }
@@ -167,17 +181,29 @@ export class ShaBytesStream extends Stream.Transform {
 
 const GIGABYTE = 1024 * 1024 * 1024
 
+export interface UploadStatus {
+    phase: string
+    toSync: {
+        nbFiles: number
+        nbDirectories: number
+        nbBytes: number
+    }
+    shaBytesSent: number
+    nbAddedInTx: number // nb files & dirs in tx
+    nbBytesInTx: number // equivalent of number of bytes of content actually in the tx
+}
+
 export class UploadTransferClient {
     private askShaStatusPayloadsStream: AskShaStatusStream
 
     private ignoredDirs = ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
 
-    status = {
+    status: UploadStatus = {
         phase: "uninitialized",
         toSync: {
-            nbFiles: 0,
-            nbDirectories: 0,
-            nbBytes: 0
+            nbFiles: -1,
+            nbDirectories: -1,
+            nbBytes: -1
         },
         shaBytesSent: 0,
         nbAddedInTx: 0, // nb files & dirs in tx
@@ -186,9 +212,8 @@ export class UploadTransferClient {
 
     private giveStatus() {
         return {
-            //message: `${this.status.phase}, ${this.status.nbAddedInTx}/${this.status.toSync.nbDirectories + this.status.toSync.nbFiles} added files, ${this.status.nbBytesInTx / GIGABYTE}/${this.status.toSync.nbBytes / GIGABYTE} Gb, ${this.pendingAskShaStatus.size} pending sha status, ${this.status.shaBytesSent / GIGABYTE} sha Gb sent`,
-            message: `${this.status.phase}, ${this.status.nbAddedInTx}/${this.status.toSync.nbDirectories + this.status.toSync.nbFiles} added files, ${this.status.nbBytesInTx / GIGABYTE}/${this.status.toSync.nbBytes / GIGABYTE} Gb, ${this.status.shaBytesSent / GIGABYTE} sha Gb sent`,
-            completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : 0
+            message: `${this.status.phase}, ${this.status.nbAddedInTx}/${this.status.toSync.nbDirectories + this.status.toSync.nbFiles} added files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)} Gb, ${this.status.shaBytesSent / GIGABYTE} sha Gb sent`,
+            completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : -1
         }
     }
 
@@ -199,7 +224,7 @@ export class UploadTransferClient {
 
         this.status.phase = 'preparing'
 
-        if (1 * 1 == 1) {
+        if (1 * 0 == 1) {
             this.startSending()
         }
         else {
@@ -235,7 +260,7 @@ export class UploadTransferClient {
                     let shaProcessor = new ShaProcessor.ShaProcessor(shaCache)
                     let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, this.ignoredDirs)
 
-                    this.askShaStatusPayloadsStream = new AskShaStatusStream(this.pushedDirectory)
+                    this.askShaStatusPayloadsStream = new AskShaStatusStream(this.pushedDirectory, this.status)
                     this.askShaStatusPayloadsStream.initSourceStream(directoryLister.pipe(shaProcessor))
 
                     this.askShaStatusPayloadsStream
