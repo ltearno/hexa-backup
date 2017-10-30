@@ -16,24 +16,23 @@ import * as ShaProcessor from './sha-processor'
 const log = require('./Logger')('Tests')
 log.conf('dbg', false)
 
-const directory = `d:\\documents\\repos`
-const ignoredDirs = ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
+const directory = `d:\\documents`
 const cacheDirectory = `d:\\tmp\\hb-cache-test`
 
 function test1() {
-    let lister = new DirectoryLister.DirectoryLister(directory, ignoredDirs)
-    //lister.on('end', () => log(`finished !`))
-    //lister.on('data', (file: UploadTransferModel.FileInfo) => {})
+    let lister = new DirectoryLister.DirectoryLister(directory)
+    lister.on('end', () => log(`finished !`))
+    lister.on('data', (file: UploadTransferModel.FileInfo) => log(`${file.name}`))
 
-    let shaProcessor = new ShaProcessor.ShaProcessor(new ShaCache.ShaCache(cacheDirectory))
+    /*let shaProcessor = new ShaProcessor.ShaProcessor(new ShaCache.ShaCache(cacheDirectory))
     lister.pipe(shaProcessor)
     shaProcessor.on('end', () => log(`finished sha processing!`))
-    shaProcessor.on('data', (file: UploadTransferModel.FileInfo) => { })
+    shaProcessor.on('data', (file: UploadTransferModel.FileInfo) => { })*/
 }
 
 
 function testStreamStack1() {
-    let lister = new DirectoryLister.DirectoryLister(directory, ignoredDirs)
+    let lister = new DirectoryLister.DirectoryLister(fsPath.normalize(directory))
     let shaProcessor = new ShaProcessor.ShaProcessor(new ShaCache.ShaCache(cacheDirectory))
     lister.pipe(shaProcessor)
 
@@ -41,3 +40,4 @@ function testStreamStack1() {
     shaProcessor.on('end', () => log(`end stream stack`))
 }
 
+test1()

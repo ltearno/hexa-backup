@@ -1,6 +1,6 @@
-import fs = require('fs');
-import fsPath = require('path');
-import * as FsTools from './FsTools';
+import fs = require('fs')
+import fsPath = require('path')
+import * as FsTools from './FsTools'
 import * as Stream from 'stream'
 
 const log = require('./Logger')('DirectoryLister')
@@ -12,20 +12,37 @@ interface FileIteration {
     size: number
 }
 
-function* iterateRecursivelyOverDirectory(path: string, ignoredNames: string[]): IterableIterator<FileIteration> {
+function* iterateRecursivelyOverDirectory(path: string): IterableIterator<FileIteration> {
     let stack = [path]
 
+    let ignoreExpressions: RegExp[] = []
+
     while (stack.length) {
-        let currentPath = stack.shift()
+        let currentPath = stack.pop()
 
         try {
+            let hbIgnorePath = fsPath.join(currentPath, '.hbignore')
+            if (fs.existsSync(hbIgnorePath)) {
+                let lines = fs.readFileSync(hbIgnorePath, 'utf8')
+                    .split(/\r\n|\n\r|\n|\r/g)
+                    .filter(line => !line.startsWith('#') && line.trim().length)
+                    .map(line => fsPath.relative(path, fsPath.join(currentPath, line)))
+                lines.forEach(line => ignoreExpressions.push(new RegExp(line, 'i')))
+            }
+
             let files = FsTools.readDirSync(currentPath)
-                .filter((fileName) => !ignoredNames.some(name => fileName == name))
                 .sort()
                 .map(fileName => fsPath.join(currentPath, fileName))
+                .filter(fileName => {
+                    let relative = fsPath.relative(path, fileName)
+                    let ignores = ignoreExpressions.some(expression => expression.test(relative))
+                    if (ignores)
+                        log(`ignored ${fileName}`)
+                    return !ignores
+                })
                 .map(fileName => {
                     try {
-                        let stat = fs.statSync(fileName);
+                        let stat = fs.statSync(fileName)
 
                         return {
                             name: fileName,
@@ -43,7 +60,7 @@ function* iterateRecursivelyOverDirectory(path: string, ignoredNames: string[]):
 
             for (let desc of files) {
                 if (desc.isDirectory)
-                    stack.unshift(desc.name)
+                    stack.push(desc.name)
 
                 yield desc
             }
@@ -57,10 +74,10 @@ function* iterateRecursivelyOverDirectory(path: string, ignoredNames: string[]):
 export class DirectoryLister extends Stream.Readable {
     private fileIterator: IterableIterator<FileIteration>
 
-    constructor(private path: string, private ignoredNames: string[]) {
+    constructor(private path: string) {
         super({ objectMode: true })
 
-        this.fileIterator = iterateRecursivelyOverDirectory(path, ignoredNames)
+        this.fileIterator = iterateRecursivelyOverDirectory(path)
     }
 
     _read(size: number) {

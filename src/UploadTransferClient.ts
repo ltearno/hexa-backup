@@ -198,8 +198,6 @@ export interface UploadStatus {
 export class UploadTransferClient {
     private askShaStatusPayloadsStream: AskShaStatusStream
 
-    private ignoredDirs = ['.hb-cache', '.hb-object', '.hb-refs', '.metadata', '.settings', '.idea', 'target', 'node_modules', 'gwt-unitCache', '.ntvs_analysis.dat', '.gradle', 'student_pictures', 'logs']
-
     status: UploadStatus = {
         phase: "uninitialized",
         toSync: {
@@ -231,7 +229,7 @@ export class UploadTransferClient {
             log(`estimation of work`)
             this.status.phase = 'estimating target'
 
-            let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, this.ignoredDirs)
+            let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory)
 
             directoryLister.on('end', () => {
                 log(`prepared to send ${this.status.toSync.nbDirectories} directories, ${this.status.toSync.nbFiles} files and ${this.status.toSync.nbBytes / (1024 * 1024 * 1024)} Gb`)
@@ -263,7 +261,7 @@ export class UploadTransferClient {
                     let shaCache = new ShaCache.ShaCache(fsPath.join(this.pushedDirectory, '.hb-cache'))
 
                     let shaProcessor = new ShaProcessor.ShaProcessor(shaCache)
-                    let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, this.ignoredDirs)
+                    let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory)
 
                     this.askShaStatusPayloadsStream = new AskShaStatusStream(this.pushedDirectory, this.status)
                     this.askShaStatusPayloadsStream.initSourceStream(directoryLister.pipe(shaProcessor))
