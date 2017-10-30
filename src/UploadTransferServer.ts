@@ -94,6 +94,11 @@ export class UploadTransferServer {
             socket.on('close', () => {
                 log('connection from client closed')
             })
+
+            socket.on('error', () => {
+                log('error with connection from client')
+                socket.end()
+            })
         })
 
         server.on('error', (err) => log.err(`server error: ${err}`))

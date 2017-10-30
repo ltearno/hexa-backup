@@ -100,7 +100,6 @@ export class AskShaStatusStream extends Stream.Transform {
             if (this.sourceStream)
                 this.sourceStream.pause()
 
-
             let fileInfo = this.toSendFiles.shift()
             this.fileStream = new ShaBytesStream(fileInfo.fileInfo, fileInfo.offset, this.backupedDirectory, this.status)
             this.fileStream.pipe(this, { end: false })
@@ -109,14 +108,13 @@ export class AskShaStatusStream extends Stream.Transform {
                 this.updateQueue()
             })
 
-            this.status.phase = `sending ${fileInfo.fileInfo.name} @ ${fileInfo.offset}, sz: ${fileInfo.fileInfo.size}`
+            this.status.phase = `sending ${fileInfo.fileInfo.name} @ ${fileInfo.offset} (sz:${fileInfo.fileInfo.size}), ${this.toSendFiles.length} queued`
         }
         else if (!this.fileStream && this.sourceStream) {
-            this.status.phase = `parsing directories`
+            this.status.phase = `parsing directories, hashing files and asking remote status`
             this.sourceStream.resume()
         }
         else {
-            this.status.phase = `nothing to do`
             this.maybeClose()
         }
     }
@@ -212,7 +210,7 @@ export class UploadTransferClient {
 
     private giveStatus() {
         return {
-            message: `${this.status.phase}, ${this.status.nbAddedInTx}/${this.status.toSync.nbDirectories + this.status.toSync.nbFiles} added files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)} Gb, ${this.status.shaBytesSent / GIGABYTE} sha Gb sent`,
+            message: `${this.status.phase}, ${this.status.nbAddedInTx}/${this.status.toSync.nbDirectories + this.status.toSync.nbFiles} added files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)} Gb, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} sha Gb sent`,
             completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : -1
         }
     }
@@ -222,12 +220,13 @@ export class UploadTransferClient {
     start() {
         log.setStatus(() => this.giveStatus())
 
-        this.status.phase = 'preparing'
-
-        if (1 * 0 == 1) {
+        if (1 * 1 == 1) {
             this.startSending()
         }
         else {
+            log(`estimation of work`)
+            this.status.phase = 'estimating target'
+
             let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, this.ignoredDirs)
 
             directoryLister.on('end', () => {
@@ -245,6 +244,8 @@ export class UploadTransferClient {
 
     private startSending() {
         this.status.phase = 'sending'
+
+        log(`start sending`)
 
         this.socket.on('message', (message) => {
             let [messageType, content] = Serialization.deserialize(message, null)
@@ -287,6 +288,11 @@ export class UploadTransferClient {
         })
 
         this.socket.on('close', () => {
+            log('connection to server closed')
+        })
+
+        this.socket.on('error', () => {
+            this.socket.end()
             log('connection to server closed')
         })
 
