@@ -96,7 +96,11 @@ export class AskShaStatusStream extends Stream.Transform {
     }
 
     private updateQueue() {
-        if (!this.fileStream && this.toSendFiles.length) {
+        if (this.fileStream) {
+            return
+        }
+
+        if (this.toSendFiles.length) {
             if (this.sourceStream)
                 this.sourceStream.pause()
 
@@ -108,14 +112,14 @@ export class AskShaStatusStream extends Stream.Transform {
                 this.updateQueue()
             })
 
-            this.status.phase = `sending ${fileInfo.fileInfo.name} @ ${fileInfo.offset} (sz:${fileInfo.fileInfo.size}), ${this.toSendFiles.length} queued`
+            this.status.phase = `sending ${fileInfo.fileInfo.contentSha.substring(0, 5)} ${fileInfo.fileInfo.name.substring(-20)} @ ${fileInfo.offset} (sz:${fileInfo.fileInfo.size}), ${this.toSendFiles.length} queued`
+            return
         }
-        else if (!this.fileStream && this.sourceStream) {
-            this.status.phase = `parsing directories, hashing files and asking remote status`
+
+        if (this.sourceStream) {
             this.sourceStream.resume()
-        }
-        else {
-            this.maybeClose()
+            this.status.phase = `parsing directories, hashing files and asking remote status`
+            return
         }
     }
 
