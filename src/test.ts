@@ -40,4 +40,27 @@ function testStreamStack1() {
     shaProcessor.on('end', () => log(`end stream stack`))
 }
 
-test1()
+function testStream() {
+    let source = fs.createReadStream('d:\\tmp\\20170611_152531.mp4', {
+        //let source = fs.createReadStream('d:\\tmp\\ac_queries.txt', {
+        flags: 'r',
+        encoding: null,
+        //autoClose: true
+    })
+
+    let dest = fs.createWriteStream('d:\\tmp\\___yiuiu', {
+        flags: 'w',
+        encoding: null
+    })
+
+    let start = new Date().getTime()
+
+    log('starting')
+    source.on('end', () => {
+        let duration = ((new Date().getTime()) - start) / 1000
+        log(`finished in ${duration.toFixed(3)} seconds`)
+    })
+    source.pipe(dest)
+}
+
+testStream()

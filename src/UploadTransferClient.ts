@@ -18,14 +18,14 @@ const log = require('./Logger')('UploadTransferClient')
 export type ReadableStream = Stream.Readable | Stream.Transform
 
 export class AskShaStatusStream extends Stream.Transform {
-    private waitedShas = new Map<string, UploadTransferModel.FileAndShaInfo>()
+    waitedShas = new Map<string, UploadTransferModel.FileAndShaInfo>()
     private sentShas = new Set<string>()
 
-    private sourceStream: ReadableStream = null
+    sourceStream: ReadableStream = null
 
     private toSendFiles: { fileInfo: UploadTransferModel.FileAndShaInfo, offset: number }[] = []
 
-    private fileStream: ShaBytesStream = null
+    fileStream: ShaBytesStream = null
 
     constructor(private backupedDirectory: string, private status: UploadStatus) {
         super({ objectMode: true })
@@ -58,6 +58,8 @@ export class AskShaStatusStream extends Stream.Transform {
         this.sourceStream = sourceStream
         this.sourceStream.pipe(transform).pipe(this, { end: false })
         this.sourceStream.on('end', () => {
+            log(`finished listing files and hashing`)
+            transform.end()
             this.sourceStream = null
             this.maybeClose()
         })
@@ -110,9 +112,10 @@ export class AskShaStatusStream extends Stream.Transform {
             this.fileStream.on('end', () => {
                 this.fileStream = null
                 this.updateQueue()
+                this.maybeClose()
             })
 
-            this.status.phase = `sending ${fileInfo.fileInfo.contentSha.substring(0, 5)} ${fileInfo.fileInfo.name.substring(-20)} @ ${fileInfo.offset} (sz:${fileInfo.fileInfo.size}), ${this.toSendFiles.length} queued`
+            this.status.phase = `sending sha ${fileInfo.fileInfo.contentSha.substring(0, 5)} ${fileInfo.fileInfo.name.substring(-20)} @ ${fileInfo.offset} (sz:${fileInfo.fileInfo.size}), ${this.toSendFiles.length} files in queue`
             return
         }
 
@@ -129,8 +132,10 @@ export class AskShaStatusStream extends Stream.Transform {
     }
 
     private maybeClose() {
-        if (!this.waitedShas.size && !this.sourceStream && !this.fileStream)
+        if (!this.waitedShas.size && !this.sourceStream && !this.fileStream) {
+            this.status.phase = 'finished transfer'
             this.push(null)
+        }
     }
 }
 
@@ -156,7 +161,8 @@ export class ShaBytesStream extends Stream.Transform {
         this.fileStream = fsAny.createReadStream(this.fileInfo.name, {
             flags: 'r',
             encoding: null,
-            start: this.offset
+            start: this.offset,
+            autoClose: true
         })
 
         this.fileStream.pipe(this)
@@ -164,6 +170,7 @@ export class ShaBytesStream extends Stream.Transform {
 
     _flush(callback) {
         this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
+        this.status.nbShaSent++
         this.status.nbAddedInTx++
         this.status.nbBytesInTx += this.fileInfo.size
         this.push(createAddShaInTxMessage(this.fileInfo, this.backupedDirectory))
@@ -190,6 +197,7 @@ export interface UploadStatus {
         nbDirectories: number
         nbBytes: number
     }
+    nbShaSent: number
     shaBytesSent: number
     nbAddedInTx: number // nb files & dirs in tx
     nbBytesInTx: number // equivalent of number of bytes of content actually in the tx
@@ -205,15 +213,27 @@ export class UploadTransferClient {
             nbDirectories: -1,
             nbBytes: -1
         },
+        nbShaSent: 0,
         shaBytesSent: 0,
         nbAddedInTx: 0, // nb files & dirs in tx
         nbBytesInTx: 0 // equivalent of number of bytes of content actually in the tx
     }
 
     private giveStatus() {
+        let totalItems = this.status.toSync.nbFiles >= 0 ? `/${this.status.toSync.nbFiles + this.status.toSync.nbDirectories}` : ''
+        let totalBytes = this.status.toSync.nbBytes >= 0 ? `/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)}` : ''
+
+        let message = `TX:[${this.status.nbAddedInTx}${totalItems} items and ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb]`
+        message += `, SENT:[${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb for ${this.status.nbShaSent} items]`
+        message += `, ${this.status.phase}`
+
+        if (this.askShaStatusPayloadsStream) {
+            message += `STREAM:[${this.askShaStatusPayloadsStream.waitedShas.size},${this.askShaStatusPayloadsStream.fileStream ? 'F' : ''}${this.askShaStatusPayloadsStream.sourceStream ? 'S' : ''}]`
+        }
+
         return {
-            message: `${this.status.phase}, ${this.status.nbAddedInTx}/${this.status.toSync.nbDirectories + this.status.toSync.nbFiles} added files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)} Gb, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} sha Gb sent`,
-            completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : -1
+            message,
+            completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : 0
         }
     }
 
