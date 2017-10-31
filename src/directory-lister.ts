@@ -55,7 +55,7 @@ function* iterateRecursivelyOverDirectory(path: string): IterableIterator<FileIt
                     let relative = fsPath.relative(path, fileName)
                     let ignores = ignoreExpressions.some(expression => expression.test(relative))
                     if (ignores)
-                        log(`ignored ${fileName}`)
+                        log.dbg(`ignored ${fileName}`)
                     return !ignores
                 })
                 .map(fileName => {
