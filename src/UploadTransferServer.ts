@@ -31,7 +31,10 @@ export class UploadTransferServer {
             let currentClientId = null
             let currentTxId = null
 
-            let processStream = new Stream.Writable({ objectMode: true })
+            let messageToPayloadStream = new Socket2Message.MessageToPayloadStream()
+            messageToPayloadStream.pipe(socket, { end: false })
+
+            let processStream = new Stream.Writable({ objectMode: true, highWaterMark: 30 })
             processStream._write = async (message, encoding, callback) => {
                 let [messageType, param1 = null, param2 = null, param3 = null] = Serialization.deserialize(message, null)
 
@@ -42,14 +45,14 @@ export class UploadTransferServer {
                         currentClientId = clientId
                         currentTxId = await store.startOrContinueSnapshotTransaction(clientId)
                         log(`begin tx ${currentTxId}`)
-                        await Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_BEGIN_TX, currentTxId]), socket)
+                        await Socket2Message.writeStreamAsync(messageToPayloadStream, Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_BEGIN_TX, currentTxId]))
                         break
                     }
 
                     case UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS: {
                         let sha = param1
                         let size = await store.hasOneShaBytes(sha)
-                        await Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
+                        await Socket2Message.writeStreamAsync(messageToPayloadStream, Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_SHA_STATUS, [sha, size]]))
                         break
                     }
 
@@ -66,7 +69,7 @@ export class UploadTransferServer {
                         let offset = param2
                         let buffer = param3
 
-                        await writeStreamAsync(shaWriter, { sha, offset, buffer })
+                        await Socket2Message.writeStreamAsync(shaWriter, { sha, offset, buffer })
                         break
                     }
 
@@ -75,7 +78,7 @@ export class UploadTransferServer {
 
                         log(`finished sha transfer ${sha}`)
 
-                        await writeStreamAsync(shaWriter, { sha, offset: -1, buffer: null })
+                        await Socket2Message.writeStreamAsync(shaWriter, { sha, offset: -1, buffer: null })
                         break
                     }
 
@@ -108,15 +111,4 @@ export class UploadTransferServer {
 
         server.listen(port)
     }
-}
-
-function writeStreamAsync(stream: Stream.Writable, chunk): Promise<void> {
-    return new Promise((resolve, reject) => {
-        try {
-            stream.write(chunk, () => resolve())
-        }
-        catch (error) {
-            reject(error)
-        }
-    })
 }

@@ -3,6 +3,17 @@ import * as Stream from 'stream'
 
 const log = require('./Logger')('Socket2Message')
 
+export function writeStreamAsync(stream: NodeJS.WritableStream, chunk): Promise<void> {
+    return new Promise((resolve, reject) => {
+        try {
+            stream.write(chunk, () => resolve())
+        }
+        catch (error) {
+            reject(error)
+        }
+    })
+}
+
 export function sendMessageToSocket(payload: Buffer, socket: Net.Socket) {
     return new Promise((resolve, reject) => {
         try {
@@ -10,11 +21,6 @@ export function sendMessageToSocket(payload: Buffer, socket: Net.Socket) {
             buffer.writeInt32LE(payload.length, 0)
             payload.copy(buffer, 4, 0)
             socket.write(buffer, () => resolve())
-
-            //let header = new Buffer(4)
-            //header.writeInt32LE(payload.length, 0)
-            //socket.write(header)
-            //socket.write(payload, () => resolve())
         }
         catch (error) {
             reject(error)
@@ -32,11 +38,6 @@ export class MessageToPayloadStream extends Stream.Transform {
         buffer.writeInt32LE(payload.length, 0)
         payload.copy(buffer, 4, 0)
         this.push(buffer)
-
-        /*let header = new Buffer(4)
-        header.writeInt32LE(payload.length, 0)
-        this.push(header)
-        this.push(payload)*/
 
         callback()
     }

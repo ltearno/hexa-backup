@@ -5,7 +5,9 @@ import * as UploadTransferModel from './UploadTransferModel'
 const log = require('./Logger')('ShaProcessor')
 
 export class ShaProcessor extends Stream.Transform {
-    constructor(private shaCache: ShaCache.ShaCache) {
+    private hashedBytes = 0
+
+    constructor(private shaCache: ShaCache.ShaCache, private stateCallback?: (hashedBytes: number) => void) {
         super({ objectMode: true })
     }
 
@@ -17,6 +19,9 @@ export class ShaProcessor extends Stream.Transform {
             try {
                 let sha = await this.shaCache.hashFile(chunk.name)
                 this.push(Object.assign({ contentSha: sha }, chunk))
+
+                this.hashedBytes += chunk.size
+                this.stateCallback && this.stateCallback(this.hashedBytes)
             }
             catch (err) {
                 log(`ERROR SHAING ${err}`)

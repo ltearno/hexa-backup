@@ -136,7 +136,7 @@ export class AskShaStatusStream extends Stream.Transform {
                     this.status.phase = `parsing directories, hashing files and asking remote status`
                 }
                 else {
-                    this.status.phase = `waiting for ${this.waitedShas.size} sha status`
+                    this.status.phase = `waiting for shas status`
                 }
             }
         }
@@ -211,6 +211,8 @@ export interface UploadStatus {
         nbDirectories: number
         nbBytes: number
     }
+    visitedFiles: number
+    hashedBytes: number
     nbShaSent: number
     shaBytesSent: number
     nbAddedInTx: number // nb files & dirs in tx
@@ -227,6 +229,8 @@ export class UploadTransferClient {
             nbDirectories: -1,
             nbBytes: -1
         },
+        visitedFiles: 0,
+        hashedBytes: 0,
         nbShaSent: 0,
         shaBytesSent: 0,
         nbAddedInTx: 0, // nb files & dirs in tx
@@ -246,11 +250,11 @@ export class UploadTransferClient {
 
             let message = `TX:[${this.status.nbAddedInTx}${totalItems} items and ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb]`
             message += `, SENT:[${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb for ${this.status.nbShaSent} items]`
-            message += `, ${this.status.phase}`
+            message += `, [${this.status.visitedFiles} visited files, ${(this.status.hashedBytes / GIGABYTE).toFixed(3)} Gb hashed]`
+            if (this.askShaStatusPayloadsStream)
+                message += `, STATE:[${this.askShaStatusPayloadsStream.waitedShas.size}${this.askShaStatusPayloadsStream.fileStream ? 'F' : ''}${this.askShaStatusPayloadsStream.sourceStream ? 'S' : ''}]`
 
-            if (this.askShaStatusPayloadsStream) {
-                message += `, STREAM:[${this.askShaStatusPayloadsStream.waitedShas.size},${this.askShaStatusPayloadsStream.fileStream ? 'F' : ''}${this.askShaStatusPayloadsStream.sourceStream ? 'S' : ''}]`
-            }
+            message += `, ${this.status.phase}`
 
             return {
                 message,
@@ -294,7 +298,8 @@ export class UploadTransferClient {
 
         log(`start sending`)
 
-        this.socket.on('message', (message) => {
+        let processStream = new Stream.Transform({ objectMode: true })
+        processStream._transform = (message, encoding, callback) => {
             let [messageType, content] = Serialization.deserialize(message, null)
 
             switch (messageType) {
@@ -304,9 +309,8 @@ export class UploadTransferClient {
                     log(`starting transaction ${txId}`)
 
                     let shaCache = new ShaCache.ShaCache(fsPath.join(this.pushedDirectory, '.hb-cache'))
-
-                    let shaProcessor = new ShaProcessor.ShaProcessor(shaCache)
-                    let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory)
+                    let shaProcessor = new ShaProcessor.ShaProcessor(shaCache, hashedBytes => this.status.hashedBytes = hashedBytes)
+                    let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, (nbFiles, nbDirectories) => this.status.visitedFiles = nbFiles + nbDirectories)
 
                     this.askShaStatusPayloadsStream = new AskShaStatusStream(this.pushedDirectory, this.status)
                     this.askShaStatusPayloadsStream.initSourceStream(directoryLister.pipe(shaProcessor))
@@ -331,7 +335,9 @@ export class UploadTransferClient {
                 default:
                     log.err(`received unknown msg type ${messageType}`)
             }
-        })
+
+            callback()
+        }
 
         this.socket.on('close', () => {
             log('connection to server closed')
@@ -342,7 +348,7 @@ export class UploadTransferClient {
             log('connection to server closed')
         })
 
-        Socket2Message.socketDataToMessage(this.socket)
+        this.socket.pipe(new Socket2Message.SocketDataToMessageStream()).pipe(processStream)
 
         Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, this.sourceId]), this.socket)
     }

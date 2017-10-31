@@ -12,7 +12,7 @@ interface FileIteration {
     size: number
 }
 
-function* iterateRecursivelyOverDirectory(path: string): IterableIterator<FileIteration> {
+function* iterateRecursivelyOverDirectory(path: string, stateCallback?: (nbFiles: number, nbDirs: number) => void): IterableIterator<FileIteration> {
     let stack = [path]
 
     let ignoreExpressions: RegExp[] = [
@@ -21,9 +21,8 @@ function* iterateRecursivelyOverDirectory(path: string): IterableIterator<FileIt
         /^\.hb-refs$|^.*\\\.hb-refs$/gi
     ]
 
-    let iter = () => {
-
-    }
+    let nbFiles = 0
+    let nbDirectories = 0
 
     while (stack.length) {
         let currentPath = stack.pop()
@@ -77,11 +76,18 @@ function* iterateRecursivelyOverDirectory(path: string): IterableIterator<FileIt
                 .filter(desc => desc != null)
 
             for (let desc of files) {
-                if (desc.isDirectory)
+                if (desc.isDirectory) {
                     stack.push(desc.name)
+                    nbDirectories++
+                }
+                else {
+                    nbFiles++
+                }
 
                 yield desc
             }
+
+            stateCallback && stateCallback(nbFiles, nbDirectories)
         }
         catch (error) {
             log(`cannot read ${currentPath}`)
@@ -92,10 +98,10 @@ function* iterateRecursivelyOverDirectory(path: string): IterableIterator<FileIt
 export class DirectoryLister extends Stream.Readable {
     private fileIterator: IterableIterator<FileIteration>
 
-    constructor(private path: string) {
+    constructor(private path: string, stateCallback?: (nbFiles: number, nbDirs: number) => void) {
         super({ objectMode: true })
 
-        this.fileIterator = iterateRecursivelyOverDirectory(path)
+        this.fileIterator = iterateRecursivelyOverDirectory(path, stateCallback)
     }
 
     async _read(size: number) {
