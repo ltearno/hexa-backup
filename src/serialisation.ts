@@ -4,7 +4,7 @@ class GrowingBuffer {
     private buffer: Buffer;
 
     constructor() {
-        this.buffer = Buffer.alloc(128*1024);
+        this.buffer = Buffer.alloc(128 * 1024);
     }
 
     extract(size: number) {
@@ -54,9 +54,16 @@ const TYPE_NULL = 2;
 const TYPE_UNDEFINED = 3;
 const TYPE_STREAM = 4;
 
+// WARNING : given that the buffer is not used in a reentrant manner, this should be ok
+let buffer: GrowingBuffer = new GrowingBuffer()
+
+/**
+ * WARNING This function is not reentrant !
+ * @param args 
+ * @param streamReceiver 
+ */
 export function serialize(args: any[], streamReceiver: (stream: Stream.Readable) => void = null): Buffer {
     let currentOffset = 0;
-    let buffer: GrowingBuffer = new GrowingBuffer();
     currentOffset += buffer.writeByte(currentOffset, args.length);
 
     for (let p in args) {
