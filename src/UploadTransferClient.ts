@@ -34,7 +34,7 @@ export class AskShaStatusStream extends Stream.Transform {
     private finished = false
 
     constructor(private backupedDirectory: string, private status: UploadStatus) {
-        super({ objectMode: true })
+        super({ objectMode: true, highWaterMark: 100 })
     }
 
     initSourceStream(sourceStream: ReadableStream) {
@@ -169,7 +169,7 @@ export class ShaBytesStream extends Stream.Transform {
     private fileStream: Stream.Readable
 
     constructor(private fileInfo: UploadTransferModel.FileAndShaInfo, private offset: number, private backupedDirectory: string, private status: UploadStatus) {
-        super()
+        super({ objectMode: true, highWaterMark: 100 })
 
         let fsAny = fs as any
         this.fileStream = fsAny.createReadStream(this.fileInfo.name, {

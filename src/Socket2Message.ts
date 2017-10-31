@@ -24,7 +24,7 @@ export function sendMessageToSocket(payload: Buffer, socket: Net.Socket) {
 
 export class MessageToPayloadStream extends Stream.Transform {
     constructor() {
-        super({ objectMode: true })
+        super({ objectMode: true, highWaterMark: 100 })
     }
 
     _transform(payload, encoding, callback) {
@@ -50,7 +50,7 @@ export class SocketDataToMessageStream extends Stream.Transform {
     private counterBufferOffset = 0
 
     constructor() {
-        super({ objectMode: true })
+        super({ objectMode: true, highWaterMark: 100 })
     }
 
     _transform(chunk: Buffer, encoding, callback) {
