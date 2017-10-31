@@ -39,7 +39,7 @@ class Logger {
 
     output(level: string, message) {
         if (level in Logger.config && Logger.config[level]) {
-            let s
+            let s: string
             if (message == "" || message == undefined || message == null)
                 s = ''
             else if (typeof message === "string")
@@ -56,7 +56,7 @@ class Logger {
                     break
             }
 
-            console.log(s)
+            console.log(s + '     ')
         }
     }
 

@@ -228,7 +228,7 @@ export class UploadTransferClient {
         message += `, ${this.status.phase}`
 
         if (this.askShaStatusPayloadsStream) {
-            message += `STREAM:[${this.askShaStatusPayloadsStream.waitedShas.size},${this.askShaStatusPayloadsStream.fileStream ? 'F' : ''}${this.askShaStatusPayloadsStream.sourceStream ? 'S' : ''}]`
+            message += `, STREAM:[${this.askShaStatusPayloadsStream.waitedShas.size},${this.askShaStatusPayloadsStream.fileStream ? 'F' : ''}${this.askShaStatusPayloadsStream.sourceStream ? 'S' : ''}]`
         }
 
         return {
