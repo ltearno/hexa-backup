@@ -58,7 +58,6 @@ export class UploadTransferServer {
 
                     case UploadTransferModel.MSG_TYPE_ADD_SHA_IN_TX: {
                         let fileInfo = param1 as Model.FileDescriptor
-                        log(`added ${fileInfo.name}`)
 
                         await store.pushFileDescriptors(currentClientId, currentTxId, [fileInfo])
                         break
