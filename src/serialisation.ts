@@ -4,7 +4,7 @@ class GrowingBuffer {
     private buffer: Buffer;
 
     constructor() {
-        this.buffer = Buffer.alloc(100);
+        this.buffer = Buffer.alloc(128*1024);
     }
 
     extract(size: number) {

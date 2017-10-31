@@ -102,34 +102,39 @@ export class ShaCache {
             if (!fsPath.isAbsolute(fullFileName))
                 reject("path should be absolute")
 
-            let stat = await FsTools.stat(fullFileName);
+            try {
+                let stat = await FsTools.stat(fullFileName);
 
-            if (fullFileName in this.cache) {
-                let cacheInfo = this.cache[fullFileName];
-                if (cacheInfo.lastWrite == stat.mtime.getTime() && cacheInfo.size == stat.size) {
-                    resolve(cacheInfo.contentSha);
-                    return;
+                if (fullFileName in this.cache) {
+                    let cacheInfo = this.cache[fullFileName];
+                    if (cacheInfo.lastWrite == stat.mtime.getTime() && cacheInfo.size == stat.size) {
+                        resolve(cacheInfo.contentSha);
+                        return;
+                    }
                 }
+
+                let contentSha = await HashTools.hashFile(fullFileName);
+                let cacheInfo = {
+                    lastWrite: stat.mtime.getTime(),
+                    size: stat.size,
+                    contentSha: contentSha
+                };
+
+                this.cache[fullFileName] = cacheInfo;
+                this.dirtyCache = true;
+
+                if (!this.flushInterval) {
+                    this.flushInterval = setInterval(() => {
+                        this.flushToDisk()
+                        this.flushInterval = null
+                    }, 30000)
+                }
+
+                resolve(contentSha)
             }
-
-            let contentSha = await HashTools.hashFile(fullFileName);
-            let cacheInfo = {
-                lastWrite: stat.mtime.getTime(),
-                size: stat.size,
-                contentSha: contentSha
-            };
-
-            this.cache[fullFileName] = cacheInfo;
-            this.dirtyCache = true;
-
-            if (!this.flushInterval) {
-                this.flushInterval = setInterval(() => {
-                    this.flushToDisk()
-                    this.flushInterval = null
-                }, 30000)
+            catch (error) {
+                reject(error)
             }
-
-            resolve(contentSha);
         });
     }
 }
