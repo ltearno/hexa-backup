@@ -22,7 +22,7 @@ const cacheDirectory = `d:\\tmp\\hb-cache-test`
 function test1() {
     let lister = new DirectoryLister.DirectoryLister(directory)
     lister.on('end', () => log(`finished !`))
-    lister.on('data', (file: UploadTransferModel.FileInfo) => log(`${file.name}`))
+    lister.on('data', (file: UploadTransferModel.FileInfo) => { })
 
     /*let shaProcessor = new ShaProcessor.ShaProcessor(new ShaCache.ShaCache(cacheDirectory))
     lister.pipe(shaProcessor)
