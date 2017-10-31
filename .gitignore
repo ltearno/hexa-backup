@@ -3,3 +3,4 @@ target/
 .hb-object/
 .hb-refs/
 .hb-cache/
+*.log

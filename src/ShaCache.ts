@@ -4,13 +4,19 @@ import fsPath = require('path');
 import * as HashTools from './HashTools';
 import * as Stream from 'stream'
 
-const log = require('./Logger')('ShaCache');
+const log = require('./Logger')('ShaCache')
+
+const level = require('level')
+
+interface CacheInfo {
+    lastWrite: number
+    size: number
+    contentSha: string
+}
 
 export class ShaCache {
-    private cacheDirectory: string;
-    private cache: any;
-    private dirtyCache: boolean = false;
-    private flushInterval = null
+    private cacheDirectory: string
+    private db: any
 
     constructor(cacheDirectory: string) {
         this.cacheDirectory = fsPath.resolve(cacheDirectory);
@@ -18,14 +24,11 @@ export class ShaCache {
             fs.mkdirSync(this.cacheDirectory);
 
         try {
-            let cacheFileName = fsPath.join(this.cacheDirectory, 'data');
-            if (fs.existsSync(cacheFileName))
-                this.cache = JSON.parse(fs.readFileSync(cacheFileName, 'utf8'));
-            else
-                this.cache = {};
+            let cacheFileName = fsPath.join(this.cacheDirectory, 'data.level.db')
+            this.db = level(cacheFileName)
         }
         catch (error) {
-            this.cache = {};
+            this.db = null
         }
     }
 
@@ -83,58 +86,46 @@ export class ShaCache {
         return stream
     }
 
-    persist() {
-        this.flushToDisk()
-    }
-
-    private flushToDisk() {
-        if (this.dirtyCache) {
-            log.dbg(`STORING SHA CACHE...`)
-            let cacheFileName = fsPath.join(this.cacheDirectory, 'data');
-            fs.writeFileSync(cacheFileName, JSON.stringify(this.cache), { encoding: 'utf8' });
-            this.dirtyCache = false;
-            log.dbg(`STORED SHA CACHE`)
-        }
-    }
-
     async hashFile(fullFileName: string): Promise<string> {
-        return new Promise<string>(async (resolve, reject) => {
-            if (!fsPath.isAbsolute(fullFileName))
-                reject("path should be absolute")
+        if (!fsPath.isAbsolute(fullFileName))
+            throw "path should be absolute"
 
-            try {
-                let stat = await FsTools.stat(fullFileName);
+        let stat = await FsTools.stat(fullFileName)
 
-                if (fullFileName in this.cache) {
-                    let cacheInfo = this.cache[fullFileName];
-                    if (cacheInfo.lastWrite == stat.mtime.getTime() && cacheInfo.size == stat.size) {
-                        resolve(cacheInfo.contentSha);
-                        return;
-                    }
-                }
+        let cacheInfo = await this.getDb(fullFileName)
+        if (cacheInfo && cacheInfo.lastWrite == stat.mtime.getTime() && cacheInfo.size == stat.size)
+            return cacheInfo.contentSha
 
-                let contentSha = await HashTools.hashFile(fullFileName);
-                let cacheInfo = {
-                    lastWrite: stat.mtime.getTime(),
-                    size: stat.size,
-                    contentSha: contentSha
-                };
+        cacheInfo = {
+            lastWrite: stat.mtime.getTime(),
+            size: stat.size,
+            contentSha: await HashTools.hashFile(fullFileName)
+        }
 
-                this.cache[fullFileName] = cacheInfo;
-                this.dirtyCache = true;
+        await this.putDb(fullFileName, cacheInfo)
 
-                if (!this.flushInterval) {
-                    this.flushInterval = setInterval(() => {
-                        this.flushToDisk()
-                        this.flushInterval = null
-                    }, 30000)
-                }
+        return cacheInfo.contentSha
+    }
 
-                resolve(contentSha)
-            }
-            catch (error) {
-                reject(error)
-            }
-        });
+    private getDb(key: string): Promise<CacheInfo> {
+        return new Promise((resolve, reject) => {
+            this.db.get(key, (err, value) => {
+                if (err)
+                    resolve(null)
+                else
+                    resolve(value && JSON.parse(value))
+            })
+        })
+    }
+
+    private putDb(key: string, value: CacheInfo) {
+        return new Promise((resolve, reject) => {
+            this.db.put(key, JSON.stringify(value), err => {
+                if (err)
+                    reject(err)
+                else
+                    resolve()
+            })
+        })
     }
 }

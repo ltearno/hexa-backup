@@ -317,7 +317,6 @@ export class UploadTransferClient {
 
                     this.askShaStatusPayloadsStream.on('end', () => {
                         Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_COMMIT_TX]), this.socket)
-                        shaCache.persist()
                         log(`upload finished`)
                     })
                     break
