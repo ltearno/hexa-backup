@@ -93,11 +93,11 @@ export class HexaBackupStore implements IHexaBackupStore {
         }
 
         if (this.transactionTempFilesState[transactionId].firstWrite) {
-            this.shaCache.appendToTemporaryFile(transactionId, '{"files":[')
+            await this.shaCache.appendToTemporaryFile(transactionId, '{"files":[')
         }
 
         for (let fileDesc of descriptors) {
-            this.shaCache.appendToTemporaryFile(transactionId, (this.transactionTempFilesState[transactionId].firstWrite ? '' : ',') + JSON.stringify(fileDesc))
+            await this.shaCache.appendToTemporaryFile(transactionId, (this.transactionTempFilesState[transactionId].firstWrite ? '' : ',') + JSON.stringify(fileDesc))
             if (this.transactionTempFilesState[transactionId].firstWrite)
                 this.transactionTempFilesState[transactionId].firstWrite = false
 
@@ -124,7 +124,7 @@ export class HexaBackupStore implements IHexaBackupStore {
             }
 
             // prepare and store directory descriptor
-            this.shaCache.appendToTemporaryFile(transactionId, ']}') // closing the JSON structure
+            await this.shaCache.appendToTemporaryFile(transactionId, ']}') // closing the JSON structure
             let transactionStream = this.shaCache.closeTemporaryFileAndReadAsStream(transactionId)
             let descriptorSha = await this.objectRepository.storeObjectFromStream(transactionStream);
 

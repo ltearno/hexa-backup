@@ -284,15 +284,16 @@ export class ObjectRepository {
                 else
                     storedContentSha = await HashTools.hashFile(contentFileName)
 
-                let stat = fs.statSync(contentFileName)
-                if (contentSize == stat.size && storedContentSha == contentSha) {
-                    resolve(true)
-                }
-                else {
-                    log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, stored sha (${stat.size} bytes) ${storedContentSha}`)
+                fs.stat(contentFileName, (err, stat) => {
+                    if (contentSize == stat.size && storedContentSha == contentSha) {
+                        resolve(true)
+                    }
+                    else {
+                        log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, stored sha (${stat.size} bytes) ${storedContentSha}`)
 
-                    fs.rename(contentFileName, contentFileName + '.bak', (err) => resolve(false))
-                }
+                        fs.rename(contentFileName, contentFileName + '.bak', (err) => resolve(false))
+                    }
+                })
             } catch (error) {
                 log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, error validating: '${error}'`)
 
@@ -332,7 +333,7 @@ class ShaPoolStream extends Stream.Writable {
                 log.err(`offset writing sha pool ${this.offset} > ${this.size}`)
 
             if (this.fd && this.offset == this.size) {
-                fs.closeSync(this.fd)
+                fs.close(this.fd)
 
                 log(`written sha ${this.desc.sha} on disk, size: ${this.size}`)
 

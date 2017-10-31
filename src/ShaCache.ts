@@ -42,13 +42,13 @@ export class ShaCache {
         return id
     }
 
-    appendToTemporaryFile(fileId: string, payload: string) {
+    async appendToTemporaryFile(fileId: string, payload: string) {
         if (!(fileId in this.temporaryFiles))
             throw `illegal temp file id ${fileId}`
 
         if (!this.temporaryFiles[fileId]) {
             this.temporaryFiles[fileId] = {
-                fd: fs.openSync(fsPath.join(this.cacheDirectory, fileId), 'wx'),
+                fd: await FsTools.openFile(fsPath.join(this.cacheDirectory, fileId), 'wx'),
                 offset: 0
             }
 
@@ -58,8 +58,14 @@ export class ShaCache {
 
         let buffer = new Buffer(payload, 'utf8')
 
-        fs.writeSync(this.temporaryFiles[fileId].fd, buffer, 0, buffer.byteLength, this.temporaryFiles[fileId].offset)
+        await this._writeFile(this.temporaryFiles[fileId].fd, buffer, 0, buffer.byteLength, this.temporaryFiles[fileId].offset)
         this.temporaryFiles[fileId].offset += buffer.byteLength
+    }
+
+    private async _writeFile(fd: number, buffer: Buffer, offset: number, length: number, position: number) {
+        return new Promise(resolve => {
+            fs.write(fd, buffer, offset, length, position, (err, written, buffer) => resolve())
+        })
     }
 
     /**
