@@ -33,13 +33,13 @@ export class HexaBackupStore implements IHexaBackupStore {
     private lastTimeSavedClientState = 0;
 
     constructor(rootPath: string) {
-        this.rootPath = fsPath.resolve(rootPath);
+        this.rootPath = fsPath.resolve(rootPath)
 
-        this.shaCache = new ShaCache(fsPath.join(this.rootPath, '.hb-cache'));
+        this.shaCache = new ShaCache(fsPath.join(this.rootPath, '.hb-cache'))
 
-        this.objectRepository = new ObjectRepository(fsPath.join(this.rootPath, '.hb-object'), this.shaCache);
+        this.objectRepository = new ObjectRepository(fsPath.join(this.rootPath, '.hb-object'), this.shaCache)
 
-        this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'));
+        this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'))
     }
 
     async startOrContinueSnapshotTransaction(sourceId: string): Promise<string> {

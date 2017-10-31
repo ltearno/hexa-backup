@@ -19,10 +19,9 @@ export class ShaCache {
     private db: any
 
     constructor(cacheDirectory: string) {
-        this.cacheDirectory = fsPath.resolve(cacheDirectory);
+        this.cacheDirectory = fsPath.resolve(cacheDirectory)
         if (!fs.existsSync(this.cacheDirectory))
-            fs.mkdirSync(this.cacheDirectory);
-
+            fs.mkdirSync(this.cacheDirectory)
         try {
             let cacheFileName = fsPath.join(this.cacheDirectory, 'data.level.db')
             this.db = level(cacheFileName)
@@ -74,13 +73,13 @@ export class ShaCache {
         if (!this.temporaryFiles[fileId])
             return null
 
-        fs.closeSync(this.temporaryFiles[fileId].fd)
+        fs.close(this.temporaryFiles[fileId].fd)
         delete this.temporaryFiles[fileId]
 
         let stream = fs.createReadStream(fsPath.join(this.cacheDirectory, fileId), { encoding: 'utf8' })
 
         stream.on('end', () => {
-            fs.unlinkSync(fsPath.join(this.cacheDirectory, fileId))
+            fs.unlink(fsPath.join(this.cacheDirectory, fileId))
         })
 
         return stream

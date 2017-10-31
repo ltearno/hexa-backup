@@ -10,7 +10,7 @@ const log = require('./Logger')('UploadTransferServer')
 
 export class UploadTransferServer {
     listen(port: number, store: HexaBackupStore) {
-        let server = Net.createServer((socket) => {
+        let server = Net.createServer(socket => {
             log('client connected')
 
             class ShaWriter extends Stream.Writable {
@@ -23,7 +23,7 @@ export class UploadTransferServer {
                         await store.putShaBytes(data.sha, data.offset, data.buffer)
                     else
                         await store.validateShaBytes(data.sha)
-                    callback()
+                    callback(null, null)
                 }
             }
 
@@ -31,7 +31,8 @@ export class UploadTransferServer {
             let currentClientId = null
             let currentTxId = null
 
-            socket.on('message', async (message) => {
+            let processStream = new Stream.Writable({ objectMode: true })
+            processStream._write = async (message, encoding, callback) => {
                 let [messageType, param1 = null, param2 = null, param3 = null] = Serialization.deserialize(message, null)
 
                 switch (messageType) {
@@ -41,14 +42,14 @@ export class UploadTransferServer {
                         currentClientId = clientId
                         currentTxId = await store.startOrContinueSnapshotTransaction(clientId)
                         log(`begin tx ${currentTxId}`)
-                        Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_BEGIN_TX, currentTxId]), socket)
+                        await Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_BEGIN_TX, currentTxId]), socket)
                         break
                     }
 
                     case UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS: {
                         let sha = param1
                         let size = await store.hasOneShaBytes(sha)
-                        Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
+                        await Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_REP_SHA_STATUS, [sha, size]]), socket)
                         break
                     }
 
@@ -56,7 +57,7 @@ export class UploadTransferServer {
                         let fileInfo = param1 as Model.FileDescriptor
                         log(`added ${fileInfo.name}`)
 
-                        store.pushFileDescriptors(currentClientId, currentTxId, [fileInfo])
+                        await store.pushFileDescriptors(currentClientId, currentTxId, [fileInfo])
                         break
                     }
 
@@ -65,7 +66,7 @@ export class UploadTransferServer {
                         let offset = param2
                         let buffer = param3
 
-                        shaWriter.write({ sha, offset, buffer })
+                        await writeStreamAsync(shaWriter, { sha, offset, buffer })
                         break
                     }
 
@@ -74,7 +75,7 @@ export class UploadTransferServer {
 
                         log(`finished sha transfer ${sha}`)
 
-                        shaWriter.write({ sha, offset: -1, buffer: null })
+                        await writeStreamAsync(shaWriter, { sha, offset: -1, buffer: null })
                         break
                     }
 
@@ -87,9 +88,9 @@ export class UploadTransferServer {
                     default:
                         log.err(`unknown rx msg type ${messageType}`)
                 }
-            })
 
-            Socket2Message.socketDataToMessage(socket)
+                callback()
+            }
 
             socket.on('close', () => {
                 log('connection from client closed')
@@ -99,10 +100,23 @@ export class UploadTransferServer {
                 log('error with connection from client')
                 socket.end()
             })
+
+            socket.pipe(new Socket2Message.SocketDataToMessageStream()).pipe(processStream)
         })
 
         server.on('error', (err) => log.err(`server error: ${err}`))
 
         server.listen(port)
     }
+}
+
+function writeStreamAsync(stream: Stream.Writable, chunk): Promise<void> {
+    return new Promise((resolve, reject) => {
+        try {
+            stream.write(chunk, () => resolve())
+        }
+        catch (error) {
+            reject(error)
+        }
+    })
 }
