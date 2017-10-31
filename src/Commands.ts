@@ -185,20 +185,21 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
     }
 }
 
-export async function pushFast(sourceId, pushedDirectory, storeIp, storePort) {
+export async function pushFast(sourceId, pushedDirectory, storeIp, storePort, estimateSize) {
     return new Promise((accept, reject) => {
         console.log(`push options :`)
-        console.log(`  directory: ${pushedDirectory}`);
-        console.log(`  source: ${sourceId}`);
-        console.log(`  server: ${storeIp}:${storePort}`);
-        console.log();
+        console.log(`  directory: ${pushedDirectory}`)
+        console.log(`  source: ${sourceId}`)
+        console.log(`  server: ${storeIp}:${storePort}`)
+        console.log(`  estimateSize: ${estimateSize}`)
+        console.log()
 
         let socket = new Net.Socket()
 
         socket.on('connect', () => {
-            log(`connected to ${storeIp}:${storePort}`);
+            log(`connected to ${storeIp}:${storePort}`)
 
-            let client = new UploadTransferClient.UploadTransferClient(pushedDirectory, sourceId, socket);
+            let client = new UploadTransferClient.UploadTransferClient(pushedDirectory, sourceId, estimateSize, socket)
             client.start()
         })
 

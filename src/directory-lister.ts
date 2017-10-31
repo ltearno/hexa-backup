@@ -15,7 +15,15 @@ interface FileIteration {
 function* iterateRecursivelyOverDirectory(path: string): IterableIterator<FileIteration> {
     let stack = [path]
 
-    let ignoreExpressions: RegExp[] = []
+    let ignoreExpressions: RegExp[] = [
+        /^\.hb-cache$|^.*\\\.hb-cache$/gi,
+        /^\.hb-object$|^.*\\\.hb-object$/gi,
+        /^\.hb-refs$|^.*\\\.hb-refs$/gi
+    ]
+
+    let iter = () => {
+
+    }
 
     while (stack.length) {
         let currentPath = stack.pop()
@@ -90,16 +98,11 @@ export class DirectoryLister extends Stream.Readable {
         this.fileIterator = iterateRecursivelyOverDirectory(path)
     }
 
-    _read(size: number) {
-        while (true) {
-            let result = this.fileIterator.next()
-            if (result.done) {
-                this.push(null)
-                break
-            }
-
-            if (!this.push(result.value))
-                break
-        }
+    async _read(size: number) {
+        let result = this.fileIterator.next()
+        if (result.done)
+            this.push(null)
+        else
+            this.push(result.value)
     }
 }

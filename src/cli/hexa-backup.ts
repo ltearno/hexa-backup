@@ -189,15 +189,17 @@ async function run() {
                 sourceId: defaultSourceId,
                 storeIp: "localhost",
                 storePort: 5006,
-                pushedDirectory: '.'
+                pushedDirectory: '.',
+                estimateSize: false
             },
             executor: async (options) => {
                 const sourceId = options['sourceId']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const pushedDirectory = fsPath.resolve(options['pushedDirectory'])
+                const estimateSize = options['estimateSize']
 
-                await Commands.pushFast(sourceId, pushedDirectory, storeIp, storePort)
+                await Commands.pushFast(sourceId, pushedDirectory, storeIp, storePort, estimateSize)
 
                 process.exit(0)
             }

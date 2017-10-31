@@ -18,6 +18,10 @@ const log = require('./Logger')('UploadTransferClient')
 export type ReadableStream = Stream.Readable | Stream.Transform
 
 export class AskShaStatusStream extends Stream.Transform {
+    private TRIGGER_HIGH_WAITEDSHAS = 100
+    private TRIGGER_LOW_WAITEDSHAS = 30
+    private sourceInPause = false
+
     waitedShas = new Map<string, UploadTransferModel.FileAndShaInfo>()
     private sentShas = new Set<string>()
 
@@ -26,6 +30,8 @@ export class AskShaStatusStream extends Stream.Transform {
     private toSendFiles: { fileInfo: UploadTransferModel.FileAndShaInfo, offset: number }[] = []
 
     fileStream: ShaBytesStream = null
+
+    private finished = false
 
     constructor(private backupedDirectory: string, private status: UploadStatus) {
         super({ objectMode: true })
@@ -49,6 +55,11 @@ export class AskShaStatusStream extends Stream.Transform {
                 else {
                     this.waitedShas.set(fileAndShaInfo.contentSha, fileAndShaInfo)
                     this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha]))
+
+                    if (this.waitedShas.size > this.TRIGGER_HIGH_WAITEDSHAS && !this.sourceInPause) {
+                        this.sourceInPause = true
+                        this.sourceStream.pause()
+                    }
                 }
             }
 
@@ -61,7 +72,7 @@ export class AskShaStatusStream extends Stream.Transform {
             log(`finished listing files and hashing`)
             transform.end()
             this.sourceStream = null
-            this.maybeClose()
+            this.updateQueue()
         })
     }
 
@@ -91,20 +102,20 @@ export class AskShaStatusStream extends Stream.Transform {
             }
 
             this.toSendFiles.push({ fileInfo: info, offset })
-            this.updateQueue()
         }
 
-        this.maybeClose()
+        this.updateQueue()
     }
 
     private updateQueue() {
         if (this.fileStream) {
             return
         }
-
-        if (this.toSendFiles.length) {
-            if (this.sourceStream)
+        else if (this.toSendFiles.length) {
+            if (this.sourceStream) {
                 this.sourceStream.pause()
+                this.sourceInPause = true
+            }
 
             let fileInfo = this.toSendFiles.shift()
             this.fileStream = new ShaBytesStream(fileInfo.fileInfo, fileInfo.offset, this.backupedDirectory, this.status)
@@ -112,30 +123,33 @@ export class AskShaStatusStream extends Stream.Transform {
             this.fileStream.on('end', () => {
                 this.fileStream = null
                 this.updateQueue()
-                this.maybeClose()
             })
 
             this.status.phase = `sending sha ${fileInfo.fileInfo.contentSha.substring(0, 5)} ${fileInfo.fileInfo.name.substring(-20)} @ ${fileInfo.offset} (sz:${fileInfo.fileInfo.size}), ${this.toSendFiles.length} files in queue`
             return
         }
-
-        if (this.sourceStream) {
-            this.sourceStream.resume()
-            this.status.phase = `parsing directories, hashing files and asking remote status`
-            return
+        else if (this.sourceStream) {
+            if (this.sourceInPause) {
+                if (this.waitedShas.size <= this.TRIGGER_LOW_WAITEDSHAS) {
+                    this.sourceStream.resume()
+                    this.sourceInPause = false
+                    this.status.phase = `parsing directories, hashing files and asking remote status`
+                }
+                else {
+                    this.status.phase = `waiting for ${this.waitedShas.size} sha status`
+                }
+            }
+        }
+        else if (!this.waitedShas.size && !this.finished) {
+            this.finished = true
+            this.status.phase = 'finished transfer'
+            this.push(null)
         }
     }
 
     _transform(data, encoding, callback: () => void) {
         this.push(data)
         callback()
-    }
-
-    private maybeClose() {
-        if (!this.waitedShas.size && !this.sourceStream && !this.fileStream) {
-            this.status.phase = 'finished transfer'
-            this.push(null)
-        }
     }
 }
 
@@ -220,33 +234,38 @@ export class UploadTransferClient {
     }
 
     private giveStatus() {
-        let totalItems = this.status.toSync.nbFiles >= 0 ? `/${this.status.toSync.nbFiles + this.status.toSync.nbDirectories}` : ''
-        let totalBytes = this.status.toSync.nbBytes >= 0 ? `/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)}` : ''
-
-        let message = `TX:[${this.status.nbAddedInTx}${totalItems} items and ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb]`
-        message += `, SENT:[${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb for ${this.status.nbShaSent} items]`
-        message += `, ${this.status.phase}`
-
-        if (this.askShaStatusPayloadsStream) {
-            message += `, STREAM:[${this.askShaStatusPayloadsStream.waitedShas.size},${this.askShaStatusPayloadsStream.fileStream ? 'F' : ''}${this.askShaStatusPayloadsStream.sourceStream ? 'S' : ''}]`
+        if (this.status.phase == this.ESTIMATING_PHASE_NAME) {
+            return {
+                message: `${this.status.toSync.nbFiles} files, ${this.status.toSync.nbDirectories} directories, ${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)} Gb...`,
+                completed: 0
+            }
         }
+        else {
+            let totalItems = this.status.toSync.nbFiles >= 0 ? `/${this.status.toSync.nbFiles + this.status.toSync.nbDirectories}` : ''
+            let totalBytes = this.status.toSync.nbBytes >= 0 ? `/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)}` : ''
 
-        return {
-            message,
-            completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : 0
+            let message = `TX:[${this.status.nbAddedInTx}${totalItems} items and ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb]`
+            message += `, SENT:[${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb for ${this.status.nbShaSent} items]`
+            message += `, ${this.status.phase}`
+
+            if (this.askShaStatusPayloadsStream) {
+                message += `, STREAM:[${this.askShaStatusPayloadsStream.waitedShas.size},${this.askShaStatusPayloadsStream.fileStream ? 'F' : ''}${this.askShaStatusPayloadsStream.sourceStream ? 'S' : ''}]`
+            }
+
+            return {
+                message,
+                completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : 0
+            }
         }
     }
 
-    constructor(private pushedDirectory: string, private sourceId: string, private socket: Net.Socket) { }
+    private ESTIMATING_PHASE_NAME = 'estimating'
+
+    constructor(private pushedDirectory: string, private sourceId: string, private estimateSize: boolean, private socket: Net.Socket) { }
 
     start() {
-        log.setStatus(() => this.giveStatus())
-
-        if (1 * 1 == 1) {
-            this.startSending()
-        }
-        else {
-            log(`estimation of work`)
+        if (this.estimateSize) {
+            log(`estimation of work, browsing directories...`)
             this.status.phase = 'estimating target'
 
             let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory)
@@ -256,12 +275,18 @@ export class UploadTransferClient {
                 this.startSending()
             })
 
+            this.status.phase = this.ESTIMATING_PHASE_NAME
             directoryLister.on('data', (file: UploadTransferModel.FileInfo) => {
                 this.status.toSync.nbDirectories += file.isDirectory ? 1 : 0
                 this.status.toSync.nbFiles += file.isDirectory ? 0 : 1
                 this.status.toSync.nbBytes += file.size
             })
         }
+        else {
+            this.startSending()
+        }
+
+        log.setStatus(() => this.giveStatus())
     }
 
     private startSending() {
