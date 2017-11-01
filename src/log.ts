@@ -146,7 +146,7 @@ function logMessage(text) {
 class Logger {
     private static config = {
         'log': true,
-        'dbg': true,
+        'dbg': false,
         'err': true
     };
 
@@ -161,11 +161,9 @@ class Logger {
     }
 
     log(message) { this.output('log', message) }
-
     dbg(message) { this.output('dbg', message) }
-
     err(message) { this.output('err', message) }
-
+    
     conf(level: string, show: boolean) { Logger.config[level] = show }
 
     output(level: string, message) {
