@@ -246,15 +246,15 @@ export class UploadTransferClient {
             let totalItems = this.status.toSync.nbFiles >= 0 ? `/${this.status.toSync.nbFiles + this.status.toSync.nbDirectories}` : ''
             let totalBytes = this.status.toSync.nbBytes >= 0 ? `/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)}` : ''
 
-            let res = [
-                `PUSHING ${this.pushedDirectory}`,
-                `         listed files : ${this.status.visitedFiles}${totalItems} files${this.askShaStatusPayloadsStream && this.askShaStatusPayloadsStream.sourceStream ? '' : ', listing finished'}`,
-                ` pending sha requests : ${this.askShaStatusPayloadsStream ? this.askShaStatusPayloadsStream.waitedShas.size : '-'}`,
-                `              hashing : ${(this.status.hashedBytes / GIGABYTE).toFixed(3)}${totalBytes} Gb hashed`,
-                `    files transferred : ${this.askShaStatusPayloadsStream.fileStream ? '[IN PROGRESS], ' : ''}${this.status.nbShaSent} files, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb`,
-                `      confirmed in tx : ${this.status.nbAddedInTx}${totalItems} files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb`,
-                `                phase : ${this.status.phase}`
-            ]
+            let res = [`PUSHING ${this.pushedDirectory}`]
+            if (this.askShaStatusPayloadsStream) {
+                res.push(`         listed files : ${this.status.visitedFiles}${totalItems} files${this.askShaStatusPayloadsStream.sourceStream ? '' : ', listing finished'}`)
+                res.push(` pending sha requests : ${this.askShaStatusPayloadsStream.waitedShas.size}`)
+                res.push(`              hashing : ${(this.status.hashedBytes / GIGABYTE).toFixed(3)}${totalBytes} Gb hashed`)
+                res.push(`    files transferred : ${this.askShaStatusPayloadsStream.fileStream ? '[TRANSFER IN PROGRESS] ' : ''}${this.status.nbShaSent} files, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb`)
+            }
+            res.push(`      confirmed in tx : ${this.status.nbAddedInTx}${totalItems} files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb`)
+            res.push(`                phase : ${this.status.phase}`)
 
             if (this.status.toSync.nbFiles >= 0)
                 res.push(`            completed : ${(100 * this.status.nbBytesInTx / this.status.toSync.nbBytes).toFixed(3)} %`)
