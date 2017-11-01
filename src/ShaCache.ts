@@ -3,8 +3,9 @@ import fs = require('fs');
 import fsPath = require('path');
 import * as HashTools from './HashTools';
 import * as Stream from 'stream'
+import Log from './log'
 
-const log = require('./Logger')('ShaCache')
+const log = Log('ShaCache')
 
 const level = require('level')
 

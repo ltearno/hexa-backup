@@ -5,8 +5,9 @@ import { ShaCache } from './ShaCache';
 import * as Model from './Model'
 import * as Stream from 'stream'
 import * as FS from 'fs'
+import Log from './log'
 
-const log = require('./Logger')('HexaBackupStore')
+const log = Log('HexaBackupStore')
 
 export interface IHexaBackupStore {
     startOrContinueSnapshotTransaction(sourceId: string): Promise<string>

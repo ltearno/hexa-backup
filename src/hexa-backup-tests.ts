@@ -1,8 +1,9 @@
 import { HexaBackupReader } from './HexaBackupReader';
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore';
 import { RPCClient, RPCServer } from './RPC';
+import Log from './log'
 
-const log = require('./Logger')('tests');
+const log = Log('tests')
 
 interface YoupiService {
     sayHello(message: string, object: any, buffer: Buffer): Promise<string>;

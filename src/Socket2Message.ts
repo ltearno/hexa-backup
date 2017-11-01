@@ -1,7 +1,8 @@
 import * as Net from 'net'
 import * as Stream from 'stream'
+import Log from './log'
 
-const log = require('./Logger')('Socket2Message')
+const log = Log('Socket2Message')
 
 export function writeStreamAsync(stream: NodeJS.WritableStream, chunk): Promise<void> {
     return new Promise((resolve, reject) => {

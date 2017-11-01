@@ -11,9 +11,9 @@
   },
   "author": "Arnaud Tournier",
   "dependencies": {
-    "colors": "1.1.2",
     "filesize": "3.3.0",
-    "gauge": "2.5.0",
+    "ansi-escapes": "^3.0.0",
+    "ansi-styles": "^3.2.0",
     "level": "^2.0.0"
   },
   "devDependencies": {

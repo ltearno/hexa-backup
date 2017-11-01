@@ -5,8 +5,9 @@ import * as UploadTransferModel from './UploadTransferModel'
 import * as Serialization from './serialisation'
 import * as Socket2Message from './Socket2Message'
 import * as Model from './Model'
+import Log from './log'
 
-const log = require('./Logger')('UploadTransferServer')
+const log = Log('UploadTransferServer')
 
 export class UploadTransferServer {
     listen(port: number, store: HexaBackupStore) {

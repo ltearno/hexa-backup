@@ -2,8 +2,9 @@ import crypto = require('crypto');
 import fs = require('fs');
 import * as FsTools from './FsTools';
 import * as Stream from 'stream'
+import Log from './log'
 
-const log = require('./Logger')('HashTools');
+const log = Log('HashTools')
 
 export const EMPTY_PAYLOAD_SHA = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -28,7 +29,7 @@ export async function hashFile(fileName: string): Promise<string> {
 
         let sha = await this.hashStream(input)
 
-        log.dbg(`finished hashing ${fileName}`)
+        log.dbg(`hashing done ${fileName} => ${sha}`)
 
         return sha
     }

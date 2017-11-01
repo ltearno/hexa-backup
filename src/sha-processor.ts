@@ -1,8 +1,9 @@
 import * as Stream from 'stream'
 import * as ShaCache from './ShaCache'
 import * as UploadTransferModel from './UploadTransferModel'
+import Log from './log'
 
-const log = require('./Logger')('ShaProcessor')
+const log = Log('ShaProcessor')
 
 export class ShaProcessor extends Stream.Transform {
     private hashedBytes = 0

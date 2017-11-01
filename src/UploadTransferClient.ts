@@ -12,8 +12,9 @@ import * as UploadTransferModel from './UploadTransferModel'
 import * as Socket2Message from './Socket2Message'
 import * as DirectoryLister from './directory-lister'
 import * as ShaProcessor from './sha-processor'
+import Log from './log'
 
-const log = require('./Logger')('UploadTransferClient')
+const log = Log('UploadTransferClient')
 
 export type ReadableStream = Stream.Readable | Stream.Transform
 
@@ -239,27 +240,26 @@ export class UploadTransferClient {
 
     private giveStatus() {
         if (this.status.phase == this.ESTIMATING_PHASE_NAME) {
-            return {
-                message: `${this.status.toSync.nbFiles} files, ${this.status.toSync.nbDirectories} directories, ${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)} Gb...`,
-                completed: 0
-            }
+            return [`ESTIMATING WORKLOAD : ${this.status.toSync.nbFiles} files, ${this.status.toSync.nbDirectories} directories, ${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)} Gb so far`]
         }
         else {
             let totalItems = this.status.toSync.nbFiles >= 0 ? `/${this.status.toSync.nbFiles + this.status.toSync.nbDirectories}` : ''
             let totalBytes = this.status.toSync.nbBytes >= 0 ? `/${(this.status.toSync.nbBytes / GIGABYTE).toFixed(3)}` : ''
 
-            let message = `TX:[${this.status.nbAddedInTx}${totalItems} items and ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb]`
-            message += `, SENT:[${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb for ${this.status.nbShaSent} items]`
-            message += `, [${this.status.visitedFiles} visited files, ${(this.status.hashedBytes / GIGABYTE).toFixed(3)} Gb hashed]`
-            if (this.askShaStatusPayloadsStream)
-                message += `, STATE:[${this.askShaStatusPayloadsStream.waitedShas.size}${this.askShaStatusPayloadsStream.fileStream ? 'F' : ''}${this.askShaStatusPayloadsStream.sourceStream ? 'S' : ''}]`
+            let res = [
+                `PUSHING ${this.pushedDirectory}`,
+                `listed files         : ${this.status.visitedFiles}${totalItems} files${this.askShaStatusPayloadsStream && this.askShaStatusPayloadsStream.sourceStream ? '' : ', listing finished'}`,
+                `pending sha requests : ${this.askShaStatusPayloadsStream.waitedShas.size}`,
+                `hashing              : ${(this.status.hashedBytes / GIGABYTE).toFixed(3)}${totalBytes} Gb hashed`,
+                `files transferred    : ${this.askShaStatusPayloadsStream.fileStream ? '[IN PROGRESS], ' : ''}${this.status.nbShaSent} files, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb`,
+                `confirmed in tx      : ${this.status.nbAddedInTx}${totalItems} files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb`,
+                `phase                : ${this.status.phase}`
+            ]
 
-            message += `, ${this.status.phase}`
+            if (this.status.toSync.nbFiles >= 0)
+                res.push(`completed            : ${(100 * this.status.nbBytesInTx / this.status.toSync.nbBytes).toFixed(3)} %`)
 
-            return {
-                message,
-                completed: this.status.toSync.nbBytes > 0 ? (this.status.nbBytesInTx / this.status.toSync.nbBytes) : 0
-            }
+            return res
         }
     }
 

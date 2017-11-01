@@ -2,8 +2,9 @@ import fs = require('fs')
 import fsPath = require('path')
 import * as FsTools from './FsTools'
 import * as Stream from 'stream'
+import Log from './log'
 
-const log = require('./Logger')('DirectoryLister')
+const log = Log('DirectoryLister')
 
 interface FileIteration {
     name: string

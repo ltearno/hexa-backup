@@ -9,8 +9,9 @@ import fsPath = require('path')
 import * as fs from 'fs'
 import * as UploadTransferServer from './UploadTransferServer'
 import * as UploadTransferClient from './UploadTransferClient'
+import Log from './log'
 
-const log = require('./Logger')('Commands')
+const log = Log('Commands')
 
 export async function history(sourceId, storeIp, storePort, verbose) {
     console.log('connecting to remote store...')

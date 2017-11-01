@@ -10,10 +10,11 @@ import * as Model from './Model';
 import { WorkPool } from './WorkPool'
 import * as Stream from 'stream'
 import * as ZLib from 'zlib'
+import Log from './log'
+
+const log = Log('HexaBackupReader')
 
 let FileSize = require('filesize')
-
-const log = require('./Logger')('HexaBackupReader');
 
 class Status {
     start = null;
@@ -28,7 +29,7 @@ class Status {
     lastSentFile = null;
     text = null;
 
-    statusGiver(): () => { message: string; completed: number; } {
+    statusGiver(): () => string[] {
         return () => {
             let now = Date.now()
 
@@ -74,10 +75,10 @@ class Status {
             if (this.lastSentFile)
                 s += ` - last seen file: ${this.lastSentFile.fileName}`
 
-            return {
-                message: s,
-                completed: this.logicalTransferredBytes / this.totalBytes
-            }
+            return [
+                s,
+                `completed : ${(100 * this.logicalTransferredBytes / this.totalBytes).toFixed(2)} %`
+            ]
         }
     }
 }

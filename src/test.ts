@@ -12,8 +12,9 @@ import * as UploadTransferClient from './UploadTransferClient'
 import * as Socket2Message from './Socket2Message'
 import * as DirectoryLister from './directory-lister'
 import * as ShaProcessor from './sha-processor'
+import Log from './log'
 
-const log = require('./Logger')('Tests')
+const log = Log('Tests')
 log.conf('dbg', false)
 
 const directory = `d:\\documents`

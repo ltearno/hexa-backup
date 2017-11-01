@@ -1,8 +1,9 @@
 import * as Serialization from './serialisation'
 import * as Stream from 'stream'
 import * as Net from 'net'
+import Log from './log'
 
-const log = require('./Logger')('RPC');
+const log = Log('RPC')
 
 const RPC_MSG_CALL = 11;
 const RPC_MSG_REPLY = 11;

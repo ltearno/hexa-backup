@@ -1,4 +1,4 @@
-import * as Stream from 'stream';
+import * as Stream from 'stream'
 
 class GrowingBuffer {
     private buffer: Buffer;

@@ -1,4 +1,6 @@
-const log = require('./Logger')('WorkPool');
+import Log from './log'
+
+const log = Log('WorkPool')
 
 export class WorkPool<T> {
     private waitingQueue: T[] = []

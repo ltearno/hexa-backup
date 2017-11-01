@@ -5,8 +5,9 @@ import * as HashTools from './HashTools';
 import * as FsTools from './FsTools';
 import * as Stream from 'stream'
 import * as ZLib from 'zlib'
+import Log from './log'
 
-const log = require('./Logger')('ObjectRepository');
+const log = Log('ObjectRepository')
 
 export interface ShaPoolDescriptor {
     fileName: string;
