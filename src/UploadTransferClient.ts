@@ -249,7 +249,7 @@ export class UploadTransferClient {
             let res = [
                 `PUSHING ${this.pushedDirectory}`,
                 `         listed files : ${this.status.visitedFiles}${totalItems} files${this.askShaStatusPayloadsStream && this.askShaStatusPayloadsStream.sourceStream ? '' : ', listing finished'}`,
-                ` pending sha requests : ${this.askShaStatusPayloadsStream.waitedShas.size}`,
+                ` pending sha requests : ${this.askShaStatusPayloadsStream ? this.askShaStatusPayloadsStream.waitedShas.size : '-'}`,
                 `              hashing : ${(this.status.hashedBytes / GIGABYTE).toFixed(3)}${totalBytes} Gb hashed`,
                 `    files transferred : ${this.askShaStatusPayloadsStream.fileStream ? '[IN PROGRESS], ' : ''}${this.status.nbShaSent} files, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb`,
                 `      confirmed in tx : ${this.status.nbAddedInTx}${totalItems} files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb`,
