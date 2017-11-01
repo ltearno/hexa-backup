@@ -17,6 +17,6 @@
     "level": "^2.0.0"
   },
   "devDependencies": {
-    "typescript": "2.5.3"
+    "typescript": "2.6.1"
   }
 }

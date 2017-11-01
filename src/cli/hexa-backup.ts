@@ -7,8 +7,9 @@ import { IHexaBackupStore, HexaBackupStore } from '../HexaBackupStore'
 import { HexaBackupReader } from '../HexaBackupReader'
 import { RPCClient, RPCServer } from '../RPC'
 import * as Commands from '../Commands'
+import Log from '../log'
 
-const log = require('../Logger')('hexa-backup')
+const log = Log('hexa-backup')
 log.conf('dbg', false)
 
 process.on('unhandledRejection', (reason, p) => {
