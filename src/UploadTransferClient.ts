@@ -19,8 +19,8 @@ const log = Log('UploadTransferClient')
 export type ReadableStream = Stream.Readable | Stream.Transform
 
 export class AskShaStatusStream extends Stream.Transform {
-    private TRIGGER_HIGH_WAITEDSHAS = 100
-    private TRIGGER_LOW_WAITEDSHAS = 30
+    private TRIGGER_HIGH_WAITEDSHAS = 50
+    private TRIGGER_LOW_WAITEDSHAS = 20
     private sourceInPause = false
 
     waitedShas = new Map<string, UploadTransferModel.FileAndShaInfo>()
@@ -170,7 +170,7 @@ export class ShaBytesStream extends Stream.Transform {
     private fileStream: Stream.Readable
 
     constructor(private fileInfo: UploadTransferModel.FileAndShaInfo, private offset: number, private backupedDirectory: string, private status: UploadStatus) {
-        super({ objectMode: true, highWaterMark: 100 })
+        super({ objectMode: true, highWaterMark: 16 })
 
         let fsAny = fs as any
         this.fileStream = fsAny.createReadStream(this.fileInfo.name, {
@@ -248,16 +248,16 @@ export class UploadTransferClient {
 
             let res = [
                 `PUSHING ${this.pushedDirectory}`,
-                `listed files         : ${this.status.visitedFiles}${totalItems} files${this.askShaStatusPayloadsStream && this.askShaStatusPayloadsStream.sourceStream ? '' : ', listing finished'}`,
-                `pending sha requests : ${this.askShaStatusPayloadsStream.waitedShas.size}`,
-                `hashing              : ${(this.status.hashedBytes / GIGABYTE).toFixed(3)}${totalBytes} Gb hashed`,
-                `files transferred    : ${this.askShaStatusPayloadsStream.fileStream ? '[IN PROGRESS], ' : ''}${this.status.nbShaSent} files, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb`,
-                `confirmed in tx      : ${this.status.nbAddedInTx}${totalItems} files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb`,
-                `phase                : ${this.status.phase}`
+                `         listed files : ${this.status.visitedFiles}${totalItems} files${this.askShaStatusPayloadsStream && this.askShaStatusPayloadsStream.sourceStream ? '' : ', listing finished'}`,
+                ` pending sha requests : ${this.askShaStatusPayloadsStream.waitedShas.size}`,
+                `              hashing : ${(this.status.hashedBytes / GIGABYTE).toFixed(3)}${totalBytes} Gb hashed`,
+                `    files transferred : ${this.askShaStatusPayloadsStream.fileStream ? '[IN PROGRESS], ' : ''}${this.status.nbShaSent} files, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb`,
+                `      confirmed in tx : ${this.status.nbAddedInTx}${totalItems} files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb`,
+                `                phase : ${this.status.phase}`
             ]
 
             if (this.status.toSync.nbFiles >= 0)
-                res.push(`completed            : ${(100 * this.status.nbBytesInTx / this.status.toSync.nbBytes).toFixed(3)} %`)
+                res.push(`            completed : ${(100 * this.status.nbBytesInTx / this.status.toSync.nbBytes).toFixed(3)} %`)
 
             return res
         }

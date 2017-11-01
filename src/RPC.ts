@@ -123,7 +123,7 @@ class StreamStub extends Stream.Readable {
     public callId: number
 
     constructor(private socket: Net.Socket) {
-        super({ highWaterMark: 16 * 1024 * 1024 })
+        super({ highWaterMark: 50 })
     }
 
     _read(size: number): void {
