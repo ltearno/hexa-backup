@@ -192,7 +192,7 @@ class Logger {
 
     setStatus(callback: () => string[]) {
         if (this.statusInterval == null)
-            this.statusInterval = setInterval(() => this.updateStatus(), 2000)
+            this.statusInterval = setInterval(() => this.updateStatus(), 700)
 
         this.statusCallback = callback
     }

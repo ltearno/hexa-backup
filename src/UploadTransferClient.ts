@@ -16,6 +16,11 @@ import Log from './log'
 
 const log = Log('UploadTransferClient')
 
+export interface TransferInfo {
+    fileInfo: UploadTransferModel.FileAndShaInfo
+    offset: number
+}
+
 export type ReadableStream = Stream.Readable | Stream.Transform
 
 export class AskShaStatusStream extends Stream.Transform {
@@ -28,14 +33,14 @@ export class AskShaStatusStream extends Stream.Transform {
 
     sourceStream: ReadableStream = null
 
-    private toSendFiles: { fileInfo: UploadTransferModel.FileAndShaInfo, offset: number }[] = []
+    toSendFiles: TransferInfo[] = []
 
     fileStream: ShaBytesStream = null
 
     private finished = false
 
     constructor(private backupedDirectory: string, private status: UploadStatus) {
-        super({ objectMode: true, highWaterMark: 100 })
+        super({ objectMode: true, highWaterMark: 16 })
     }
 
     initSourceStream(sourceStream: ReadableStream) {
@@ -126,7 +131,7 @@ export class AskShaStatusStream extends Stream.Transform {
                 this.updateQueue()
             })
 
-            this.status.phase = `sending sha ${fileInfo.fileInfo.contentSha.substring(0, 5)} ${fileInfo.fileInfo.name.substring(-20)} @ ${fileInfo.offset} (sz:${fileInfo.fileInfo.size}), ${this.toSendFiles.length} files in queue`
+            this.status.phase = `sending sha`
             return
         }
         else if (this.sourceStream) {
@@ -169,7 +174,7 @@ function createAddShaInTxMessage(fileAndShaInfo: UploadTransferModel.FileAndShaI
 export class ShaBytesStream extends Stream.Transform {
     private fileStream: Stream.Readable
 
-    constructor(private fileInfo: UploadTransferModel.FileAndShaInfo, private offset: number, private backupedDirectory: string, private status: UploadStatus) {
+    constructor(public fileInfo: UploadTransferModel.FileAndShaInfo, public offset: number, private backupedDirectory: string, private status: UploadStatus) {
         super({ objectMode: true, highWaterMark: 16 })
 
         let fsAny = fs as any
@@ -213,6 +218,7 @@ export interface UploadStatus {
         nbBytes: number
     }
     visitedFiles: number
+    visitedBytes: number
     hashedBytes: number
     nbShaSent: number
     shaBytesSent: number
@@ -231,6 +237,7 @@ export class UploadTransferClient {
             nbBytes: -1
         },
         visitedFiles: 0,
+        visitedBytes:0,
         hashedBytes: 0,
         nbShaSent: 0,
         shaBytesSent: 0,
@@ -248,10 +255,10 @@ export class UploadTransferClient {
 
             let res = [`PUSHING ${this.pushedDirectory}`]
             if (this.askShaStatusPayloadsStream) {
-                res.push(`         listed files : ${this.status.visitedFiles}${totalItems} files${this.askShaStatusPayloadsStream.sourceStream ? '' : ', listing finished'}`)
+                res.push(`         listed files : ${this.status.visitedFiles}${totalItems} files, ${(this.status.visitedBytes / GIGABYTE).toFixed(3)} Gb${this.askShaStatusPayloadsStream.sourceStream ? '' : ', listing finished'}`)
                 res.push(` pending sha requests : ${this.askShaStatusPayloadsStream.waitedShas.size}`)
                 res.push(`              hashing : ${(this.status.hashedBytes / GIGABYTE).toFixed(3)}${totalBytes} Gb hashed`)
-                res.push(`    files transferred : ${this.askShaStatusPayloadsStream.fileStream ? '[TRANSFER IN PROGRESS] ' : ''}${this.status.nbShaSent} files, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb`)
+                res.push(`    files transferred : ${this.status.nbShaSent} files, ${(this.status.shaBytesSent / GIGABYTE).toFixed(3)} Gb, ${this.askShaStatusPayloadsStream.toSendFiles.length} in queue${this.askShaStatusPayloadsStream.fileStream ? `, in progress ${this.askShaStatusPayloadsStream.fileStream.fileInfo.name} @ ${this.askShaStatusPayloadsStream.fileStream.offset} / ${this.askShaStatusPayloadsStream.fileStream.fileInfo.size}] ` : ''}`)
             }
             res.push(`      confirmed in tx : ${this.status.nbAddedInTx}${totalItems} files, ${(this.status.nbBytesInTx / GIGABYTE).toFixed(3)}${totalBytes} Gb`)
             res.push(`                phase : ${this.status.phase}`)
@@ -310,7 +317,10 @@ export class UploadTransferClient {
 
                     let shaCache = new ShaCache.ShaCache(fsPath.join(this.pushedDirectory, '.hb-cache'))
                     let shaProcessor = new ShaProcessor.ShaProcessor(shaCache, hashedBytes => this.status.hashedBytes = hashedBytes)
-                    let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, (nbFiles, nbDirectories) => this.status.visitedFiles = nbFiles + nbDirectories)
+                    let directoryLister = new DirectoryLister.DirectoryLister(this.pushedDirectory, (nbFiles, nbDirectories, size) => {
+                        this.status.visitedFiles = nbFiles + nbDirectories
+                        this.status.visitedBytes = size
+                    })
 
                     this.askShaStatusPayloadsStream = new AskShaStatusStream(this.pushedDirectory, this.status)
                     this.askShaStatusPayloadsStream.initSourceStream(directoryLister.pipe(shaProcessor))
