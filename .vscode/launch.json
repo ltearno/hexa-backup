@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Hexa Backup",
+            "name": "Hexa Backup - push kimsufi",
             "type": "node",
             "request": "launch",
             "program": "${workspaceRoot}/target/cli/hexa-backup.js",
