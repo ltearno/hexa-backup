@@ -126,7 +126,7 @@ export class HexaBackupStore implements IHexaBackupStore {
 
             // prepare and store directory descriptor
             await this.shaCache.appendToTemporaryFile(transactionId, ']}') // closing the JSON structure
-            let transactionStream = this.shaCache.closeTemporaryFileAndReadAsStream(transactionId)
+            let transactionStream = await this.shaCache.closeTemporaryFileAndReadAsStream(transactionId)
             let descriptorSha = await this.objectRepository.storeObjectFromStream(transactionStream);
 
             // check if state changed

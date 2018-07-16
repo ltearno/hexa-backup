@@ -73,20 +73,19 @@ export class ShaCache {
      * Close the temporary file and returns a stream to read it.
      * When the stream is closed, the temp file is deleted
      */
-    closeTemporaryFileAndReadAsStream(fileId: string): Stream.Readable {
+    async closeTemporaryFileAndReadAsStream(fileId: string): Promise<Stream.Readable> {
         if (!(fileId in this.temporaryFiles))
             throw `illegal temp file id ${fileId} for close and read`
 
         if (!this.temporaryFiles[fileId])
             return null
 
-        fs.close(this.temporaryFiles[fileId].fd)
+        await FsTools.closeFile(this.temporaryFiles[fileId].fd)
         delete this.temporaryFiles[fileId]
 
         let stream = fs.createReadStream(fsPath.join(this.cacheDirectory, fileId), { encoding: 'utf8' })
-
         stream.on('end', () => {
-            fs.unlink(fsPath.join(this.cacheDirectory, fileId))
+            fs.unlinkSync(fsPath.join(this.cacheDirectory, fileId))
         })
 
         return stream
