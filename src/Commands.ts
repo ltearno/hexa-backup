@@ -183,6 +183,9 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
 
             log(`extracted ${fileDesc.name}`)
         }
+
+        let lastWriteUnix = parseInt((fileDesc.lastWrite / 1000).toFixed(0))
+        fs.utimesSync(destinationFilePath, lastWriteUnix, lastWriteUnix)
     }
 }
 
