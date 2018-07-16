@@ -114,20 +114,27 @@ export class AskShaStatusStream extends Stream.Transform {
     }
 
     private updateQueue() {
+        //log.dbg(`updateQueue`)
         if (this.fileStream) {
+            log.dbg(` no because of fileStream`)
             return
         }
         else if (this.toSendFiles.length) {
+            log.dbg(` there are ${this.toSendFiles.length} toSendFiles`)
+
             if (this.sourceStream) {
                 this.sourceStream.pause()
                 this.sourceInPause = true
+                log.dbg(` pause sourceStream`)
             }
 
             let fileInfo = this.toSendFiles.shift()
+            log.dbg(` piping ${fileInfo.fileInfo.name}`)
             this.fileStream = new ShaBytesStream(fileInfo.fileInfo, fileInfo.offset, this.backupedDirectory, this.status)
             this.fileStream.pipe(this, { end: false })
             this.fileStream.on('end', () => {
                 this.fileStream = null
+                log.dbg(` finished piping for ${fileInfo.fileInfo.name} (${fileInfo.fileInfo.contentSha})`)
                 this.updateQueue()
             })
 
@@ -135,18 +142,23 @@ export class AskShaStatusStream extends Stream.Transform {
             return
         }
         else if (this.sourceStream) {
+            log.dbg(` there is a sourceStream`)
             if (this.sourceInPause) {
+                log.dbg(` which is paused`)
                 if (this.waitedShas.size <= this.TRIGGER_LOW_WAITEDSHAS) {
+                    log.dbg(` resuming sourceStream`)
                     this.sourceStream.resume()
                     this.sourceInPause = false
                     this.status.phase = `parsing directories, hashing files and asking remote status`
                 }
                 else {
+                    log.dbg(` waiting sha status before resuming sourceStream`)
                     this.status.phase = `waiting for shas status`
                 }
             }
         }
         else if (!this.waitedShas.size && !this.finished) {
+            log.dbg(` FINISHED`)
             this.finished = true
             this.status.phase = 'finished transfer'
             this.push(null)
@@ -237,7 +249,7 @@ export class UploadTransferClient {
             nbBytes: -1
         },
         visitedFiles: 0,
-        visitedBytes:0,
+        visitedBytes: 0,
         hashedBytes: 0,
         nbShaSent: 0,
         shaBytesSent: 0,
