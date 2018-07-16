@@ -76,8 +76,8 @@ export class AskShaStatusStream extends Stream.Transform {
         this.sourceStream.pipe(transform).pipe(this, { end: false })
         this.sourceStream.on('end', () => {
             log(`finished listing files and hashing`)
-            transform.end()
             this.sourceStream = null
+            transform.end()
             this.updateQueue()
         })
     }
