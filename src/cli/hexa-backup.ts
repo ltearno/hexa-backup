@@ -244,9 +244,6 @@ async function run() {
             log.err(`SHOULD NOT BE NULL : ${args.join()} => ${processed.id} / ${JSON.stringify(processed.options)}`);
     }
 
-    //shouldBeNull(["--toto", "-host", "ks387039.kimsufi.com", "push", "famal"])
-    //shouldNotBeNull(["push"])
-
     let processed = parseAndProcess(args)
     if (processed == null) {
         cmdManager.showHelp();
