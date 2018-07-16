@@ -274,7 +274,7 @@ export class RPCClient {
 
                         args.unshift(RPC_MSG_CALL);
 
-                        log.dbg(`call ${propKey} (${callId})`);
+                        log.dbg(`call ${propKey.toString()} (${callId})`);
 
                         try {
                             let stream: Stream.Readable = null;
