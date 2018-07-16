@@ -334,7 +334,7 @@ class ShaPoolStream extends Stream.Writable {
                 log.err(`offset writing sha pool ${this.offset} > ${this.size}`)
 
             if (this.fd && this.offset == this.size) {
-                fs.close(this.fd)
+                fs.closeSync(this.fd)
 
                 log(`written sha ${this.desc.sha} on disk, size: ${this.size}`)
 
