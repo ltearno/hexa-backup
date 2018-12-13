@@ -221,52 +221,6 @@ export async function pushFast(sourceId, pushedDirectory, storeIp, storePort, es
     })
 }
 
-export async function push(sourceId, pushedDirectory, storeIp: string, storePort, useZip: boolean) {
-    console.log(`push options :`)
-    console.log(`  directory: ${pushedDirectory}`);
-    console.log(`  source: ${sourceId}`);
-    console.log(`  server: ${storeIp}:${storePort}`);
-    console.log(` use zip: ${useZip}`)
-    console.log();
-    console.log(`To push locally, prepend 'storeIp' with 'file://'`);
-    console.log();
-
-    let store: IHexaBackupStore = null
-
-    const FILE_MARKER = 'file://'
-    if (storeIp.startsWith(FILE_MARKER)) {
-        let directory = storeIp.substring(FILE_MARKER.length)
-
-        console.log(`preparing local store in ${directory}`)
-        store = new HexaBackupStore(directory)
-    }
-    else {
-        console.log('connecting to remote store...')
-        try {
-            log('connecting to remote store...')
-            let rpcClient = new RPCClient()
-            let connected = await rpcClient.connect(storeIp, storePort)
-            if (!connected)
-                throw 'cannot connect to server !'
-
-            log('connected')
-            store = rpcClient.createProxy<IHexaBackupStore>()
-        }
-        catch (error) {
-            console.log(`[ERROR] cannot connect to server : ${error} !`)
-            return
-        }
-    }
-
-    console.log('preparing directory reader');
-    let reader = new HexaBackupReader(pushedDirectory, sourceId);
-
-    console.log('sending directory snapshot to remote store');
-    await reader.sendSnapshotToStore(store, useZip);
-
-    console.log(`finished, directory ${pushedDirectory} pushed`);
-}
-
 export async function store(directory, port) {
     console.log(`preparing store in ${directory}`);
     let store = new HexaBackupStore(directory);
@@ -279,17 +233,6 @@ export async function store(directory, port) {
     transferServer.listen(port + 1, store)
 
     console.log(`ready on port ${port} !`);
-}
-
-async function connectStore(storeIp, storePort) {
-    log('connecting to remote store...')
-    let rpcClient = new RPCClient()
-    let connected = await rpcClient.connect(storeIp, storePort)
-    if (!connected)
-        throw 'cannot connect to server !'
-
-    log('connected')
-    return rpcClient.createProxy<IHexaBackupStore>()
 }
 
 function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, prefix?: string) {

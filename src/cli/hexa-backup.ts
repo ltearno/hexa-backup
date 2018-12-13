@@ -162,28 +162,6 @@ async function run() {
             }
         },
         {
-            id: "push",
-            verbs: ["push"],
-            options: {
-                sourceId: defaultSourceId,
-                storeIp: "localhost",
-                storePort: 5005,
-                pushedDirectory: '.',
-                useZip: false
-            },
-            executor: async (options) => {
-                const sourceId = options['sourceId']
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const pushedDirectory = fsPath.resolve(options['pushedDirectory'])
-                const useZip = options['useZip']
-
-                await Commands.push(sourceId, pushedDirectory, storeIp, storePort, useZip)
-
-                process.exit(0)
-            }
-        },
-        {
             id: "pushFast",
             verbs: ["pushFast"],
             options: {
