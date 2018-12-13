@@ -1,4 +1,3 @@
-import { HexaBackupReader } from './HexaBackupReader';
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore';
 import { RPCClient, RPCServer } from './RPC';
 import Log from './log'
@@ -100,29 +99,6 @@ async function runb() {
     console.log('finito');
 }
 
-async function runa() {
-    try {
-        console.log("Test load for Hexa-Backup !");
-
-        let backupedDirectory = `C:\\Tmp\\AnaisFairePart`;
-        //let backupedDirectory = `D:\\Documents`;
-
-        let reader = new HexaBackupReader(backupedDirectory, 'pc-arnaud');
-        //let desc = await reader.readDirectoryState();
-        //console.log(`descriptor: ${JSON.stringify(desc)}`);
-
-        let store = new HexaBackupStore(`C:\\Tmp\\HexaBackupStore`);
-
-        console.log('sending');
-        await reader.sendSnapshotToStore(store, true);
-
-        console.log('finish');
-    }
-    catch (e) {
-        log.err(`uncaught exception: ${e}`)
-    }
-}
-
 async function old() {
     /*let fileName = 'package.json'; //'d:\\downloads\\crackstation.txt.gz'
     let hex = await hashFile(fileName);
@@ -137,5 +113,3 @@ async function old() {
     shaCache.flushToDisk();
     console.log(`picture sha : ${shaContent}`);*/
 }
-
-runa();

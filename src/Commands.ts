@@ -1,6 +1,5 @@
 import * as Net from 'net'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
-import { HexaBackupReader } from './HexaBackupReader'
 import { RPCClient, RPCServer } from './RPC'
 import * as HashTools from './HashTools'
 import * as FsTools from './FsTools'

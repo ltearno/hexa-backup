@@ -1,11 +1,8 @@
 import fs = require('fs')
 import os = require('os')
 import fsPath = require('path')
-import { readFileContent, lstat } from '../FsTools'
 
-import { IHexaBackupStore, HexaBackupStore } from '../HexaBackupStore'
-import { HexaBackupReader } from '../HexaBackupReader'
-import { RPCClient, RPCServer } from '../RPC'
+import { readFileContent, lstat } from '../FsTools'
 import * as Commands from '../Commands'
 import Log from '../log'
 
