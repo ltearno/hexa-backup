@@ -15,7 +15,8 @@
     "ansi-escapes": "^3.0.0",
     "ansi-styles": "^3.2.0",
     "level": "^2.0.0",
-    "ws": "^1.1.4"
+    "ws": "^1.1.4",
+    "hexa-js": "1.0.3"
   },
   "devDependencies": {
     "typescript": "2.6.1",
