@@ -1,7 +1,6 @@
 import * as Net from 'net'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
-import { RPCClient, RPCServer } from './RPC'
-import { HashTools, FsTools, LoggerBuilder } from '@ltearno/hexa-js'
+import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport } from '@ltearno/hexa-js'
 import * as Model from './Model'
 import fsPath = require('path')
 import * as fs from 'fs'
@@ -9,6 +8,28 @@ import * as UploadTransferServer from './UploadTransferServer'
 import * as UploadTransferClient from './UploadTransferClient'
 
 const log = LoggerBuilder.buildLogger('Commands')
+
+
+enum RequestType {
+    AddShaInTx = 0,
+    ShaBytes = 1,
+    Call = 2
+}
+
+interface FileSpec {
+    name: string
+    isDirectory: boolean
+    lastWrite: number
+    size: number
+}
+
+type AddShaInTx = [RequestType.AddShaInTx, string, FileSpec] // type, sha, file
+type AddShaInTxReply = [number] // length
+type ShaBytes = [RequestType.ShaBytes, string, number, Buffer] // type, sha, offset, buffer
+type RpcCall = [RequestType.Call, string, ...any[]]
+type RpcQuery = AddShaInTx | ShaBytes | RpcCall
+type RpcReply = any[]
+
 
 export async function history(sourceId, storeIp, storePort, verbose) {
     console.log('connecting to remote store...')
@@ -222,12 +243,74 @@ export async function store(directory, port) {
     console.log(`preparing store in ${directory}`);
     let store = new HexaBackupStore(directory);
 
-    console.log('server intialisation');
-    let rpcServer = new RPCServer();
-    rpcServer.listen(port, store);
+    console.log('server intialisation')
 
-    let transferServer = new UploadTransferServer.UploadTransferServer()
-    transferServer.listen(port + 1, store)
+    let app = ExpressTools.createExpressApp(port)
+    app.ws('/hexa-backup', async (ws, req) => {
+        console.log(`serving new client ws`)
+
+        let rpcTxIn = new Queue.Queue<RpcQuery>('rpc-tx-in')
+        let rpcTxOut = new Queue.Queue<{ request: RpcQuery; reply: RpcReply }>('rpc-tx-out')
+        let rpcRxIn = new Queue.Queue<{ id: string; reply: RpcReply }>('rpc-rx-in')
+        let rpcRxOut = new Queue.Queue<{ id: string; request: RpcQuery }>('rpc-rx-out')
+
+        let transport = new Transport.Transport(Queue.waitPopper(rpcTxIn), Queue.directPusher(rpcTxOut), Queue.directPusher(rpcRxOut), Queue.waitPopper(rpcRxIn), ws)
+        transport.start()
+
+        ws.on('error', err => {
+            console.log(`error on ws ${err}`)
+            ws.close()
+        })
+
+        ws.on('close', () => {
+            console.log(`closed ws`)
+            rpcRxOut.push(null)
+        })
+
+        await Queue.tunnelTransform(
+            Queue.waitPopper(rpcRxOut),
+            Queue.directPusher(rpcRxIn),
+            async (p: { id: string; request: RpcQuery }) => {
+                let { id, request } = p
+
+                switch (request[0]) {
+                    case RequestType.AddShaInTx:
+                        return {
+                            id,
+                            reply: await store.pushFileDescriptors('debug', 'debug', [{
+                                name: request[2].name,
+                                isDirectory: request[2].isDirectory,
+                                lastWrite: request[2].lastWrite,
+                                size: request[2].size,
+                                contentSha: request[1]
+                            }])
+                        }
+
+                    case RequestType.ShaBytes:
+                        return {
+                            id,
+                            reply: await store.putShaBytes(request[1], request[2], request[3])
+                        }
+
+                    case RequestType.Call:
+                        request.shift()
+                        let methodName = request.shift()
+                        let args = request
+
+                        let result = await store[methodName].apply(store, args)
+
+                        return {
+                            id,
+                            reply: result
+                        }
+                }
+            })
+
+        console.log(`bye bye client ws !`)
+    })
+
+    //let transferServer = new UploadTransferServer.UploadTransferServer()
+    //transferServer.listen(port + 1, store)
 
     console.log(`ready on port ${port} !`);
 }
