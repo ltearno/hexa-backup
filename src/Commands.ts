@@ -1,16 +1,14 @@
 import * as Net from 'net'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
 import { RPCClient, RPCServer } from './RPC'
-import * as HashTools from './HashTools'
-import * as FsTools from './FsTools'
+import { HashTools, FsTools, LoggerBuilder } from '@ltearno/hexa-js'
 import * as Model from './Model'
 import fsPath = require('path')
 import * as fs from 'fs'
 import * as UploadTransferServer from './UploadTransferServer'
 import * as UploadTransferClient from './UploadTransferClient'
-import Log from './log'
 
-const log = Log('Commands')
+const log = LoggerBuilder.buildLogger('Commands')
 
 export async function history(sourceId, storeIp, storePort, verbose) {
     console.log('connecting to remote store...')

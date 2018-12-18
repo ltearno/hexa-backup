@@ -2,16 +2,13 @@ import fs = require('fs')
 import fsPath = require('path')
 import * as Stream from 'stream'
 import * as Net from 'net'
-import * as Serialization from './serialisation'
 import * as ShaCache from './ShaCache'
 import * as Model from './Model'
 import * as UploadTransferModel from './UploadTransferModel'
-import * as Socket2Message from './Socket2Message'
-import * as DirectoryLister from './directory-lister'
 import * as ShaProcessor from './sha-processor'
-import Log from './log'
+import { LoggerBuilder, Serialisation, DirectoryLister } from '@ltearno/hexa-js'
 
-const log = Log('UploadTransferClient')
+const log = LoggerBuilder.buildLogger('UploadTransferClient')
 
 export interface TransferInfo {
     fileInfo: UploadTransferModel.FileAndShaInfo
@@ -57,7 +54,7 @@ export class AskShaStatusStream extends Stream.Transform {
                 }
                 else {
                     this.waitedShas.set(fileAndShaInfo.contentSha, fileAndShaInfo)
-                    this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha]))
+                    this.push(Serialisation.serialize([UploadTransferModel.MSG_TYPE_ASK_SHA_STATUS, fileAndShaInfo.contentSha]))
 
                     if (this.waitedShas.size > this.TRIGGER_HIGH_WAITEDSHAS && !this.sourceInPause) {
                         this.sourceInPause = true
@@ -177,7 +174,7 @@ function createAddShaInTxMessage(fileAndShaInfo: UploadTransferModel.FileAndShaI
         name: fsPath.relative(backupedDirectory, fileAndShaInfo.name)
     }
 
-    return Serialization.serialize([UploadTransferModel.MSG_TYPE_ADD_SHA_IN_TX, descriptor])
+    return Serialisation.serialize([UploadTransferModel.MSG_TYPE_ADD_SHA_IN_TX, descriptor])
 }
 
 export class ShaBytesStream extends Stream.Transform {
@@ -198,7 +195,7 @@ export class ShaBytesStream extends Stream.Transform {
     }
 
     _flush(callback) {
-        this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
+        this.push(Serialisation.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES_COMMIT, this.fileInfo.contentSha]))
         this.status.nbShaSent++
         this.status.nbAddedInTx++
         this.status.nbBytesInTx += this.fileInfo.size
@@ -208,7 +205,7 @@ export class ShaBytesStream extends Stream.Transform {
 
     _transform(data, encoding, callback) {
         if (data) {
-            this.push(Serialization.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, data]))
+            this.push(Serialisation.serialize([UploadTransferModel.MSG_TYPE_SHA_BYTES, this.fileInfo.contentSha, this.offset, data]))
             this.offset += data.length
 
             this.status.shaBytesSent += data.length
@@ -316,7 +313,7 @@ export class UploadTransferClient {
 
         let processStream = new Stream.Transform({ objectMode: true })
         processStream._transform = (message, encoding, callback) => {
-            let [messageType, content] = Serialization.deserialize(message, null)
+            let [messageType, content] = Serialisation.deserialize(message)
 
             switch (messageType) {
                 case UploadTransferModel.MSG_TYPE_REP_BEGIN_TX: {
@@ -339,7 +336,7 @@ export class UploadTransferClient {
                         .pipe(this.socket, { end: false })
 
                     this.askShaStatusPayloadsStream.on('end', () => {
-                        Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_COMMIT_TX]), this.socket)
+                        Socket2Message.sendMessageToSocket(Serialisation.serialize([UploadTransferModel.MSG_TYPE_COMMIT_TX]), this.socket)
                         log(`upload finished`)
                     })
                     break
@@ -369,6 +366,6 @@ export class UploadTransferClient {
 
         this.socket.pipe(new Socket2Message.SocketDataToMessageStream()).pipe(processStream)
 
-        Socket2Message.sendMessageToSocket(Serialization.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, this.sourceId]), this.socket)
+        Socket2Message.sendMessageToSocket(Serialisation.serialize([UploadTransferModel.MSG_TYPE_ASK_BEGIN_TX, this.sourceId]), this.socket)
     }
 }

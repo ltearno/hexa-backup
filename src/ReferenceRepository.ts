@@ -1,6 +1,6 @@
-import fs = require('fs');
-import fsPath = require('path');
-import * as FsTools from './FsTools';
+import fs = require('fs')
+import fsPath = require('path')
+import { FsTools } from '@ltearno/hexa-js'
 
 export class ReferenceRepository {
     private rootPath: string;

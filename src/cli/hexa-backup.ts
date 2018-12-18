@@ -1,12 +1,10 @@
-import fs = require('fs')
 import os = require('os')
 import fsPath = require('path')
 
-import { readFileContent, lstat } from '../FsTools'
+import { FsTools, LoggerBuilder } from '@ltearno/hexa-js'
 import * as Commands from '../Commands'
-import Log from '../log'
 
-const log = Log('hexa-backup')
+const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)
 
 process.on('unhandledRejection', (reason, p) => {
@@ -52,9 +50,9 @@ async function run() {
     let defaultParameters = null
     const parametersFileName = '.hexa-backup.json'
     try {
-        let stat = await lstat(parametersFileName);
+        let stat = await FsTools.lstat(parametersFileName);
         if (stat != null) {
-            let content = await readFileContent(parametersFileName, 'utf8')
+            let content = await FsTools.readFileContent(parametersFileName, 'utf8')
             defaultParameters = JSON.parse(content) || {}
         }
     }

@@ -7,7 +7,7 @@
     "hexa-backup": "bin/hexa-backup"
   },
   "scripts": {
-    "prepare": "tsc"
+    "build": "./node_modules/.bin/tsc"
   },
   "author": "Arnaud Tournier",
   "dependencies": {
@@ -16,10 +16,10 @@
     "ansi-styles": "^3.2.0",
     "level": "^2.0.0",
     "ws": "^1.1.4",
-    "hexa-js": "1.0.3"
+    "@ltearno/hexa-js": "1.0.3"
   },
   "devDependencies": {
-    "typescript": "2.6.1",
+    "typescript": "3.2.2",
     "@types/ws": "^3.2.0"
   }
 }

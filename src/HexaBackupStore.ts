@@ -4,10 +4,9 @@ import { ObjectRepository } from './ObjectRepository'
 import { ShaCache } from './ShaCache';
 import * as Model from './Model'
 import * as Stream from 'stream'
-import * as FS from 'fs'
-import Log from './log'
+import { LoggerBuilder } from '@ltearno/hexa-js'
 
-const log = Log('HexaBackupStore')
+const log = LoggerBuilder.buildLogger('HexaBackupStore')
 
 export interface IHexaBackupStore {
     startOrContinueSnapshotTransaction(sourceId: string): Promise<string>

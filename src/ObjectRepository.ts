@@ -1,13 +1,12 @@
 import fs = require('fs');
 import fsPath = require('path');
-import { ShaCache } from './ShaCache';
-import * as HashTools from './HashTools';
-import * as FsTools from './FsTools';
+import { ShaCache } from './ShaCache'
 import * as Stream from 'stream'
 import * as ZLib from 'zlib'
-import Log from './log'
 
-const log = Log('ObjectRepository')
+import { HashTools, FsTools, LoggerBuilder } from '@ltearno/hexa-js'
+
+const log = LoggerBuilder.buildLogger('ObjectRepository')
 
 export interface ShaPoolDescriptor {
     fileName: string;

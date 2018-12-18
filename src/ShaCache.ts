@@ -1,11 +1,9 @@
-import * as FsTools from './FsTools';
 import fs = require('fs');
-import fsPath = require('path');
-import * as HashTools from './HashTools';
+import fsPath = require('path')
 import * as Stream from 'stream'
-import Log from './log'
+import { HashTools, FsTools, LoggerBuilder } from '@ltearno/hexa-js'
 
-const log = Log('ShaCache')
+const log = LoggerBuilder.buildLogger('ShaCache')
 
 const level = require('level')
 

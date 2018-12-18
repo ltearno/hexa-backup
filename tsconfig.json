@@ -6,12 +6,14 @@
         "outDir": "target",
         "sourceMap": true,
         "declaration": true,
-        "listFiles": true,
+        "listFiles": false,
         "emitBOM": true,
-        "diagnostics": true
+        "diagnostics": true,
+        "moduleResolution": "node"
     },
     "exclude": [
         "node_modules",
-		"target"
+        "target",
+        "tempbackup"
     ]
 }
