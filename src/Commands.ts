@@ -108,6 +108,7 @@ class Peering {
     private rpcRxOut = new Queue.Queue<{ id: string; request: RpcQuery }>('rpc-rx-out')
 
     private rpcResolvers = new Map<RpcCall, (value: any) => void>()
+    private rpcRejecters = new Map<RpcCall, (value: any) => void>()
 
     async start() {
         let transport = new Transport.Transport(
@@ -175,7 +176,16 @@ class Peering {
                     break
 
                 case RequestType.Call:
-                    this.rpcResolvers.get(request)(reply)
+                    if (reply.length == 1) {
+                        log(`rcv reply ${JSON.stringify(reply)} for request ${JSON.stringify(request)}`)
+                        this.rpcResolvers.get(request)(reply[0])
+                    }
+                    else if (reply.length > 1) {
+                        log(`exception received as a result ${JSON.stringify(reply[1])}`)
+                        this.rpcRejecters.get(request)(reply[1])
+                    }
+                    this.rpcResolvers.delete(request)
+                    this.rpcRejecters.delete(request)
                     break
             }
         }
@@ -184,8 +194,9 @@ class Peering {
     }
 
     private callRpc(rpcCall: RpcCall): Promise<any> {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             this.rpcResolvers.set(rpcCall, resolve)
+            this.rpcRejecters.set(rpcCall, reject)
             this.rpcCalls.push(rpcCall)
         })
     }
@@ -234,7 +245,7 @@ class Peering {
                 ] as AddShaInTx
             }
         ).then(_ => {
-            console.log(`finished directory parsing`)
+            log(`finished directory parsing`)
             this.addShaInTx.push(null)
         })
     }
@@ -397,12 +408,11 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
 
 export async function pushFast(sourceId, pushedDirectory, storeIp, storePort, estimateSize) {
     log('connecting to remote store...')
-    console.log(`push options :`)
-    console.log(`  directory: ${pushedDirectory}`)
-    console.log(`  source: ${sourceId}`)
-    console.log(`  server: ${storeIp}:${storePort}`)
-    console.log(`  estimateSize: ${estimateSize}`)
-    console.log()
+    log(`push options :`)
+    log(`  directory: ${pushedDirectory}`)
+    log(`  source: ${sourceId}`)
+    log(`  server: ${storeIp}:${storePort}`)
+    log(`  estimateSize: ${estimateSize}`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort)
     log('connected')
