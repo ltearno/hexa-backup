@@ -277,7 +277,7 @@ class Peering {
                 let start = Date.now()
 
                 let interval = setInterval(() => {
-                    log(` ... transferring ${shaToSend.file.name} (${f2q.transferred/(1024*1024)} Mb so far)...`)
+                    log(` ... transferring ${shaToSend.file.name} (${f2q.transferred / (1024 * 1024)} Mb so far)...`)
                 }, 1000)
 
                 let f2q = new FileStreamToQueuePipe(shaToSend.file.name, shaToSend.sha, shaToSend.offset, this.shaBytes, 100, 60)
@@ -298,13 +298,17 @@ class Peering {
                         log.err(`sha not validated by remote ${shaToSend.sha} ${shaToSend.file.name}`)
                 })
             }
-
-            log(`finished shasToSend`)
-            this.shaBytes.push(null)
         })()
 
-        await this.remoteStore.commitTransaction(transactionId)
-        log(`transaction ${transactionId} committed, directory ${pushedDirectory} pushed.`)
+        // little hooky way of sending a RPC through an arbitrary queue, this is because otherwise the validation could happen before the transfert
+        let validateCall = [RequestType.Call, 'commitTransaction', transactionId] as RpcQuery
+        this.shaBytes.push(validateCall as ShaBytes)
+        this.rpcResolvers.set(validateCall as RpcCall, _ => {
+            log(`transaction ${transactionId} committed, directory ${pushedDirectory} pushed.`)
+        })
+
+        log(`finished shasToSend`)
+        this.shaBytes.push(null)
     }
 }
 
