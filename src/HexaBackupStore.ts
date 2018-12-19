@@ -21,6 +21,7 @@ export interface IHexaBackupStore {
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
     getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>
+    validateShaBytes(sha: string): Promise<boolean>
 }
 
 export class HexaBackupStore implements IHexaBackupStore {

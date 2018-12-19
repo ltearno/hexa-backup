@@ -25,7 +25,7 @@ export class ObjectRepository {
     }
 
     async storePayload(payload: string): Promise<string> {
-        let sha = HashTools.hashString(payload)
+        let sha = await HashTools.hashString(payload)
 
         let buffer = new Buffer(payload, 'utf8')
 

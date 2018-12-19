@@ -1,3 +1,4 @@
+import { Readable } from 'stream'
 import * as ShaProcessor from './sha-processor'
 import * as ShaCache from './ShaCache'
 import * as Net from 'net'
@@ -160,14 +161,17 @@ class Peering {
             let { request, reply } = rpcItem
             switch (request[0]) {
                 case RequestType.AddShaInTx: {
-                    let remoteLength = (reply as AddShaInTxReply).length
+                    let remoteLength = (reply as AddShaInTxReply)[0]
                     if (!request[3].isDirectory && remoteLength < request[3].size) {
                         await shasToSendPusher({ sha: request[2], file: request[3], offset: remoteLength })
                     }
 
                     this.nbAddShaInTxInTransport--
-                    if (!this.nbAddShaInTxInTransport && this.closedAddShaInTx)
+                    log.dbg(`rcv addshaintx reply, ${this.nbAddShaInTxInTransport}, ${this.closedAddShaInTx}`)
+                    if (!this.nbAddShaInTxInTransport && this.closedAddShaInTx) {
+                        log.dbg(`RECEIVED LAST ADDSHAINTX REPLY, no more shas to send`)
                         await shasToSendPusher(null)
+                    }
 
                     break
                 }
@@ -177,7 +181,7 @@ class Peering {
 
                 case RequestType.Call:
                     if (reply.length == 1) {
-                        log(`rcv reply ${JSON.stringify(reply)} for request ${JSON.stringify(request)}`)
+                        log.dbg(`rcv reply ${JSON.stringify(reply)} for request ${JSON.stringify(request)}`)
                         this.rpcResolvers.get(request)(reply[0])
                     }
                     else if (reply.length > 1) {
@@ -220,7 +224,7 @@ class Peering {
         hashedBytes: 0
     }
 
-    startPushFastLoop(transactionId: string, pushedDirectory: string) {
+    async startPushFastLoop(transactionId: string, pushedDirectory: string) {
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
 
         // sending files should be done in push fast
@@ -247,6 +251,93 @@ class Peering {
         ).then(_ => {
             log(`finished directory parsing`)
             this.addShaInTx.push(null)
+        })
+
+        await (async () => {
+            let popper = Queue.waitPopper(this.shasToSend)
+
+            let sentShas = new Set<string>()
+
+            let sentBytes = 0
+            let sendingTime = 0
+
+            while (true) {
+                let shaToSend = await popper()
+                if (!shaToSend)
+                    break
+
+                if (sentShas.has(shaToSend.sha)) {
+                    log(`sha already sent ${shaToSend.sha}`)
+                    continue
+                }
+
+                sentShas.add(shaToSend.sha)
+
+                log(`begin push ${shaToSend.file.name} @ ${shaToSend.offset}/${shaToSend.file.size}`)
+                let start = Date.now()
+
+                let f2q = new FileStreamToQueuePipe(shaToSend.file.name, shaToSend.sha, shaToSend.offset, this.shaBytes, 500, 150)
+                await f2q.start()
+
+                sendingTime += Date.now() - start
+                sentBytes += shaToSend.file.size
+
+                log(`finished push ${shaToSend.file.name} speed = ${sentBytes} bytes in ${sendingTime} => ${((1000 * sentBytes) / sendingTime)} bytes/second`)
+
+                this.remoteStore.validateShaBytes(shaToSend.sha).then(result => {
+                    log(`ok, sha validated by remote ${shaToSend.sha} ${shaToSend.file.name} ${result}`)
+                })
+            }
+
+            log(`finished shasToSend`)
+            this.shaBytes.push(null)
+        })()
+
+        await this.remoteStore.commitTransaction(transactionId)
+        log(`transaction ${transactionId} committed, directory ${pushedDirectory} pushed.`)
+    }
+}
+
+class FileStreamToQueuePipe {
+    private s: Readable
+
+    constructor(path: string, private sha: string, private offset: number, private q: Queue.QueueWrite<ShaBytes> & Queue.QueueMng, high: number = 10, low: number = 5) {
+        this.s = fs.createReadStream(path, { flags: 'r', autoClose: true, start: offset, encoding: null })
+
+        let paused = false
+
+        // queue has too much items => pause inputs
+        q.addLevelListener(high, 1, () => {
+            //console.log(`pause inputs`)
+            paused = true
+            this.s.pause()
+        })
+
+        // queue has low items => resume inputs
+        q.addLevelListener(low, -1, () => {
+            //console.log(`resume reading`)
+            if (paused)
+                this.s.resume()
+        })
+    }
+
+    start(): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            this.s.on('data', chunk => {
+                let offset = this.offset
+                this.offset += chunk.length
+                this.q.push([
+                    RequestType.ShaBytes,
+                    this.sha,
+                    offset,
+                    chunk as Buffer
+                ])
+            }).on('end', () => {
+                resolve(true)
+            }).on('error', (err) => {
+                console.log(`stream error ${err}`)
+                reject(err)
+            })
         })
     }
 }
@@ -425,9 +516,9 @@ export async function pushFast(sourceId, pushedDirectory, storeIp, storePort, es
     let txId = await store.startOrContinueSnapshotTransaction(sourceId)
     log(`starting transaction ${txId}`)
 
-    peering.startPushFastLoop(txId, pushedDirectory)
+    await peering.startPushFastLoop(txId, pushedDirectory)
 
-    await Tools.wait(5000)
+    log(`finished pushFast`)
 }
 
 export async function store(directory, port) {
