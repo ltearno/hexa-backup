@@ -16,8 +16,8 @@ export interface IHexaBackupStore {
     putShaBytesStream(sha: string, offset: number, stream: Stream.Readable): Promise<boolean>
     putShasBytesStream(poolDescriptor: Model.ShaPoolDescriptor[], useZip: boolean, dataStream: NodeJS.ReadableStream): Promise<boolean>
     readShaBytes(sha: string, offset: number, length: number): Promise<Buffer>
-    pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }>
-    commitTransaction(sourceId: string, transactionId: string): Promise<void>
+    pushFileDescriptors(transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }>
+    commitTransaction(transactionId: string): Promise<void>
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
     getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>
@@ -31,6 +31,8 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     private sourceStateCache: { [key: string]: Model.SourceState } = {};
     private lastTimeSavedClientState = 0;
+
+    private transactionsSources = new Map<string, string>()
 
     constructor(rootPath: string) {
         this.rootPath = fsPath.resolve(rootPath)
@@ -78,7 +80,7 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     private transactionTempFilesState: { [key: string]: { firstWrite: boolean, } } = {}
 
-    async pushFileDescriptors(sourceId: string, transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }> {
+    async pushFileDescriptors(transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }> {
         if (!descriptors || descriptors.length == 0)
             return {}
 
@@ -86,10 +88,10 @@ export class HexaBackupStore implements IHexaBackupStore {
 
         log.dbg(`validating ${descriptors.length} descriptors in transaction ${transactionId}`)
 
+        let sourceId = this.getTransactionSourceId(transactionId)
         let clientState = await this.getSourceState(sourceId)
         if (clientState.currentTransactionId != transactionId) {
-            log.err(`source is pushing with a bad transaction id. Currently know:${clientState.currentTransactionId}, pushed: ${transactionId}`)
-            return res
+            log.wrn(`source is maybe pushing two transactions at the same time (pushing: ${transactionId}, other:${clientState.currentTransactionId})`)
         }
 
         if (this.transactionTempFilesState[transactionId].firstWrite) {
@@ -113,10 +115,10 @@ export class HexaBackupStore implements IHexaBackupStore {
         return res
     }
 
-    async commitTransaction(sourceId: string, transactionId: string) {
+    async commitTransaction(transactionId: string) {
         return new Promise<void>(async (resolve, reject) => {
             // maybe ensure the current transaction is consistent
-
+            let sourceId = this.getTransactionSourceId(transactionId)
             let clientState = await this.getSourceState(sourceId);
             if (clientState.currentTransactionId != transactionId) {
                 reject('client is commiting with a bad transaction id !');
@@ -178,17 +180,27 @@ export class HexaBackupStore implements IHexaBackupStore {
             };
 
             this.sourceStateCache[sourceId] = sourceState;
-            //this.referenceRepository.put(clientStateReferenceName, sourceState)
         }
         else {
-            // old version had a big data structure here. Prune it to free memory !
-            if ("currentTransactionContent" in sourceState)
-                delete sourceState["currentTransactionContent"];
-
             this.sourceStateCache[sourceId] = sourceState;
         }
 
         return sourceState;
+    }
+
+    private getTransactionSourceId(transactionId: string) {
+        return this.transactionsSources.get(transactionId)
+    }
+
+    private registerTransactionForSource(sourceId: string) {
+        let transactionId = this.shaCache.createTemporaryFile()
+        this.transactionTempFilesState[transactionId] = { firstWrite: true }
+        this.transactionsSources.set(transactionId, sourceId)
+        return transactionId
+    }
+
+    private async purgeTransaction(transactionId: string) {
+        this.transactionsSources.delete(transactionId)
     }
 
     async getCommit(sha: string): Promise<Model.Commit> {
@@ -202,9 +214,7 @@ export class HexaBackupStore implements IHexaBackupStore {
     private async openTransaction(sourceId: string) {
         let sourceState = await this.getSourceState(sourceId);
 
-        sourceState.currentTransactionId = this.shaCache.createTemporaryFile();
-
-        this.transactionTempFilesState[sourceState.currentTransactionId] = { firstWrite: true }
+        sourceState.currentTransactionId = this.registerTransactionForSource(sourceId)
 
         await this.storeClientState(sourceId, sourceState, true);
 

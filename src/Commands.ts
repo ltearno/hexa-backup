@@ -466,7 +466,7 @@ export async function store(directory, port) {
 
                 switch (request[0]) {
                     case RequestType.AddShaInTx:
-                        await store.pushFileDescriptors('arnaud-xps13-tmp', request[1], [{
+                        await store.pushFileDescriptors(request[1], [{
                             name: request[3].name,
                             isDirectory: request[3].isDirectory,
                             lastWrite: request[3].lastWrite,
