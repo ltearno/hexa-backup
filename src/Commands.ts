@@ -273,8 +273,12 @@ class Peering {
 
                 sentShas.add(shaToSend.sha)
 
-                log(`begin push ${shaToSend.file.name} @ ${shaToSend.offset}/${shaToSend.file.size}`)
+                log(`begin push ${shaToSend.sha} ${shaToSend.file.name} @ ${shaToSend.offset}/${shaToSend.file.size}`)
                 let start = Date.now()
+
+                let interval = setInterval(() => {
+                    log(` ... transferring ${shaToSend.file.name} (${f2q.transferred/(1024*1024)} Mb so far)...`)
+                }, 1000)
 
                 let f2q = new FileStreamToQueuePipe(shaToSend.file.name, shaToSend.sha, shaToSend.offset, this.shaBytes, 500, 150)
                 await f2q.start()
@@ -282,10 +286,16 @@ class Peering {
                 sendingTime += Date.now() - start
                 sentBytes += shaToSend.file.size
 
-                log(`finished push ${shaToSend.file.name} speed = ${sentBytes} bytes in ${sendingTime} => ${((1000 * sentBytes) / sendingTime)} bytes/second`)
+                clearInterval(interval)
 
-                this.remoteStore.validateShaBytes(shaToSend.sha).then(result => {
-                    log(`ok, sha validated by remote ${shaToSend.sha} ${shaToSend.file.name} ${result}`)
+                log(`finished push ${shaToSend.file.name} speed = ${sentBytes} bytes in ${sendingTime} => ${((1000 * sentBytes) / (1024 * 1024 * sendingTime))} Mb/s`)
+
+                // little hooky way of sending a RPC through an arbitrary queue, this is because otherwise the validation could happen before the transfert
+                let validateCall = [RequestType.Call, 'validateShaBytes', shaToSend.sha] as RpcQuery
+                this.shaBytes.push(validateCall as ShaBytes)
+                this.rpcResolvers.set(validateCall as RpcCall, result => {
+                    if (!result)
+                        log.err(`sha not validated by remote ${shaToSend.sha} ${shaToSend.file.name}`)
                 })
             }
 
@@ -300,6 +310,7 @@ class Peering {
 
 class FileStreamToQueuePipe {
     private s: Readable
+    public transferred = 0
 
     constructor(path: string, private sha: string, private offset: number, private q: Queue.QueueWrite<ShaBytes> & Queue.QueueMng, high: number = 10, low: number = 5) {
         this.s = fs.createReadStream(path, { flags: 'r', autoClose: true, start: offset, encoding: null })
@@ -332,6 +343,7 @@ class FileStreamToQueuePipe {
                     offset,
                     chunk as Buffer
                 ])
+                this.transferred += chunk.length
             }).on('end', () => {
                 resolve(true)
             }).on('error', (err) => {
@@ -557,18 +569,25 @@ export async function store(directory, port) {
 
                 switch (request[0]) {
                     case RequestType.AddShaInTx:
-                        await store.pushFileDescriptors(request[1], [{
-                            name: request[3].name,
-                            isDirectory: request[3].isDirectory,
-                            lastWrite: request[3].lastWrite,
-                            size: request[3].size,
-                            contentSha: request[2]
-                        }])
+                        try {
+                            await store.pushFileDescriptors(request[1], [{
+                                name: request[3].name,
+                                isDirectory: request[3].isDirectory,
+                                lastWrite: request[3].lastWrite,
+                                size: request[3].size,
+                                contentSha: request[2]
+                            }])
 
-                        let knownBytes = await store.hasOneShaBytes(request[2])
-                        return {
-                            id,
-                            reply: knownBytes
+                            let knownBytes = await store.hasOneShaBytes(request[2])
+                            return {
+                                id,
+                                reply: knownBytes
+                            }
+                        } catch (err) {
+                            return {
+                                id,
+                                reply: 0
+                            }
                         }
 
                     case RequestType.ShaBytes:

@@ -148,14 +148,21 @@ export class ObjectRepository {
         }
 
         let contentFileName = this.contentFileName(sha)
-        let storedContentSha = this.shaCache ? await this.shaCache.hashFile(contentFileName) : await HashTools.hashFile(contentFileName)
 
-        if (sha != storedContentSha) {
-            log.err(`wrong storage bytes for sha ${sha}`)
-            fs.rename(contentFileName, contentFileName + '.bak', (err) => { })
+        try {
+            let storedContentSha = this.shaCache ? await this.shaCache.hashFile(contentFileName) : await HashTools.hashFile(contentFileName)
+
+            if (sha != storedContentSha) {
+                log.err(`wrong storage bytes for sha ${sha}`)
+                fs.rename(contentFileName, contentFileName + '.bak', (err) => { })
+            }
+
+            return sha == storedContentSha
         }
-
-        return sha == storedContentSha
+        catch (err) {
+            log.err(`error validating sha ${err}`)
+            return false
+        }
     }
 
     async putShaBytes(sha: string, offset: number, data: Buffer) {
