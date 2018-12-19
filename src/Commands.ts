@@ -301,14 +301,17 @@ class Peering {
         })()
 
         // little hooky way of sending a RPC through an arbitrary queue, this is because otherwise the validation could happen before the transfert
-        let validateCall = [RequestType.Call, 'commitTransaction', transactionId] as RpcQuery
-        this.shaBytes.push(validateCall as ShaBytes)
-        this.rpcResolvers.set(validateCall as RpcCall, _ => {
-            log(`transaction ${transactionId} committed, directory ${pushedDirectory} pushed.`)
-        })
+        await new Promise(resolve => {
+            let validateCall = [RequestType.Call, 'commitTransaction', transactionId] as RpcQuery
+            this.shaBytes.push(validateCall as ShaBytes)
+            this.rpcResolvers.set(validateCall as RpcCall, _ => {
+                log(`transaction ${transactionId} committed, directory ${pushedDirectory} pushed.`)
+                resolve()
+            })
 
-        log(`finished shasToSend`)
-        this.shaBytes.push(null)
+            log(`finished shasToSend`)
+            this.shaBytes.push(null)
+        })
     }
 }
 
