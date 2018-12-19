@@ -1,11 +1,11 @@
+import * as ShaProcessor from './sha-processor'
+import * as ShaCache from './ShaCache'
 import * as Net from 'net'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
-import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport } from '@ltearno/hexa-js'
+import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport, NetworkApiNodeImpl, NetworkApi, DirectoryLister, StreamToQueue, Tools } from '@ltearno/hexa-js'
 import * as Model from './Model'
-import fsPath = require('path')
 import * as fs from 'fs'
-import * as UploadTransferServer from './UploadTransferServer'
-import * as UploadTransferClient from './UploadTransferClient'
+import * as path from 'path'
 
 const log = LoggerBuilder.buildLogger('Commands')
 
@@ -23,7 +23,7 @@ interface FileSpec {
     size: number
 }
 
-type AddShaInTx = [RequestType.AddShaInTx, string, FileSpec] // type, sha, file
+type AddShaInTx = [RequestType.AddShaInTx, string, string, FileSpec] // type,tx, sha, file
 type AddShaInTxReply = [number] // length
 type ShaBytes = [RequestType.ShaBytes, string, number, Buffer] // type, sha, offset, buffer
 type RpcCall = [RequestType.Call, string, ...any[]]
@@ -31,23 +31,226 @@ type RpcQuery = AddShaInTx | ShaBytes | RpcCall
 type RpcReply = any[]
 
 
-export async function history(sourceId, storeIp, storePort, verbose) {
-    console.log('connecting to remote store...')
-    let store: IHexaBackupStore = null
-    try {
-        log('connecting to remote store...')
-        let rpcClient = new RPCClient()
-        let connected = await rpcClient.connect(storeIp, storePort)
-        if (!connected)
-            throw 'cannot connect to server !'
 
-        log('connected')
-        store = rpcClient.createProxy<IHexaBackupStore>()
+async function multiInOneOutLoop(sourceQueues: { queue: Queue.Queue<RpcQuery>; listener: (q: RpcQuery) => void }[], rpcTxPusher: Queue.Pusher<RpcQuery>) {
+    let waitForQueue = async <T>(q: Queue.Queue<T>): Promise<void> => {
+        if (q.empty()) {
+            await new Promise(resolve => {
+                let l = q.addLevelListener(1, 1, () => {
+                    l.forget()
+                    resolve()
+                })
+            })
+        }
     }
-    catch (error) {
-        console.log(`[ERROR] cannot connect to server : ${error} !`)
-        return
+
+    while (sourceQueues.length) {
+        if (sourceQueues.every(source => source.queue.empty()))
+            await Promise.race(sourceQueues.map(source => waitForQueue(source.queue)))
+
+        let rpcRequest = null
+        for (let i = 0; i < sourceQueues.length; i++) {
+            if (!sourceQueues[i].queue.empty()) {
+                rpcRequest = sourceQueues[i].queue.pop()
+                sourceQueues[i].listener && sourceQueues[i].listener(rpcRequest)
+                if (rpcRequest) {
+                    await rpcTxPusher(rpcRequest)
+                }
+                else {
+                    log(`finished rpc source ${sourceQueues[i].queue.name}`)
+                    sourceQueues.splice(i, 1)
+                }
+                break
+            }
+        }
     }
+
+    log(`finished rpcPush`)
+}
+
+
+function connectToRemoteSocket(host: string, port: number): Promise<NetworkApi.WebSocket> {
+    return new Promise((resolve, reject) => {
+        let network = new NetworkApiNodeImpl.NetworkApiNodeImpl()
+        let ws = network.createClientWebSocket(`ws://${host}:${port}/hexa-backup`)
+        let opened = false
+
+        ws.on('open', () => {
+            opened = true
+            resolve(ws)
+        })
+
+        ws.on('error', err => {
+            if (!opened)
+                reject(err)
+        })
+    })
+}
+
+
+class Peering {
+    constructor(private ws: NetworkApi.WebSocket, private withPushFast: boolean) { }
+
+    rpcCalls = new Queue.Queue<RpcCall>('rpc-calls')
+
+    fileInfos = new Queue.Queue<DirectoryLister.FileIteration>('fileslist')
+    addShaInTx = new Queue.Queue<AddShaInTx>('add-sha-in-tx')
+    closedAddShaInTx = false
+    nbAddShaInTxInTransport = 0
+    shasToSend = new Queue.Queue<{ sha: string; file: FileSpec; offset: number }>('shas-to-send')
+    shaBytes = new Queue.Queue<ShaBytes>('sha-bytes')
+
+    remoteStore = this.createProxy<IHexaBackupStore>()
+
+    private rpcTxIn = new Queue.Queue<RpcQuery>('rpc-tx-in')
+    private rpcTxOut = new Queue.Queue<{ request: RpcQuery; reply: RpcReply }>('rpc-tx-out')
+    private rpcRxIn = new Queue.Queue<{ id: string; reply: RpcReply }>('rpc-rx-in')
+    private rpcRxOut = new Queue.Queue<{ id: string; request: RpcQuery }>('rpc-rx-out')
+
+    private rpcResolvers = new Map<RpcCall, (value: any) => void>()
+
+    async start() {
+        let transport = new Transport.Transport(
+            Queue.waitPopper(this.rpcTxIn),
+            Queue.directPusher(this.rpcTxOut),
+            Queue.directPusher(this.rpcRxOut),
+            Queue.waitPopper(this.rpcRxIn),
+            this.ws
+        )
+        transport.start()
+
+        await this.startRpcLoops()
+    }
+
+    private async startRpcLoops() {
+        {
+            let rpcTxPusher = Queue.waitPusher(this.rpcTxIn, 20, 10)
+
+            let rpcQueues = [{ queue: this.rpcCalls, listener: null }]
+            if (this.withPushFast) {
+                rpcQueues = (rpcQueues as any[]).concat([
+                    { queue: this.shaBytes, listener: q => null },
+                    {
+                        queue: this.addShaInTx, listener: q => {
+                            if (q)
+                                this.nbAddShaInTxInTransport++
+                            else
+                                this.closedAddShaInTx = true
+                        }
+                    }
+                ])
+            }
+            else {
+                this.closedAddShaInTx = true
+            }
+
+            multiInOneOutLoop(rpcQueues, rpcTxPusher).then(_ => rpcTxPusher(null))
+        }
+
+        let popper = Queue.waitPopper(this.rpcTxOut)
+
+        let shasToSendPusher = Queue.waitPusher(this.shasToSend, 20, 10)
+
+        while (true) {
+            let rpcItem = await popper()
+            if (!rpcItem)
+                break
+
+            let { request, reply } = rpcItem
+            switch (request[0]) {
+                case RequestType.AddShaInTx: {
+                    let remoteLength = (reply as AddShaInTxReply).length
+                    if (!request[3].isDirectory && remoteLength < request[3].size) {
+                        await shasToSendPusher({ sha: request[2], file: request[3], offset: remoteLength })
+                    }
+
+                    this.nbAddShaInTxInTransport--
+                    if (!this.nbAddShaInTxInTransport && this.closedAddShaInTx)
+                        await shasToSendPusher(null)
+
+                    break
+                }
+
+                case RequestType.ShaBytes:
+                    break
+
+                case RequestType.Call:
+                    this.rpcResolvers.get(request)(reply)
+                    break
+            }
+        }
+
+        log(`finished rpcTxOut`)
+    }
+
+    private callRpc(rpcCall: RpcCall): Promise<any> {
+        return new Promise((resolve) => {
+            this.rpcResolvers.set(rpcCall, resolve)
+            this.rpcCalls.push(rpcCall)
+        })
+    }
+
+    private createProxy<T>(): T {
+        let me = this
+        return <T>new Proxy({}, {
+            get(target, propKey, receiver) {
+                return (...args) => {
+                    args = args.slice()
+                    args.unshift(propKey)
+                    args.unshift(RequestType.Call)
+
+                    return me.callRpc(args as RpcCall)
+                };
+            }
+        });
+    }
+
+    status = {
+        hashedBytes: 0
+    }
+
+    startPushFastLoop(transactionId: string, pushedDirectory: string) {
+        let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
+
+        // sending files should be done in push fast
+        {
+            let directoryLister = new DirectoryLister.DirectoryLister('./', () => null);
+            (async () => {
+                let s2q1 = new StreamToQueue.StreamToQueuePipe(directoryLister, this.fileInfos, 50, 10)
+                await s2q1.start()
+                this.fileInfos.push(null)
+            })()
+        }
+
+        Queue.tunnelTransform(
+            Queue.waitPopper(this.fileInfos),
+            Queue.waitPusher(this.addShaInTx, 50, 8),
+            async i => {
+                return [
+                    RequestType.AddShaInTx,
+                    transactionId,
+                    i.isDirectory ? '' : await shaCache.hashFile(path.join(pushedDirectory, i.name)),
+                    i
+                ] as AddShaInTx
+            }
+        ).then(_ => {
+            console.log(`finished directory parsing`)
+            this.addShaInTx.push(null)
+        })
+    }
+}
+
+
+export async function history(sourceId, storeIp, storePort, verbose) {
+    log('connecting to remote store...')
+
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
 
     console.log('history of pc-arnaud in store');
     console.log()
@@ -60,7 +263,6 @@ export async function history(sourceId, storeIp, storePort, verbose) {
     }
 
     if (sourceState.currentTransactionId) {
-        let emptySha = '                                                                '
         console.log()
         console.log(`current transaction ${sourceState.currentTransactionId}`)
     }
@@ -100,22 +302,15 @@ export async function showCommit(storeIp, storePort, commitSha) {
 }
 
 export async function lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix: string) {
-    console.log('connecting to remote store...')
-    let store = null
-    try {
-        log('connecting to remote store...')
-        let rpcClient = new RPCClient()
-        let connected = await rpcClient.connect(storeIp, storePort)
-        if (!connected)
-            throw 'cannot connect to server !'
+    log('connecting to remote store...')
 
-        log('connected')
-        store = rpcClient.createProxy<IHexaBackupStore>()
-    }
-    catch (error) {
-        console.log(`[ERROR] cannot connect to server : ${error} !`)
-        return
-    }
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
 
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 
@@ -123,29 +318,22 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
 }
 
 export async function extract(storeIp, storePort, directoryDescriptorSha, prefix: string, destinationDirectory: string) {
-    console.log('connecting to remote store...')
-    let store: IHexaBackupStore = null
-    try {
-        log('connecting to remote store...')
-        let rpcClient = new RPCClient()
-        let connected = await rpcClient.connect(storeIp, storePort)
-        if (!connected)
-            throw 'cannot connect to server !'
+    log('connecting to remote store...')
 
-        log('connected')
-        store = rpcClient.createProxy<IHexaBackupStore>()
-    }
-    catch (error) {
-        console.log(`[ERROR] cannot connect to server : ${error} !`)
-        return
-    }
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
 
     console.log('getting directory descriptor...')
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 
     showDirectoryDescriptor(directoryDescriptor, prefix)
 
-    destinationDirectory = fsPath.resolve(destinationDirectory)
+    destinationDirectory = path.resolve(destinationDirectory)
 
     console.log(`extracting ${directoryDescriptorSha} to ${destinationDirectory}, prefix='${prefix}'...`)
 
@@ -157,7 +345,7 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
 
         console.log(`fetching ${fileDesc.name}`)
 
-        let destinationFilePath = fsPath.join(destinationDirectory, fileDesc.name)
+        let destinationFilePath = path.join(destinationDirectory, fileDesc.name)
 
         if (fileDesc.isDirectory) {
             try {
@@ -208,35 +396,28 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
 }
 
 export async function pushFast(sourceId, pushedDirectory, storeIp, storePort, estimateSize) {
-    return new Promise((accept, reject) => {
-        console.log(`push options :`)
-        console.log(`  directory: ${pushedDirectory}`)
-        console.log(`  source: ${sourceId}`)
-        console.log(`  server: ${storeIp}:${storePort}`)
-        console.log(`  estimateSize: ${estimateSize}`)
-        console.log()
+    log('connecting to remote store...')
+    console.log(`push options :`)
+    console.log(`  directory: ${pushedDirectory}`)
+    console.log(`  source: ${sourceId}`)
+    console.log(`  server: ${storeIp}:${storePort}`)
+    console.log(`  estimateSize: ${estimateSize}`)
+    console.log()
 
-        let socket = new Net.Socket()
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
 
-        socket.on('connect', () => {
-            log(`connected to ${storeIp}:${storePort}`)
+    let peering = new Peering(ws, true)
+    peering.start().then(_ => log(`finished peering`))
 
-            let client = new UploadTransferClient.UploadTransferClient(pushedDirectory, sourceId, estimateSize, socket)
-            client.start()
-        })
+    let store = peering.remoteStore
 
-        socket.on('close', () => {
-            log('connection closed')
-            accept()
-        })
+    let txId = await store.startOrContinueSnapshotTransaction(sourceId)
+    log(`starting transaction ${txId}`)
 
-        socket.on('error', (err) => {
-            socket.end()
-            reject(err)
-        })
+    peering.startPushFastLoop(txId, pushedDirectory)
 
-        socket.connect(storePort, storeIp)
-    })
+    await Tools.wait(5000)
 }
 
 export async function store(directory, port) {
@@ -275,15 +456,18 @@ export async function store(directory, port) {
 
                 switch (request[0]) {
                     case RequestType.AddShaInTx:
+                        await store.pushFileDescriptors('arnaud-xps13-tmp', request[1], [{
+                            name: request[3].name,
+                            isDirectory: request[3].isDirectory,
+                            lastWrite: request[3].lastWrite,
+                            size: request[3].size,
+                            contentSha: request[2]
+                        }])
+
+                        let knownBytes = await store.hasOneShaBytes(request[2])
                         return {
                             id,
-                            reply: await store.pushFileDescriptors('debug', 'debug', [{
-                                name: request[2].name,
-                                isDirectory: request[2].isDirectory,
-                                lastWrite: request[2].lastWrite,
-                                size: request[2].size,
-                                contentSha: request[1]
-                            }])
+                            reply: knownBytes
                         }
 
                     case RequestType.ShaBytes:
@@ -297,7 +481,11 @@ export async function store(directory, port) {
                         let methodName = request.shift()
                         let args = request
 
-                        let result = await store[methodName].apply(store, args)
+                        let method = store[methodName]
+                        if (!method) {
+                            console.log(`not found method ${methodName} in store !`)
+                        }
+                        let result = await method.apply(store, args)
 
                         return {
                             id,

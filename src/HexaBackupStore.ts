@@ -168,14 +168,17 @@ export class HexaBackupStore implements IHexaBackupStore {
         if (this.sourceStateCache != null && sourceId in this.sourceStateCache)
             return this.sourceStateCache[sourceId];
 
-        let clientStateReferenceName = `client_${sourceId}`;
+        let clientStateReferenceName = `client_${sourceId}`
         let sourceState: Model.SourceState = await this.referenceRepository.get(clientStateReferenceName)
 
         if (sourceState == null) {
             sourceState = {
-                currentTransactionId: `SOURCE ${sourceId} NOT FOUND !`,
-                currentCommitSha: `SOURCE ${sourceId} NOT FOUND !`
+                currentTransactionId: null,
+                currentCommitSha: null
             };
+
+            this.sourceStateCache[sourceId] = sourceState;
+            //this.referenceRepository.put(clientStateReferenceName, sourceState)
         }
         else {
             // old version had a big data structure here. Prune it to free memory !

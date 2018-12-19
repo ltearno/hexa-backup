@@ -162,7 +162,7 @@ async function run() {
             options: {
                 sourceId: defaultSourceId,
                 storeIp: "localhost",
-                storePort: 5006,
+                storePort: 5005,
                 pushedDirectory: '.',
                 estimateSize: false
             },
