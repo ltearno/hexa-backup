@@ -55,7 +55,7 @@ export class ShaCache {
                 throw `cannot open temp file ${fileId}`
         }
 
-        let buffer = new Buffer(payload, 'utf8')
+        let buffer = Buffer.from(payload, 'utf8')
 
         await this._writeFile(this.temporaryFiles[fileId].fd, buffer, 0, buffer.byteLength, this.temporaryFiles[fileId].offset)
         this.temporaryFiles[fileId].offset += buffer.byteLength

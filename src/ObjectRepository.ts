@@ -1,5 +1,5 @@
-import fs = require('fs');
-import fsPath = require('path');
+import * as fs from 'fs'
+import * as fsPath from 'path'
 import { ShaCache } from './ShaCache'
 import * as Stream from 'stream'
 import * as ZLib from 'zlib'
@@ -27,7 +27,7 @@ export class ObjectRepository {
     async storePayload(payload: string): Promise<string> {
         let sha = await HashTools.hashString(payload)
 
-        let buffer = new Buffer(payload, 'utf8')
+        let buffer = Buffer.from(payload, 'utf8')
 
         if (await this.hasOneShaBytes(sha) != buffer.byteLength)
             await this.putShaBytes(sha, 0, buffer);
@@ -151,6 +151,7 @@ export class ObjectRepository {
 
         try {
             let storedContentSha = this.shaCache ? await this.shaCache.hashFile(contentFileName) : await HashTools.hashFile(contentFileName)
+            let realHash = await HashTools.hashFile(contentFileName)
 
             if (sha != storedContentSha) {
                 log.err(`wrong storage bytes for sha ${sha}`)
@@ -248,7 +249,7 @@ export class ObjectRepository {
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
         return new Promise<Buffer>((resolve, reject) => {
             if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
-                resolve(new Buffer(0))
+                resolve(Buffer.alloc(0))
                 return
             }
 
@@ -262,7 +263,7 @@ export class ObjectRepository {
                     return
                 }
 
-                let buffer = new Buffer(length)
+                let buffer = Buffer.alloc(length)
                 fs.read(fd, buffer, 0, length, offset, (err, read, buffer) => {
                     fs.close(fd, (err) => {
                         if (err) {

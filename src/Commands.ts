@@ -1,7 +1,5 @@
 import { Readable } from 'stream'
-import * as ShaProcessor from './sha-processor'
 import * as ShaCache from './ShaCache'
-import * as Net from 'net'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
 import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport, NetworkApiNodeImpl, NetworkApi, DirectoryLister, StreamToQueue, Tools } from '@ltearno/hexa-js'
 import * as Model from './Model'
