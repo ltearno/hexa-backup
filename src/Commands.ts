@@ -278,7 +278,7 @@ class Peering {
                     log(` ... transferring ${shaToSend.file.name} (${f2q.transferred / (1024 * 1024)} Mb so far)...`)
                 }, 1000)
 
-                let f2q = new FileStreamToQueuePipe(shaToSend.file.name, shaToSend.sha, shaToSend.offset, this.shaBytes, 500, 400)
+                let f2q = new FileStreamToQueuePipe(shaToSend.file.name, shaToSend.sha, shaToSend.offset, this.shaBytes, 50, 40)
                 await f2q.start()
 
                 sendingTime += Date.now() - start
