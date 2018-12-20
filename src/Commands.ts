@@ -237,7 +237,7 @@ class Peering {
 
         Queue.tunnelTransform(
             Queue.waitPopper(this.fileInfos),
-            Queue.waitPusher(this.addShaInTx, 50, 8),
+            Queue.waitPusher(this.addShaInTx, 20, 15),
             async i => {
                 return [
                     RequestType.AddShaInTx,
@@ -278,7 +278,7 @@ class Peering {
                     log(` ... transferring ${shaToSend.file.name} (${f2q.transferred / (1024 * 1024)} Mb so far)...`)
                 }, 1000)
 
-                let f2q = new FileStreamToQueuePipe(shaToSend.file.name, shaToSend.sha, shaToSend.offset, this.shaBytes, 100, 60)
+                let f2q = new FileStreamToQueuePipe(shaToSend.file.name, shaToSend.sha, shaToSend.offset, this.shaBytes, 500, 400)
                 await f2q.start()
 
                 sendingTime += Date.now() - start
