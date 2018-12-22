@@ -151,7 +151,6 @@ export class ObjectRepository {
 
         try {
             let storedContentSha = this.shaCache ? await this.shaCache.hashFile(contentFileName) : await HashTools.hashFile(contentFileName)
-            let realHash = await HashTools.hashFile(contentFileName)
 
             if (sha != storedContentSha) {
                 log.err(`wrong storage bytes for sha ${sha}`)

@@ -64,7 +64,7 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     async putShaBytes(sha: string, offset: number, data: Buffer) {
-        return this.objectRepository.putShaBytes(sha, offset, data);
+        return this.objectRepository.putShaBytes(sha, offset, data)
     }
 
     async putShaBytesStream(sha: string, offset: number, stream: Stream.Readable) {

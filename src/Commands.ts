@@ -229,7 +229,7 @@ class Peering {
         {
             let directoryLister = new DirectoryLister.DirectoryLister('./', () => null);
             (async () => {
-                let s2q1 = new StreamToQueue.StreamToQueuePipe(directoryLister, this.fileInfos, 50, 10)
+                let s2q1 = new StreamToQueue.StreamToQueuePipe(directoryLister, this.fileInfos, 20, 10)
                 await s2q1.start()
                 this.fileInfos.push(null)
             })()
