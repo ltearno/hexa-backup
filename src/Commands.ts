@@ -88,7 +88,7 @@ function connectToRemoteSocket(host: string, port: number): Promise<NetworkApi.W
 
 
 class Peering {
-    constructor(private ws: NetworkApi.WebSocket, private withPushFast: boolean) { }
+    constructor(private ws: NetworkApi.WebSocket, private withPush: boolean) { }
 
     rpcCalls = new Queue.Queue<RpcCall>('rpc-calls')
 
@@ -127,7 +127,7 @@ class Peering {
             let rpcTxPusher = Queue.waitPusher(this.rpcTxIn, 20, 10)
 
             let rpcQueues = [{ queue: this.rpcCalls, listener: null }]
-            if (this.withPushFast) {
+            if (this.withPush) {
                 rpcQueues = (rpcQueues as any[]).concat([
                     { queue: this.shaBytes, listener: q => null },
                     {
@@ -222,7 +222,7 @@ class Peering {
         hashedBytes: 0
     }
 
-    async startPushFastLoop(transactionId: string, pushedDirectory: string) {
+    async startPushLoop(transactionId: string, pushedDirectory: string) {
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
 
         // sending files should be done in push fast
@@ -514,7 +514,7 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
     }
 }
 
-export async function pushFast(sourceId, pushedDirectory, storeIp, storePort, estimateSize) {
+export async function push(sourceId, pushedDirectory, storeIp, storePort, estimateSize) {
     log('connecting to remote store...')
     log(`push options :`)
     log(`  directory: ${pushedDirectory}`)
@@ -533,9 +533,9 @@ export async function pushFast(sourceId, pushedDirectory, storeIp, storePort, es
     let txId = await store.startOrContinueSnapshotTransaction(sourceId)
     log(`starting transaction ${txId}`)
 
-    await peering.startPushFastLoop(txId, pushedDirectory)
+    await peering.startPushLoop(txId, pushedDirectory)
 
-    log(`finished pushFast`)
+    log(`finished push`)
 }
 
 export async function store(directory, port) {

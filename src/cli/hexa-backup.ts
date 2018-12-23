@@ -157,8 +157,8 @@ async function run() {
             }
         },
         {
-            id: "pushFast",
-            verbs: ["pushFast"],
+            id: "push",
+            verbs: ["push"],
             options: {
                 sourceId: defaultSourceId,
                 storeIp: "localhost",
@@ -173,7 +173,7 @@ async function run() {
                 const pushedDirectory = fsPath.resolve(options['pushedDirectory'])
                 const estimateSize = options['estimateSize']
 
-                await Commands.pushFast(sourceId, pushedDirectory, storeIp, storePort, estimateSize)
+                await Commands.push(sourceId, pushedDirectory, storeIp, storePort, estimateSize)
 
                 process.exit(0)
             }
