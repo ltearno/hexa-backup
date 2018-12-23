@@ -191,7 +191,7 @@ class Peering {
                         this.rpcResolvers.get(request)(reply[0])
                     }
                     else if (reply.length > 1) {
-                        log(`exception received as a result ${JSON.stringify(reply[1])}`)
+                        log(`exception received as a result ${JSON.stringify(reply[1])} call ${JSON.stringify(request)}`)
                         this.rpcRejecters.get(request)(reply[1])
                     }
                     this.rpcResolvers.delete(request)
@@ -419,41 +419,46 @@ export async function sources(storeIp, storePort, verbose) {
     for (let sourceId of sources) {
         console.log()
         console.log(`${sourceId}`)
-        let state = await store.getSourceState(sourceId)
-        state.currentTransactionId && console.log(` current transaction : ${state.currentTransactionId}`)
-        if (state.currentCommitSha) {
-            console.log(` current commit sha : ${state.currentCommitSha}`)
-            let commitSha = state.currentCommitSha
+        try {
+            let state = await store.getSourceState(sourceId)
+            state.currentTransactionId && console.log(` current transaction : ${state.currentTransactionId}`)
+            if (state.currentCommitSha) {
+                console.log(` current commit sha : ${state.currentCommitSha}`)
+                let commitSha = state.currentCommitSha
 
-            let currentCommit = await store.getCommit(commitSha)
-            if (!currentCommit) {
-                console.log(`  commit ${commitSha} not found !`)
-            }
-            else {
-                let currentDirectoryDescriptor = await store.getDirectoryDescriptor(currentCommit.directoryDescriptorSha)
-                if (!currentDirectoryDescriptor) {
-                    console.log(`  descriptor ${currentCommit.directoryDescriptorSha} not found !`)
+                let currentCommit = await store.getCommit(commitSha)
+                if (!currentCommit) {
+                    console.log(`  commit ${commitSha} not found !`)
                 }
                 else {
-                    let payload = JSON.stringify(currentDirectoryDescriptor)
+                    let currentDirectoryDescriptor = await store.getDirectoryDescriptor(currentCommit.directoryDescriptorSha)
+                    if (!currentDirectoryDescriptor) {
+                        console.log(`  descriptor ${currentCommit.directoryDescriptorSha} not found !`)
+                    }
+                    else {
+                        let payload = JSON.stringify(currentDirectoryDescriptor)
 
-                    console.log(` nb descriptor items : ${currentDirectoryDescriptor.files.length}`)
-                    console.log(` descriptor size : ${prettySize(payload.length)}`)
+                        console.log(` nb descriptor items : ${currentDirectoryDescriptor.files.length}`)
+                        console.log(` descriptor size : ${prettySize(payload.length)}`)
 
-                    console.log(` commit history :`)
-                    while (commitSha != null) {
-                        let commit = await store.getCommit(commitSha)
-                        if (commit == null) {
-                            console.log(`  error : commit ${commitSha} not found !`)
-                            break
+                        console.log(` commit history :`)
+                        while (commitSha != null) {
+                            let commit = await store.getCommit(commitSha)
+                            if (commit == null) {
+                                console.log(`  error : commit ${commitSha} not found !`)
+                                break
+                            }
+
+                            console.log(`  ${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc ${commit.directoryDescriptorSha}`)
+
+                            commitSha = commit.parentSha
                         }
-
-                        console.log(`  ${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc ${commit.directoryDescriptorSha}`)
-
-                        commitSha = commit.parentSha
                     }
                 }
             }
+        }
+        catch (err) {
+            console.log(` error ! ${JSON.stringify(err)}`)
         }
     }
 }
