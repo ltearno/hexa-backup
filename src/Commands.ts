@@ -649,8 +649,8 @@ export async function store(directory, port) {
 
         let rpcTxIn = new Queue.Queue<RpcQuery>('rpc-tx-in')
         let rpcTxOut = new Queue.Queue<{ request: RpcQuery; reply: RpcReply }>('rpc-tx-out')
-        let rpcRxIn = new Queue.Queue<{ id: string; reply: RpcReply }>('rpc-rx-in')
         let rpcRxOut = new Queue.Queue<{ id: string; request: RpcQuery }>('rpc-rx-out')
+        let rpcRxIn = new Queue.Queue<{ id: string; reply: RpcReply }>('rpc-rx-in')
 
         let transport = new Transport.Transport(Queue.waitPopper(rpcTxIn), Queue.directPusher(rpcTxOut), Queue.directPusher(rpcRxOut), Queue.waitPopper(rpcRxIn), ws)
         transport.start()
@@ -685,19 +685,19 @@ export async function store(directory, port) {
                             let knownBytes = await store.hasOneShaBytes(request[2])
                             return {
                                 id,
-                                reply: knownBytes
+                                reply: [knownBytes]
                             }
                         } catch (err) {
                             return {
                                 id,
-                                reply: 0
+                                reply: [null, err]
                             }
                         }
 
                     case RequestType.ShaBytes:
                         return {
                             id,
-                            reply: await store.putShaBytes(request[1], request[2], request[3])
+                            reply: [await store.putShaBytes(request[1], request[2], request[3])]
                         }
 
                     case RequestType.Call:
@@ -709,11 +709,19 @@ export async function store(directory, port) {
                         if (!method) {
                             console.log(`not found method ${methodName} in store !`)
                         }
-                        let result = await method.apply(store, args)
+                        try {
+                            let result = await method.apply(store, args)
 
-                        return {
-                            id,
-                            reply: result
+                            return {
+                                id,
+                                reply: [result]
+                            }
+                        }
+                        catch (error) {
+                            return {
+                                id,
+                                reply: [null, error]
+                            }
                         }
                 }
             })
