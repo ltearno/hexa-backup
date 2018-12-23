@@ -407,9 +407,9 @@ export async function sources(storeIp, storePort, verbose) {
     let store = peering.remoteStore
 
     console.log(`sources on store`)
-    
+
     let sources = await store.getSources()
-    
+
     if (sources == null) {
         console.log()
         console.log(`refs not found !`)
@@ -426,23 +426,33 @@ export async function sources(storeIp, storePort, verbose) {
             let commitSha = state.currentCommitSha
 
             let currentCommit = await store.getCommit(commitSha)
-            let currentDirectoryDescriptor = await store.getDirectoryDescriptor(currentCommit.directoryDescriptorSha)
-            let payload = JSON.stringify(currentDirectoryDescriptor)
-
-            console.log(` nb descriptor items : ${currentDirectoryDescriptor.files.length}`)
-            console.log(` descriptor size : ${prettySize(payload.length)}`)
-
-            console.log(` commit history :`)
-            while (commitSha != null) {
-                let commit = await store.getCommit(commitSha)
-                if (commit == null) {
-                    console.log(`  error : commit ${commitSha} not found !`)
-                    break
+            if (!currentCommit) {
+                console.log(`  commit ${commitSha} not found !`)
+            }
+            else {
+                let currentDirectoryDescriptor = await store.getDirectoryDescriptor(currentCommit.directoryDescriptorSha)
+                if (!currentDirectoryDescriptor) {
+                    console.log(`  descriptor ${currentCommit.directoryDescriptorSha} not found !`)
                 }
+                else {
+                    let payload = JSON.stringify(currentDirectoryDescriptor)
 
-                console.log(`  ${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc ${commit.directoryDescriptorSha}`)
+                    console.log(` nb descriptor items : ${currentDirectoryDescriptor.files.length}`)
+                    console.log(` descriptor size : ${prettySize(payload.length)}`)
 
-                commitSha = commit.parentSha
+                    console.log(` commit history :`)
+                    while (commitSha != null) {
+                        let commit = await store.getCommit(commitSha)
+                        if (commit == null) {
+                            console.log(`  error : commit ${commitSha} not found !`)
+                            break
+                        }
+
+                        console.log(`  ${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc ${commit.directoryDescriptorSha}`)
+
+                        commitSha = commit.parentSha
+                    }
+                }
             }
         }
     }
