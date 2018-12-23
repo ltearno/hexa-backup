@@ -10,6 +10,7 @@ const log = LoggerBuilder.buildLogger('HexaBackupStore')
 
 export interface IHexaBackupStore {
     getRefs(): Promise<string[]>
+    getSources(): Promise<string[]>
     startOrContinueSnapshotTransaction(sourceId: string): Promise<string>
     hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }>
     hasOneShaBytes(sha: string): Promise<number>
@@ -45,7 +46,13 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     async getRefs() {
-        return []
+        return this.referenceRepository.list()
+    }
+
+    async getSources() {
+        return (await this.getRefs())
+            .filter(ref => ref.startsWith('CLIENT_'))
+            .map(ref => ref.substr('CLIENT_'.length))
     }
 
     async startOrContinueSnapshotTransaction(sourceId: string): Promise<string> {

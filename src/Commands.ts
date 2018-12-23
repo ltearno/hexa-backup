@@ -381,8 +381,41 @@ export async function refs(storeIp, storePort, verbose) {
         return
     }
 
-    // TODO
+    for (let ref of refs) {
+        console.log(`${ref}`)
+    }
 }
+
+
+export async function sources(storeIp, storePort, verbose) {
+    log(`connecting to remote store ${storeIp}:${storePort}...`)
+
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    console.log(`sources on store`)
+    console.log()
+
+    let sources = await store.getSources()
+
+    if (sources == null) {
+        console.log(`refs not found !`)
+        return
+    }
+
+    for (let sourceId of sources) {
+        console.log(`${sourceId}`)
+        let state = await store.getSourceState(sourceId)
+        state.currentTransactionId && console.log(` current transaction : ${state.currentTransactionId}`)
+        state.currentCommitSha && console.log(` current commit sha : ${state.currentCommitSha}`)
+    }
+}
+
 
 export async function history(sourceId, storeIp, storePort, verbose) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)

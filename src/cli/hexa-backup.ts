@@ -81,6 +81,24 @@ async function run() {
             }
         },
         {
+            id: "sources",
+            verbs: ["sources"],
+            options: {
+                storeIp: "localhost",
+                storePort: 5005,
+                verbose: false
+            },
+            executor: async (options) => {
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const verbose = options['verbose']
+
+                await Commands.sources(storeIp, storePort, verbose)
+
+                process.exit(0)
+            }
+        },
+        {
             id: "history",
             verbs: ["history"],
             options: {

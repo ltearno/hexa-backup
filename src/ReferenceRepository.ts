@@ -54,6 +54,10 @@ export class ReferenceRepository {
         });
     }
 
+    async list() {
+        return FsTools.readDir(this.rootPath)
+    }
+
     private contentFileName(referenceName: string) {
         return fsPath.join(this.rootPath, `${referenceName.toLocaleUpperCase()}`);
     }
