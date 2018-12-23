@@ -14,6 +14,9 @@
     "exclude": [
         "node_modules",
         "target",
-        "tempbackup"
+        "tempbackup",
+        ".hb-object",
+        ".hb-refs",
+        ".hb-cache"
     ]
 }
