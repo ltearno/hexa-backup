@@ -190,61 +190,6 @@ export class ObjectRepository {
         }
     }
 
-    putShaBytesStream(sha: string, offset: number, stream: Stream.Readable): Promise<boolean> {
-        return new Promise<boolean>((resolve, reject) => {
-            if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
-                resolve(true)
-                return
-            }
-
-            log.dbg(`put bytes by stream for ${sha} @${offset}`)
-
-            let contentFileName = this.contentFileName(sha)
-
-            let fileStream = (<any>fs).createWriteStream(contentFileName, { flags: 'a', start: offset })
-
-            stream.pipe(fileStream)
-
-            stream.on('error', (err) => {
-                log.err('error receiving stream !')
-                fileStream.close()
-                reject(err)
-            })
-
-            fileStream.on('finish', () => {
-                log.dbg(`stream finished !`)
-                fileStream.close()
-                resolve(true)
-            })
-        })
-    }
-
-    putShasBytesStream(poolDescriptor: ShaPoolDescriptor[], useZip: boolean, dataStream: NodeJS.ReadableStream): Promise<boolean> {
-        poolDescriptor = poolDescriptor.slice()
-
-        return new Promise<boolean>((resolve, reject) => {
-            let writeStream = new ShaPoolStream(poolDescriptor, (sha) => this.contentFileName(sha))
-
-            if (useZip) {
-                let unzipped = ZLib.createGunzip()
-
-                dataStream = dataStream.pipe(unzipped)
-            }
-
-            dataStream.pipe(writeStream)
-
-            writeStream.on('error', (err) => {
-                log.err('error receiving stream !')
-                reject(err)
-            })
-
-            writeStream.on('finish', () => {
-                log.dbg(`stream finished !`)
-                resolve(true)
-            })
-        })
-    }
-
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
         return new Promise<Buffer>((resolve, reject) => {
             if (sha == HashTools.EMPTY_PAYLOAD_SHA) {

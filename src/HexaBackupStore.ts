@@ -13,8 +13,6 @@ export interface IHexaBackupStore {
     hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }>
     hasOneShaBytes(sha: string): Promise<number>
     putShaBytes(sha: string, offset: number, data: Buffer): Promise<number>
-    putShaBytesStream(sha: string, offset: number, stream: Stream.Readable): Promise<boolean>
-    putShasBytesStream(poolDescriptor: Model.ShaPoolDescriptor[], useZip: boolean, dataStream: NodeJS.ReadableStream): Promise<boolean>
     readShaBytes(sha: string, offset: number, length: number): Promise<Buffer>
     pushFileDescriptors(transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }>
     commitTransaction(transactionId: string): Promise<void>
@@ -65,14 +63,6 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     async putShaBytes(sha: string, offset: number, data: Buffer) {
         return this.objectRepository.putShaBytes(sha, offset, data)
-    }
-
-    async putShaBytesStream(sha: string, offset: number, stream: Stream.Readable) {
-        return this.objectRepository.putShaBytesStream(sha, offset, stream)
-    }
-
-    async putShasBytesStream(poolDescriptor: Model.ShaPoolDescriptor[], useZip: boolean, dataStream: NodeJS.ReadableStream): Promise<boolean> {
-        return this.objectRepository.putShasBytesStream(poolDescriptor, useZip, dataStream)
     }
 
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
@@ -198,10 +188,6 @@ export class HexaBackupStore implements IHexaBackupStore {
         this.transactionTempFilesState[transactionId] = { firstWrite: true }
         this.transactionsSources.set(transactionId, sourceId)
         return transactionId
-    }
-
-    private async purgeTransaction(transactionId: string) {
-        this.transactionsSources.delete(transactionId)
     }
 
     async getCommit(sha: string): Promise<Model.Commit> {
