@@ -233,7 +233,6 @@ class Peering {
     async startPushLoop(transactionId: string, pushedDirectory: string) {
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
 
-        // sending files should be done in push fast
         {
             let directoryLister = new DirectoryLister.DirectoryLister('./', () => null);
             (async () => {
