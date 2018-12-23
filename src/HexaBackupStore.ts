@@ -9,6 +9,7 @@ import { LoggerBuilder } from '@ltearno/hexa-js'
 const log = LoggerBuilder.buildLogger('HexaBackupStore')
 
 export interface IHexaBackupStore {
+    getRefs(): Promise<string[]>
     startOrContinueSnapshotTransaction(sourceId: string): Promise<string>
     hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }>
     hasOneShaBytes(sha: string): Promise<number>
@@ -41,6 +42,10 @@ export class HexaBackupStore implements IHexaBackupStore {
         this.objectRepository = new ObjectRepository(fsPath.join(this.rootPath, '.hb-object'), this.shaCache)
 
         this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'))
+    }
+
+    async getRefs() {
+        return []
     }
 
     async startOrContinueSnapshotTransaction(sourceId: string): Promise<string> {

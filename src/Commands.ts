@@ -360,8 +360,8 @@ class FileStreamToQueuePipe {
 }
 
 
-export async function history(sourceId, storeIp, storePort, verbose) {
-    log('connecting to remote store...')
+export async function refs(storeIp, storePort, verbose) {
+    log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort)
     log('connected')
@@ -371,7 +371,31 @@ export async function history(sourceId, storeIp, storePort, verbose) {
 
     let store = peering.remoteStore
 
-    console.log('history of pc-arnaud in store');
+    console.log(`refs on store`)
+    console.log()
+
+    let refs = await store.getRefs()
+
+    if (refs == null) {
+        console.log(`refs not found !`)
+        return
+    }
+
+    // TODO
+}
+
+export async function history(sourceId, storeIp, storePort, verbose) {
+    log(`connecting to remote store ${storeIp}:${storePort}...`)
+
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    console.log(`history of ${sourceId} in store`);
     console.log()
 
     let sourceState = await store.getSourceState(sourceId);
