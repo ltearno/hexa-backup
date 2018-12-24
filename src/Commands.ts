@@ -13,7 +13,8 @@ const log = LoggerBuilder.buildLogger('Commands')
 enum RequestType {
     AddShaInTx = 0,
     ShaBytes = 1,
-    Call = 2
+    Call = 2,
+    HasShaBytes = 3
 }
 
 interface FileSpec {
@@ -26,8 +27,9 @@ interface FileSpec {
 type AddShaInTx = [RequestType.AddShaInTx, string, string, FileSpec] // type,tx, sha, file
 type AddShaInTxReply = [number] // length
 type ShaBytes = [RequestType.ShaBytes, string, number, Buffer] // type, sha, offset, buffer
+type HasShaBytes = [RequestType.HasShaBytes, string] // type, sha
 type RpcCall = [RequestType.Call, string, ...any[]]
-type RpcQuery = AddShaInTx | ShaBytes | RpcCall
+type RpcQuery = AddShaInTx | ShaBytes | RpcCall | HasShaBytes
 type RpcReply = any[]
 
 function prettySize(size: number): string {
@@ -677,6 +679,11 @@ export async function store(directory, port) {
                 let { id, request } = p
 
                 switch (request[0]) {
+                    case RequestType.HasShaBytes:
+                        return {
+                            id,
+                            reply: [await store.hasOneShaBytes(request[1])]
+                        }
                     case RequestType.AddShaInTx:
                         try {
                             await store.pushFileDescriptors(request[1], [{
