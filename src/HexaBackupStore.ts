@@ -11,13 +11,14 @@ const log = LoggerBuilder.buildLogger('HexaBackupStore')
 export interface IHexaBackupStore {
     getRefs(): Promise<string[]>
     getSources(): Promise<string[]>
-    startOrContinueSnapshotTransaction(sourceId: string): Promise<string>
     hasShaBytes(shas: string[]): Promise<{ [sha: string]: number }>
     hasOneShaBytes(sha: string): Promise<number>
     putShaBytes(sha: string, offset: number, data: Buffer): Promise<number>
     readShaBytes(sha: string, offset: number, length: number): Promise<Buffer>
+    startOrContinueSnapshotTransaction(sourceId: string): Promise<string>
     pushFileDescriptors(transactionId: string, descriptors: Model.FileDescriptor[]): Promise<{ [sha: string]: boolean }>
     commitTransaction(transactionId: string): Promise<void>
+    registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string>
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
     getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>
@@ -119,54 +120,91 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     async commitTransaction(transactionId: string) {
-        return new Promise<void>(async (resolve, reject) => {
-            // maybe ensure the current transaction is consistent
-            let sourceId = this.getTransactionSourceId(transactionId)
-            let clientState = await this.getSourceState(sourceId);
-            if (clientState.currentTransactionId != transactionId) {
-                reject('client is commiting with a bad transaction id !');
-                return;
+        // maybe ensure the current transaction is consistent
+        let sourceId = this.getTransactionSourceId(transactionId)
+        let clientState = await this.getSourceState(sourceId);
+        if (clientState.currentTransactionId != transactionId) {
+            throw 'client is commiting with a bad transaction id !'
+            return;
+        }
+
+        // prepare and store directory descriptor
+        await this.shaCache.appendToTemporaryFile(transactionId, ']}') // closing the JSON structure
+        let transactionStream = await this.shaCache.closeTemporaryFileAndReadAsStream(transactionId)
+        let descriptorSha = await this.objectRepository.storeObjectFromStream(transactionStream);
+
+        // check if state changed
+        let saveCommit = true;
+        if (clientState.currentCommitSha != null) {
+            let currentCommit: Model.Commit = await this.objectRepository.readObject(clientState.currentCommitSha);
+            if (currentCommit == null) {
+                log.err(`not found commit ${clientState.currentCommitSha} for closing transaction ${transactionId}, create a new commit`)
+
+                clientState.currentCommitSha = null
+                saveCommit = true
+            }
+            else if (currentCommit.directoryDescriptorSha == descriptorSha) {
+                log(`transaction ${transactionId} makes no change, ignoring`);
+                saveCommit = false;
+            }
+        }
+
+        // prepare and store the commit
+        if (saveCommit) {
+            let commit: Model.Commit = {
+                parentSha: clientState.currentCommitSha,
+                commitDate: Date.now(),
+                directoryDescriptorSha: descriptorSha
+            };
+            let commitSha = await this.objectRepository.storeObject(commit);
+
+            clientState.currentCommitSha = commitSha;
+
+            log(`source ${sourceId} commited content : ${descriptorSha} in commit ${commitSha}`);
+        }
+
+        clientState.currentTransactionId = null;
+        await this.storeClientState(sourceId, clientState, true);
+    }
+
+    async registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string> {
+        let clientState = await this.getSourceState(sourceId);
+
+        // check if state changed
+        let saveCommit = true;
+        if (clientState.currentCommitSha != null) {
+            let currentCommit: Model.Commit = await this.objectRepository.readObject(clientState.currentCommitSha);
+            if (currentCommit == null) {
+                log.err(`not found commit ${clientState.currentCommitSha}, create a new commit`)
+
+                clientState.currentCommitSha = null
+                saveCommit = true
+            }
+            else if (currentCommit.directoryDescriptorSha == directoryDescriptorSha) {
+                log(`commit makes no change, ignoring`)
+                saveCommit = false
+            }
+        }
+
+        // prepare and store the commit
+        if (saveCommit) {
+            let commit: Model.Commit = {
+                parentSha: clientState.currentCommitSha,
+                commitDate: Date.now(),
+                directoryDescriptorSha
             }
 
-            // prepare and store directory descriptor
-            await this.shaCache.appendToTemporaryFile(transactionId, ']}') // closing the JSON structure
-            let transactionStream = await this.shaCache.closeTemporaryFileAndReadAsStream(transactionId)
-            let descriptorSha = await this.objectRepository.storeObjectFromStream(transactionStream);
+            let commitSha = await this.objectRepository.storeObject(commit)
 
-            // check if state changed
-            let saveCommit = true;
-            if (clientState.currentCommitSha != null) {
-                let currentCommit: Model.Commit = await this.objectRepository.readObject(clientState.currentCommitSha);
-                if (currentCommit == null) {
-                    log.err(`not found commit ${clientState.currentCommitSha} for closing transaction ${transactionId}, create a new commit`)
+            clientState.currentCommitSha = commitSha
 
-                    clientState.currentCommitSha = null
-                    saveCommit = true
-                }
-                else if (currentCommit.directoryDescriptorSha == descriptorSha) {
-                    log(`transaction ${transactionId} makes no change, ignoring`);
-                    saveCommit = false;
-                }
-            }
+            log(`source ${sourceId} commited content : ${directoryDescriptorSha} in commit ${commitSha}`)
+        }
 
-            // prepare and store the commit
-            if (saveCommit) {
-                let commit: Model.Commit = {
-                    parentSha: clientState.currentCommitSha,
-                    commitDate: Date.now(),
-                    directoryDescriptorSha: descriptorSha
-                };
-                let commitSha = await this.objectRepository.storeObject(commit);
+        clientState.currentTransactionId = null
+        await this.storeClientState(sourceId, clientState, true)
 
-                clientState.currentCommitSha = commitSha;
-
-                log(`source ${sourceId} commited content : ${descriptorSha} in commit ${commitSha}`);
-            }
-
-            clientState.currentTransactionId = null;
-            await this.storeClientState(sourceId, clientState, true);
-            resolve();
-        });
+        return clientState.currentCommitSha
     }
 
     async getSourceState(sourceId: string) {

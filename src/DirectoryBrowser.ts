@@ -17,17 +17,19 @@ interface DirectoryDescriptor {
     files: DirectoryEntry[]
 }
 
-interface OpenedFileEntry {
+export interface OpenedFileEntry {
     isDirectory: false
     fullPath: string
+    size: number
 }
 
-interface OpenedDirectoryEntry {
+export interface OpenedDirectoryEntry {
     isDirectory: true
     descriptorRaw: string
+    size: number
 }
 
-type OpenedEntry = OpenedDirectoryEntry | OpenedFileEntry
+export type OpenedEntry = OpenedDirectoryEntry | OpenedFileEntry
 
 export class DirectoryBrowser {
     private openedEntries = new Map<string, OpenedEntry>()
@@ -43,12 +45,11 @@ export class DirectoryBrowser {
         ]
 
         let d = await this.walkDir(this.rootPath, ignoreExpressions)
-        console.log(`finish ${JSON.stringify(d, null, 2)}`)
-        await this.pusher(null)
+        console.log(`finished walk dir ${JSON.stringify(d, null, 2)}`)
         return d.sha
     }
 
-    closeEntry(sha: string) {
+    closeEntry(sha: string): OpenedEntry {
         let res = this.openedEntries.get(sha)
         this.openedEntries.delete(sha)
         return res
@@ -115,7 +116,7 @@ export class DirectoryBrowser {
 
                         directoryDescriptor.files.push(entry)
 
-                        this.openedEntries.set(fileSha, { isDirectory: false, fullPath })
+                        this.openedEntries.set(fileSha, { isDirectory: false, fullPath, size: desc.size })
                         await this.pusher(entry)
                     }
                 }
@@ -127,7 +128,7 @@ export class DirectoryBrowser {
             let directoryDescriptorRaw = OrderedJson.stringify(directoryDescriptor)
             let directoryDescriptorSha = await HashTools.hashString(directoryDescriptorRaw)
 
-            this.openedEntries.set(directoryDescriptorSha, { isDirectory: true, descriptorRaw: directoryDescriptorRaw })
+            this.openedEntries.set(directoryDescriptorSha, { isDirectory: true, descriptorRaw: directoryDescriptorRaw, size: Buffer.from(directoryDescriptorRaw, 'utf8').length })
 
             let stat = fs.statSync(path)
             await this.pusher({

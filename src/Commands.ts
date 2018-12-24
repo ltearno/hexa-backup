@@ -11,7 +11,6 @@ const log = LoggerBuilder.buildLogger('Commands')
 
 
 enum RequestType {
-    AddShaInTx = 0,
     ShaBytes = 1,
     Call = 2,
     HasShaBytes = 3
@@ -24,12 +23,10 @@ interface FileSpec {
     size: number
 }
 
-type AddShaInTx = [RequestType.AddShaInTx, string, string, FileSpec] // type,tx, sha, file
-type AddShaInTxReply = [number] // length
-type ShaBytes = [RequestType.ShaBytes, string, number, Buffer] // type, sha, offset, buffer
 type HasShaBytes = [RequestType.HasShaBytes, string] // type, sha
+type ShaBytes = [RequestType.ShaBytes, string, number, Buffer] // type, sha, offset, buffer
 type RpcCall = [RequestType.Call, string, ...any[]]
-type RpcQuery = AddShaInTx | ShaBytes | RpcCall | HasShaBytes
+type RpcQuery = ShaBytes | RpcCall | HasShaBytes
 type RpcReply = any[]
 
 function prettySize(size: number): string {
@@ -103,11 +100,11 @@ class Peering {
 
     rpcCalls = new Queue.Queue<RpcCall>('rpc-calls')
 
-    fileInfos = new Queue.Queue<DirectoryLister.FileIteration>('fileslist')
-    addShaInTx = new Queue.Queue<AddShaInTx>('add-sha-in-tx')
-    closedAddShaInTx = false
-    nbAddShaInTxInTransport = 0
-    shasToSend = new Queue.Queue<{ sha: string; file: FileSpec; offset: number }>('shas-to-send')
+    fileInfos = new Queue.Queue<DirectoryBrowser.DirectoryEntry>('file-entries')
+    hasShaBytes = new Queue.Queue<HasShaBytes>('has-sha-bytes')
+    closedHasShaBytes = false
+    nbHasShaBytesInTransport = 0
+    shasToSend = new Queue.Queue<{ sha: string; offset: number }>('shas-to-send')
     shaBytes = new Queue.Queue<ShaBytes>('sha-bytes')
 
     remoteStore = this.createProxy<IHexaBackupStore>()
@@ -142,17 +139,17 @@ class Peering {
                 rpcQueues = (rpcQueues as any[]).concat([
                     { queue: this.shaBytes, listener: q => null },
                     {
-                        queue: this.addShaInTx, listener: q => {
+                        queue: this.hasShaBytes, listener: q => {
                             if (q)
-                                this.nbAddShaInTxInTransport++
+                                this.nbHasShaBytesInTransport++
                             else
-                                this.closedAddShaInTx = true
+                                this.closedHasShaBytes = true
                         }
                     }
                 ])
             }
             else {
-                this.closedAddShaInTx = true
+                this.closedHasShaBytes = true
             }
 
             multiInOneOutLoop(rpcQueues, rpcTxPusher).then(_ => rpcTxPusher(null))
@@ -169,16 +166,14 @@ class Peering {
 
             let { request, reply } = rpcItem
             switch (request[0]) {
-                case RequestType.AddShaInTx: {
-                    let remoteLength = (reply as AddShaInTxReply)[0]
-                    if (!request[3].isDirectory && remoteLength < request[3].size) {
-                        await shasToSendPusher({ sha: request[2], file: request[3], offset: remoteLength })
-                    }
+                case RequestType.HasShaBytes: {
+                    let remoteLength = reply[0]
+                    await shasToSendPusher({ sha: request[1], offset: remoteLength })
 
-                    this.nbAddShaInTxInTransport--
-                    log.dbg(`rcv addshaintx reply, ${this.nbAddShaInTxInTransport}, ${this.closedAddShaInTx}`)
-                    if (!this.nbAddShaInTxInTransport && this.closedAddShaInTx) {
-                        log.dbg(`RECEIVED LAST ADDSHAINTX REPLY, no more shas to send`)
+                    this.nbHasShaBytesInTransport--
+                    log.dbg(`rcv hasshabytes reply, ${this.nbHasShaBytesInTransport}, ${this.closedHasShaBytes}`)
+                    if (!this.nbHasShaBytesInTransport && this.closedHasShaBytes) {
+                        log.dbg(`RECEIVED LAST hasshabytes REPLY, no more shas to send`)
                         await shasToSendPusher(null)
                     }
 
@@ -233,32 +228,35 @@ class Peering {
         hashedBytes: 0
     }
 
-    async startPushLoop(transactionId: string, pushedDirectory: string) {
+    async startPushLoop(pushedDirectory: string) {
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
+        let directoryBrowser = new DirectoryBrowser.DirectoryBrowser(
+            pushedDirectory,
+            Queue.waitPusher(this.fileInfos, 20, 15),
+            shaCache
+        )
+        let directoryDescriptorSha: string = null
 
         {
-            let directoryLister = new DirectoryLister.DirectoryLister('./', () => null);
             (async () => {
-                let s2q1 = new StreamToQueue.StreamToQueuePipe(directoryLister, this.fileInfos, 20, 10)
-                await s2q1.start()
+                directoryDescriptorSha = await directoryBrowser.start()
                 this.fileInfos.push(null)
+                log(`done directory browsing`)
             })()
         }
 
         Queue.tunnelTransform(
             Queue.waitPopper(this.fileInfos),
-            Queue.waitPusher(this.addShaInTx, 20, 15),
+            Queue.waitPusher(this.hasShaBytes, 20, 15),
             async i => {
                 return [
-                    RequestType.AddShaInTx,
-                    transactionId,
-                    i.isDirectory ? '' : await shaCache.hashFile(path.join(pushedDirectory, i.name)),
-                    i
-                ] as AddShaInTx
+                    RequestType.HasShaBytes,
+                    i.sha
+                ] as HasShaBytes
             }
         ).then(_ => {
             log(`finished directory parsing`)
-            this.addShaInTx.push(null)
+            this.hasShaBytes.push(null)
         })
 
         await (async () => {
@@ -278,48 +276,55 @@ class Peering {
                     log(`sha already sent ${shaToSend.sha}`)
                     continue
                 }
-
                 sentShas.add(shaToSend.sha)
 
-                log(`begin push ${shaToSend.sha} ${shaToSend.file.name} @ ${shaToSend.offset}/${shaToSend.file.size}`)
-                let start = Date.now()
+                let shaEntry = directoryBrowser.closeEntry(shaToSend.sha)
+                if (shaEntry.size <= shaToSend.offset) {
+                    log(`skipping ${JSON.stringify(shaEntry)}`)
+                    continue
+                }
 
-                let interval = setInterval(() => {
-                    log(` ... transferring ${shaToSend.file.name} (${f2q.transferred / (1024 * 1024)} Mb so far)...`)
-                }, 1000)
+                if (shaEntry.isDirectory) {
+                    log(`sending directory...`)
+                    let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
+                    await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, Buffer.from(shaEntry.descriptorRaw, 'utf8')])
+                    log(`sent directory`)
+                }
+                else {
+                    let fileEntry = shaEntry as DirectoryBrowser.OpenedFileEntry
 
-                let f2q = new FileStreamToQueuePipe(shaToSend.file.name, shaToSend.sha, shaToSend.offset, this.shaBytes, 50, 40)
-                await f2q.start()
+                    log(`begin push ${shaToSend.sha} ${fileEntry.fullPath} @ ${shaToSend.offset}/${fileEntry.size}`)
+                    let start = Date.now()
 
-                sendingTime += Date.now() - start
-                sentBytes += shaToSend.file.size
+                    let interval = setInterval(() => {
+                        log(` ... transferring ${fileEntry.fullPath} (${f2q.transferred / (1024 * 1024)} Mb so far)...`)
+                    }, 1000)
 
-                clearInterval(interval)
+                    let f2q = new FileStreamToQueuePipe(fileEntry.fullPath, shaToSend.sha, shaToSend.offset, this.shaBytes, 50, 40)
+                    await f2q.start()
 
-                log(`finished push ${shaToSend.file.name} speed = ${sentBytes} bytes in ${sendingTime} => ${((1000 * sentBytes) / (1024 * 1024 * sendingTime))} Mb/s`)
+                    sendingTime += Date.now() - start
+                    sentBytes += fileEntry.size
+
+                    clearInterval(interval)
+
+                    log(`finished push ${fileEntry.fullPath} speed = ${sentBytes} bytes in ${sendingTime} => ${((1000 * sentBytes) / (1024 * 1024 * sendingTime))} Mb/s`)
+                }
 
                 // little hooky way of sending a RPC through an arbitrary queue, this is because otherwise the validation could happen before the transfert
                 let validateCall = [RequestType.Call, 'validateShaBytes', shaToSend.sha] as RpcQuery
                 this.shaBytes.push(validateCall as ShaBytes)
                 this.rpcResolvers.set(validateCall as RpcCall, result => {
                     if (!result)
-                        log.err(`sha not validated by remote ${shaToSend.sha} ${shaToSend.file.name}`)
+                        log.err(`sha not validated by remote ${shaToSend.sha} ${JSON.stringify(shaEntry)}`)
                 })
             }
         })()
 
-        // little hooky way of sending a RPC through an arbitrary queue, this is because otherwise the validation could happen before the transfert
-        await new Promise(resolve => {
-            let validateCall = [RequestType.Call, 'commitTransaction', transactionId] as RpcQuery
-            this.shaBytes.push(validateCall as ShaBytes)
-            this.rpcResolvers.set(validateCall as RpcCall, _ => {
-                log(`transaction ${transactionId} committed, directory ${pushedDirectory} pushed.`)
-                resolve()
-            })
+        log(`finished shasToSend`)
+        this.shasToSend.push(null)
 
-            log(`finished shasToSend`)
-            this.shaBytes.push(null)
-        })
+        return directoryDescriptorSha
     }
 }
 
@@ -636,12 +641,15 @@ export async function push(sourceId, pushedDirectory, storeIp, storePort, estima
 
     let store = peering.remoteStore
 
-    let txId = await store.startOrContinueSnapshotTransaction(sourceId)
-    log(`starting transaction ${txId}`)
+    //let txId = await store.startOrContinueSnapshotTransaction(sourceId)
+    log(`starting push`)
 
-    await peering.startPushLoop(txId, pushedDirectory)
+    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory)
+    log(`directoryDescriptorSha: ${directoryDescriptorSha}`)
 
-    log(`finished push`)
+    let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
+
+    log(`finished push, commit ${commitSha}`)
 }
 
 export async function store(directory, port) {
@@ -684,7 +692,7 @@ export async function store(directory, port) {
                             id,
                             reply: [await store.hasOneShaBytes(request[1])]
                         }
-                    case RequestType.AddShaInTx:
+                    /*case RequestType.AddShaInTx:
                         try {
                             await store.pushFileDescriptors(request[1], [{
                                 name: request[3].name,
@@ -704,7 +712,7 @@ export async function store(directory, port) {
                                 id,
                                 reply: [null, err]
                             }
-                        }
+                        }*/
 
                     case RequestType.ShaBytes:
                         return {
