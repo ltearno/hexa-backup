@@ -5,6 +5,7 @@ import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport, Netw
 import * as Model from './Model'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as DirectoryBrowser from './DirectoryBrowser'
 
 const log = LoggerBuilder.buildLogger('Commands')
 
@@ -737,6 +738,37 @@ export async function store(directory, port) {
     //transferServer.listen(port + 1, store)
 
     console.log(`ready on port ${port} !`);
+}
+
+export async function browse(directory: string) {
+    let queue = new Queue.Queue<DirectoryBrowser.DirectoryEntry>('filesanddirs')
+    let shaCache = new ShaCache.ShaCache('.hb-cache')
+    let browser = new DirectoryBrowser.DirectoryBrowser(directory, Queue.waitPusher(queue, 10, 5), shaCache)
+
+    {
+        (async () => {
+            let popper = Queue.waitPopper(queue)
+
+            while (true) {
+                let item = await popper()
+                if (!item)
+                    break
+
+                let entry = await browser.closeEntry(item.sha)
+
+                console.log(`${JSON.stringify(item)}`)
+                if (entry.isDirectory) {
+                    console.log(`${entry.descriptorRaw}`)
+                }
+                else {
+                    console.log(`${(entry as any).fullPath}`)
+                }
+            }
+        })()
+    }
+
+    let wholeSha = await browser.start()
+    console.log(`finished, whole sha is ${wholeSha}`)
 }
 
 function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, prefix?: string) {

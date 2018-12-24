@@ -99,6 +99,20 @@ async function run() {
             }
         },
         {
+            id: "browse",
+            verbs: ["browse"],
+            options: {
+                directory: '.'
+            },
+            executor: async (options) => {
+                const directory = fsPath.resolve(options['directory'])
+
+                await Commands.browse(directory)
+
+                process.exit(0)
+            }
+        },
+        {
             id: "history",
             verbs: ["history"],
             options: {

@@ -15,6 +15,18 @@
             "args": [
                 "store"
             ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Browse",
+            "program": "${workspaceFolder}/target/cli/hexa-backup.js",
+            "outFiles": [
+                "${workspaceFolder}/target/**/*.js"
+            ],
+            "args": [
+                "browse"
+            ]
         }
     ]
 }
