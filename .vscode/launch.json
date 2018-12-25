@@ -4,6 +4,7 @@
     // Pour plus d'informations, visitez : https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "type": "node",
             "request": "launch",
@@ -26,6 +27,18 @@
             ],
             "args": [
                 "browse"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Sources",
+            "program": "${workspaceFolder}/target/cli/hexa-backup.js",
+            "outFiles": [
+                "${workspaceFolder}/target/**/*.js"
+            ],
+            "args": [
+                "sources"
             ]
         }
     ]

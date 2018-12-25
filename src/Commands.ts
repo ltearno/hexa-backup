@@ -16,13 +16,6 @@ enum RequestType {
     HasShaBytes = 3
 }
 
-interface FileSpec {
-    name: string
-    isDirectory: boolean
-    lastWrite: number
-    size: number
-}
-
 type HasShaBytes = [RequestType.HasShaBytes, string] // type, sha
 type ShaBytes = [RequestType.ShaBytes, string, number, Buffer] // type, sha, offset, buffer
 type RpcCall = [RequestType.Call, string, ...any[]]
@@ -100,7 +93,7 @@ class Peering {
 
     rpcCalls = new Queue.Queue<RpcCall>('rpc-calls')
 
-    fileInfos = new Queue.Queue<DirectoryBrowser.DirectoryEntry>('file-entries')
+    fileInfos = new Queue.Queue<Model.FileDescriptor>('file-entries')
     hasShaBytes = new Queue.Queue<HasShaBytes>('has-sha-bytes')
     closedHasShaBytes = false
     nbHasShaBytesInTransport = 0
@@ -251,7 +244,7 @@ class Peering {
             async i => {
                 return [
                     RequestType.HasShaBytes,
-                    i.sha
+                    i.contentSha
                 ] as HasShaBytes
             }
         ).then(_ => {
@@ -280,7 +273,7 @@ class Peering {
 
                 let shaEntry = directoryBrowser.closeEntry(shaToSend.sha)
                 if (shaEntry.size <= shaToSend.offset) {
-                    log(`skipping ${JSON.stringify(shaEntry)}`)
+                    log(`already on remote ${shaToSend.sha} ${JSON.stringify(shaEntry)}`)
                     continue
                 }
 
@@ -509,7 +502,7 @@ export async function history(sourceId, storeIp, storePort, verbose) {
             break;
         }
 
-        console.log(`${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc:${commit.directoryDescriptorSha}`);
+        console.log(`${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc ${commit.directoryDescriptorSha}`);
 
         if (directoryDescriptorShaToShow == null)
             directoryDescriptorShaToShow = commit.directoryDescriptorSha
@@ -521,7 +514,7 @@ export async function history(sourceId, storeIp, storePort, verbose) {
         console.log()
         console.log(`most recent commit's directory structure (${directoryDescriptorShaToShow}) :`)
         let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorShaToShow)
-        showDirectoryDescriptor(directoryDescriptor)
+        await showDirectoryDescriptor(directoryDescriptor, store)
     }
 }
 
@@ -544,7 +537,7 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
 
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 
-    showDirectoryDescriptor(directoryDescriptor, prefix)
+    await showDirectoryDescriptor(directoryDescriptor, store, prefix)
 }
 
 export async function extract(storeIp, storePort, directoryDescriptorSha, prefix: string, destinationDirectory: string) {
@@ -561,7 +554,7 @@ export async function extract(storeIp, storePort, directoryDescriptorSha, prefix
     console.log('getting directory descriptor...')
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 
-    showDirectoryDescriptor(directoryDescriptor, prefix)
+    await showDirectoryDescriptor(directoryDescriptor, store, prefix)
 
     destinationDirectory = path.resolve(destinationDirectory)
 
@@ -641,7 +634,6 @@ export async function push(sourceId, pushedDirectory, storeIp, storePort, estima
 
     let store = peering.remoteStore
 
-    //let txId = await store.startOrContinueSnapshotTransaction(sourceId)
     log(`starting push`)
 
     let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory)
@@ -692,27 +684,6 @@ export async function store(directory, port) {
                             id,
                             reply: [await store.hasOneShaBytes(request[1])]
                         }
-                    /*case RequestType.AddShaInTx:
-                        try {
-                            await store.pushFileDescriptors(request[1], [{
-                                name: request[3].name,
-                                isDirectory: request[3].isDirectory,
-                                lastWrite: request[3].lastWrite,
-                                size: request[3].size,
-                                contentSha: request[2]
-                            }])
-
-                            let knownBytes = await store.hasOneShaBytes(request[2])
-                            return {
-                                id,
-                                reply: [knownBytes]
-                            }
-                        } catch (err) {
-                            return {
-                                id,
-                                reply: [null, err]
-                            }
-                        }*/
 
                     case RequestType.ShaBytes:
                         return {
@@ -756,7 +727,7 @@ export async function store(directory, port) {
 }
 
 export async function browse(directory: string) {
-    let queue = new Queue.Queue<DirectoryBrowser.DirectoryEntry>('filesanddirs')
+    let queue = new Queue.Queue<Model.FileDescriptor>('filesanddirs')
     let shaCache = new ShaCache.ShaCache('.hb-cache')
     let browser = new DirectoryBrowser.DirectoryBrowser(directory, Queue.waitPusher(queue, 10, 5), shaCache)
 
@@ -769,7 +740,7 @@ export async function browse(directory: string) {
                 if (!item)
                     break
 
-                let entry = await browser.closeEntry(item.sha)
+                let entry = await browser.closeEntry(item.contentSha)
 
                 console.log(`${JSON.stringify(item)}`)
                 if (entry.isDirectory) {
@@ -786,7 +757,7 @@ export async function browse(directory: string) {
     console.log(`finished, whole sha is ${wholeSha}`)
 }
 
-function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, prefix?: string) {
+async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, store: IHexaBackupStore, prefix?: string) {
     let totalSize = 0;
     let nbFiles = 0;
     let nbDirectories = 0;
@@ -802,8 +773,15 @@ function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor,
 
     let emptySha = '                                                                '
 
-    directoryDescriptor.files.forEach((fd) => {
-        if (!prefix || fd.name.startsWith(prefix))
-            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            ' + (fd.isDirectory ? '' : fd.size)).slice(-12)}    ${fd.contentSha ? fd.contentSha : emptySha} ${fd.name} `);
-    });
+    for (let fd of directoryDescriptor.files) {
+        if (!prefix || fd.name.startsWith(prefix)) {
+            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${('            '
+                + (fd.isDirectory ? '' : fd.size)).slice(-12)}  ${fd.contentSha}  ${fd.contentSha ? fd.contentSha : emptySha} ${fd.name} `);
+
+            if (fd.isDirectory && fd.contentSha) {
+                let desc = await store.getDirectoryDescriptor(fd.contentSha)
+                await showDirectoryDescriptor(desc, store, prefix)
+            }
+        }
+    }
 }

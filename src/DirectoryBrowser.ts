@@ -1,21 +1,10 @@
 import * as fsPath from 'path'
 import * as fs from 'fs'
+import * as Model from './Model'
 import { LoggerBuilder, Queue, DirectoryLister, FsTools, HashTools, OrderedJson } from '@ltearno/hexa-js'
 import { ShaCache } from './ShaCache';
 
 const log = LoggerBuilder.buildLogger('directory-browser')
-
-export interface DirectoryEntry {
-    name: string
-    isDirectory: boolean
-    lastWrite: number
-    size: number
-    sha: string
-}
-
-interface DirectoryDescriptor {
-    files: DirectoryEntry[]
-}
 
 export interface OpenedFileEntry {
     isDirectory: false
@@ -34,7 +23,7 @@ export type OpenedEntry = OpenedDirectoryEntry | OpenedFileEntry
 export class DirectoryBrowser {
     private openedEntries = new Map<string, OpenedEntry>()
 
-    constructor(private rootPath: string, private pusher: Queue.Pusher<DirectoryEntry>, private shaCache: ShaCache) {
+    constructor(private rootPath: string, private pusher: Queue.Pusher<Model.FileDescriptor>, private shaCache: ShaCache) {
     }
 
     async start() {
@@ -55,7 +44,7 @@ export class DirectoryBrowser {
         return res
     }
 
-    async walkDir(path: string, ignoreExpressions: any[]): Promise<{ descriptor: DirectoryDescriptor; sha: string; size: number }> {
+    async walkDir(path: string, ignoreExpressions: any[]): Promise<{ descriptor: Model.DirectoryDescriptor; sha: string; size: number }> {
         try {
             let files = (await FsTools.readDir(path))
                 .sort()
@@ -85,7 +74,7 @@ export class DirectoryBrowser {
                 })
                 .filter(desc => desc != null)
 
-            let directoryDescriptor: DirectoryDescriptor = {
+            let directoryDescriptor: Model.DirectoryDescriptor = {
                 files: []
             }
 
@@ -98,7 +87,7 @@ export class DirectoryBrowser {
                                 name: fsPath.basename(desc.name),
                                 isDirectory: true,
                                 lastWrite: desc.lastWrite,
-                                sha: subDirectoryDescriptor.sha,
+                                contentSha: subDirectoryDescriptor.sha,
                                 size: subDirectoryDescriptor.size
                             })
                         }
@@ -110,7 +99,7 @@ export class DirectoryBrowser {
                             name: fsPath.basename(desc.name),
                             isDirectory: false,
                             lastWrite: desc.lastWrite,
-                            sha: fileSha,
+                            contentSha: fileSha,
                             size: desc.size
                         }
 
@@ -135,7 +124,7 @@ export class DirectoryBrowser {
                 name: '',
                 isDirectory: true,
                 lastWrite: stat.mtime.getTime(),
-                sha: directoryDescriptorSha,
+                contentSha: directoryDescriptorSha,
                 size: directoryDescriptorRaw.length
             })
 
