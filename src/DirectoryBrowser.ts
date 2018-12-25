@@ -46,14 +46,34 @@ export class DirectoryBrowser {
 
     async walkDir(path: string, ignoreExpressions: any[]): Promise<{ descriptor: Model.DirectoryDescriptor; sha: string; size: number }> {
         try {
+            let hbIgnorePath = fsPath.join(path, '.hbignore')
+            if (fs.existsSync(hbIgnorePath)) {
+                ignoreExpressions = ignoreExpressions.slice()
+                let lines = fs
+                    .readFileSync(hbIgnorePath, 'utf8')
+                    .split(/\r\n|\n\r|\n|\r/g)
+                    .filter(line => !line.startsWith('#') && line.trim().length)
+                lines.forEach(line => {
+                    try {
+                        let regexp = new RegExp(line, 'ig')
+                        log(`ignoring pattern ${line}`)
+                        ignoreExpressions.push(regexp)
+                    }
+                    catch (error) {
+                        log.err(`error in ${hbIgnorePath} at regexp ${line} : ${error}`)
+                    }
+                })
+            }
+
             let files = (await FsTools.readDir(path))
                 .sort()
                 .map(fileName => fsPath.join(path, fileName))
                 .filter(fileName => {
-                    let relative = fsPath.relative(path, fileName)
+                    let relative = fsPath.basename(fileName)
                     let ignores = ignoreExpressions.some(expression => expression.test(relative))
+                    log.dbg(`test ${relative} => ${ignores}`)
                     if (ignores)
-                        log.dbg(`ignored ${fileName}`)
+                        log.dbg(`ignored path ${fileName}`)
                     return !ignores
                 })
                 .map(fileName => {
@@ -81,7 +101,7 @@ export class DirectoryBrowser {
             for (let desc of files) {
                 try {
                     if (desc.isDirectory) {
-                        let subDirectoryDescriptor = await this.walkDir(desc.name, [])
+                        let subDirectoryDescriptor = await this.walkDir(desc.name, ignoreExpressions)
                         if (subDirectoryDescriptor) {
                             directoryDescriptor.files.push({
                                 name: fsPath.basename(desc.name),

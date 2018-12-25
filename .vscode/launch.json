@@ -40,6 +40,18 @@
             "args": [
                 "sources"
             ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Push",
+            "program": "${workspaceFolder}/target/cli/hexa-backup.js",
+            "outFiles": [
+                "${workspaceFolder}/target/**/*.js"
+            ],
+            "args": [
+                "push"
+            ]
         }
     ]
 }
