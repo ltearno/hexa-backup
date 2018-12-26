@@ -6,21 +6,16 @@ import * as Model from './Model'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as DirectoryBrowser from './DirectoryBrowser'
+import {
+    RequestType,
+    HasShaBytes,
+    RpcCall,
+    RpcQuery,
+    RpcReply,
+    ShaBytes
+} from './RPC'
 
 const log = LoggerBuilder.buildLogger('Commands')
-
-
-enum RequestType {
-    ShaBytes = 1,
-    Call = 2,
-    HasShaBytes = 3
-}
-
-type HasShaBytes = [RequestType.HasShaBytes, string] // type, sha
-type ShaBytes = [RequestType.ShaBytes, string, number, Buffer] // type, sha, offset, buffer
-type RpcCall = [RequestType.Call, string, ...any[]]
-type RpcQuery = ShaBytes | RpcCall | HasShaBytes
-type RpcReply = any[]
 
 function prettySize(size: number): string {
     if (size < 1024)
@@ -31,43 +26,6 @@ function prettySize(size: number): string {
         return (size / (1024 * 1024)).toFixed(2) + ' MB'
     return (size / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
 }
-
-async function multiInOneOutLoop(sourceQueues: { queue: Queue.Queue<RpcQuery>; listener: (q: RpcQuery) => void }[], rpcTxPusher: Queue.Pusher<RpcQuery>) {
-    let waitForQueue = async <T>(q: Queue.Queue<T>): Promise<void> => {
-        if (q.empty()) {
-            await new Promise(resolve => {
-                let l = q.addLevelListener(1, 1, () => {
-                    l.forget()
-                    resolve()
-                })
-            })
-        }
-    }
-
-    while (sourceQueues.length) {
-        if (sourceQueues.every(source => source.queue.empty()))
-            await Promise.race(sourceQueues.map(source => waitForQueue(source.queue)))
-
-        let rpcRequest = null
-        for (let i = 0; i < sourceQueues.length; i++) {
-            if (!sourceQueues[i].queue.empty()) {
-                rpcRequest = sourceQueues[i].queue.pop()
-                sourceQueues[i].listener && sourceQueues[i].listener(rpcRequest)
-                if (rpcRequest) {
-                    await rpcTxPusher(rpcRequest)
-                }
-                else {
-                    log(`finished rpc source ${sourceQueues[i].queue.name}`)
-                    sourceQueues.splice(i, 1)
-                }
-                break
-            }
-        }
-    }
-
-    log(`finished rpcPush`)
-}
-
 
 function connectToRemoteSocket(host: string, port: number): Promise<NetworkApi.WebSocket> {
     return new Promise((resolve, reject) => {
@@ -145,7 +103,7 @@ class Peering {
                 this.closedHasShaBytes = true
             }
 
-            multiInOneOutLoop(rpcQueues, rpcTxPusher).then(_ => rpcTxPusher(null))
+            Queue.manyToOneTransfert(rpcQueues, rpcTxPusher).then(_ => rpcTxPusher(null))
         }
 
         let popper = Queue.waitPopper(this.rpcTxOut)
@@ -286,10 +244,10 @@ class Peering {
                 }
 
                 if (shaEntry.isDirectory) {
-                    log(`sending directory...`)
+                    log.dbg(`sending directory...`)
                     let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
                     await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, Buffer.from(shaEntry.descriptorRaw, 'utf8')])
-                    log(`sent directory`)
+                    log.dbg(`sent directory`)
                 }
                 else {
                     let fileEntry = shaEntry as DirectoryBrowser.OpenedFileEntry
@@ -587,7 +545,7 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
             try {
                 if (!await FsTools.fileExists(destinationFilePath))
                     fs.mkdirSync(destinationFilePath)
-                    
+
                 if (fileDesc.contentSha) {
                     await extractDirectoryDescriptor(store, shaCache, fileDesc.contentSha, '', destinationFilePath)
                 }
