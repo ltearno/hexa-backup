@@ -625,14 +625,14 @@ export async function push(sourceId, pushedDirectory, storeIp, storePort, estima
     log(`finished push, commit ${commitSha}`)
 }
 
-export async function store(directory, port) {
+export async function store(directory: string, port: number) {
     console.log(`preparing store in ${directory}`);
     let store = new HexaBackupStore(directory);
 
     console.log('server intialisation')
 
     let app = ExpressTools.createExpressApp(port)
-    app.ws('/hexa-backup', async (ws, req) => {
+    app.ws('/hexa-backup', async (ws: NetworkApi.WebSocket, req: any) => {
         console.log(`serving new client ws`)
 
         let rpcTxIn = new Queue.Queue<RpcQuery>('rpc-tx-in')
