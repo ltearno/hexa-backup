@@ -160,12 +160,15 @@ class Peering {
         log(`finished rpcTxOut`)
     }
 
-    private callRpc(rpcCall: RpcCall): Promise<any> {
-        return new Promise((resolve, reject) => {
+    private async callRpc(rpcCall: RpcCall): Promise<any> {
+        await Queue.waitAndPush(this.rpcCalls, rpcCall, 10, 8)
+
+        let result = new Promise((resolve, reject) => {
             this.rpcResolvers.set(rpcCall, resolve)
             this.rpcRejecters.set(rpcCall, reject)
-            this.rpcCalls.push(rpcCall)
         })
+
+        return result
     }
 
     private createProxy<T>(): T {
