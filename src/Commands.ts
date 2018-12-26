@@ -69,8 +69,8 @@ class Peering {
     private rpcRxIn = new Queue.Queue<{ id: string; reply: RpcReply }>('rpc-rx-in')
     private rpcRxOut = new Queue.Queue<{ id: string; request: RpcQuery }>('rpc-rx-out')
 
-    private rpcResolvers = new Map<RpcCall, (value: any) => void>()
-    private rpcRejecters = new Map<RpcCall, (value: any) => void>()
+    private rpcResolvers = new Map<RpcQuery, (value: any) => void>()
+    private rpcRejecters = new Map<RpcQuery, (value: any) => void>()
 
     async start() {
         let transport = new Transport.Transport(
@@ -160,8 +160,8 @@ class Peering {
         log(`finished rpcTxOut`)
     }
 
-    private async callRpc(rpcCall: RpcCall): Promise<any> {
-        await Queue.waitAndPush(this.rpcCalls, rpcCall, 10, 8)
+    private async callRpcOn(rpcCall: RpcCall, queue: Queue.Queue<RpcQuery>): Promise<any> {
+        await Queue.waitAndPush(queue, rpcCall, 10, 8)
 
         let result = new Promise((resolve, reject) => {
             this.rpcResolvers.set(rpcCall, resolve)
@@ -180,7 +180,7 @@ class Peering {
                     args.unshift(propKey)
                     args.unshift(RequestType.Call)
 
-                    return me.callRpc(args as RpcCall)
+                    return me.callRpcOn(args as RpcCall, me.rpcCalls)
                 };
             }
         });
