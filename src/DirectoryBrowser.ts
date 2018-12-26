@@ -1,7 +1,7 @@
 import * as fsPath from 'path'
 import * as fs from 'fs'
 import * as Model from './Model'
-import { LoggerBuilder, Queue, DirectoryLister, FsTools, HashTools, OrderedJson } from '@ltearno/hexa-js'
+import { LoggerBuilder, Queue, FsTools, HashTools, OrderedJson } from '@ltearno/hexa-js'
 import { ShaCache } from './ShaCache';
 
 const log = LoggerBuilder.buildLogger('directory-browser')

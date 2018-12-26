@@ -1,7 +1,7 @@
 import { Readable } from 'stream'
 import * as ShaCache from './ShaCache'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
-import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport, NetworkApiNodeImpl, NetworkApi, DirectoryLister, StreamToQueue, Tools } from '@ltearno/hexa-js'
+import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
 import * as Model from './Model'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -438,7 +438,7 @@ export async function sources(storeIp, storePort, verbose) {
 }
 
 
-export async function history(sourceId, storeIp, storePort, verbose) {
+export async function history(sourceId: string, storeIp: string, storePort: number, verbose: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort)
@@ -492,10 +492,114 @@ export async function history(sourceId, storeIp, storePort, verbose) {
     }
 }
 
-export async function showCurrentTransaction(sourceId, storeIp, storePort, prefix) {
-}
+export async function launchTests(storeIp, storePort, verbose: boolean) {
+    log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-export async function showCommit(storeIp, storePort, commitSha) {
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    console.log(`tests`);
+    console.log()
+
+    let directoryDescriptor = await store.getDirectoryDescriptor('7038910303c08a031c35d611f829fe18bfac3042d3f4adcb6451a1b14443882e')
+    log(`DESC: ${JSON.stringify(directoryDescriptor).length}`)
+    log(`nb files ${directoryDescriptor.files.length}`)
+    //log(JSON.stringify(directoryDescriptor, null, 4))
+
+    interface DirectoryInfo {
+        files: Model.FileDescriptor[]
+        name: string
+        lastWrite: number
+        directories: DirectoryInfo[]
+    }
+
+    let rootDirectory: DirectoryInfo = {
+        name: '',
+        lastWrite: 0,
+        files: [],
+        directories: []
+    }
+
+    let getDirectory = (parts: string[]) => {
+        let cur = rootDirectory
+
+        for (let i = 0; i < parts.length; i++) {
+            let child = cur.directories.find(c => c.name == parts[i])
+            if (!child) {
+                child = {
+                    name: parts[i],
+                    lastWrite: 0,
+                    directories: [],
+                    files: []
+                }
+                cur.directories.push(child)
+            }
+
+            cur = child
+        }
+
+        return cur
+    }
+
+    let dirAndBase = (p: string): [string[], string] => {
+        let parts = p.split(/[\/\\]/)
+        let base = parts.pop()
+        return [parts, base]
+    }
+
+    directoryDescriptor.files.forEach(d => {
+
+        if (d.isDirectory) {
+            let directory = getDirectory(d.name.split(/[\/\\]/))
+            directory.lastWrite = d.lastWrite
+        }
+        else {
+            let [dir, base] = dirAndBase(d.name)
+
+            let directory = getDirectory(dir)
+
+            directory.files.push({
+                name: base,
+                contentSha: d.contentSha,
+                isDirectory: false,
+                lastWrite: d.lastWrite,
+                size: d.size
+            })
+        }
+    })
+
+    let hier2Flat = (d: DirectoryInfo): Model.DirectoryDescriptor => {
+        let out: Model.DirectoryDescriptor = {
+            files: []
+        }
+
+        d.directories.forEach(subDir => {
+            let subDirDescriptor = hier2Flat(subDir)
+            let subDirDescriptorRaw = OrderedJson.stringify(subDirDescriptor)
+
+            out.files.push({
+                name: subDir.name,
+                isDirectory: true,
+                lastWrite: subDir.lastWrite,
+                size: Buffer.from(subDirDescriptorRaw, 'utf8').length,
+                contentSha: HashTools.hashStringSync(subDirDescriptorRaw)
+            })
+        })
+
+        out.files = out.files.concat(d.files)
+
+        log(`${JSON.stringify(out)}`)
+
+        return out
+    }
+
+    console.log(`${JSON.stringify(rootDirectory, null, 4)}`)
+    hier2Flat(rootDirectory)
 }
 
 export async function lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix: string) {

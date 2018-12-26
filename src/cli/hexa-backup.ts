@@ -133,42 +133,6 @@ async function run() {
             }
         },
         {
-            id: "showCurrentTransaction",
-            verbs: ["show", "current", "?prefix"],
-            options: {
-                sourceId: defaultSourceId,
-                storeIp: "localhost",
-                storePort: 5005
-            },
-            executor: async (options) => {
-                const sourceId = options['sourceId']
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const prefix = options['prefix'] || null;
-
-                await Commands.showCurrentTransaction(sourceId, storeIp, storePort, prefix)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "showCommit",
-            verbs: ["show", "commit", "!commitSha"],
-            options: {
-                storeIp: "localhost",
-                storePort: 5005
-            },
-            executor: async (options) => {
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const commitSha = options['commitSha']
-
-                await Commands.showCommit(storeIp, storePort, commitSha)
-
-                process.exit(0)
-            }
-        },
-        {
             id: "lsDirectoryStructure",
             verbs: ["ls", "!directoryDescriptorSha", "?prefix"],
             options: {
@@ -182,6 +146,22 @@ async function run() {
                 const prefix = options['prefix'] || null;
 
                 await Commands.lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix)
+
+                process.exit(0)
+            }
+        },
+        {
+            id: "test",
+            verbs: ["test"],
+            options: {
+                storeIp: "localhost",
+                storePort: 5005
+            },
+            executor: async (options) => {
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                
+                await Commands.launchTests(storeIp, storePort, false)
 
                 process.exit(0)
             }
