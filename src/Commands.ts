@@ -281,13 +281,10 @@ class Peering {
                     log(`finished push ${fileEntry.fullPath} speed = ${sentBytes} bytes in ${sendingTime} => ${((1000 * sentBytes) / (1024 * 1024 * sendingTime))} Mb/s`)
                 }
 
-                // little hooky way of sending a RPC through an arbitrary queue, this is because otherwise the validation could happen before the transfert
-                let validateCall = [RequestType.Call, 'validateShaBytes', shaToSend.sha] as RpcQuery
-                this.shaBytes.push(validateCall as ShaBytes)
-                this.rpcResolvers.set(validateCall as RpcCall, result => {
-                    if (!result)
-                        log.err(`sha not validated by remote ${shaToSend.sha} ${JSON.stringify(shaEntry)}`)
-                })
+                // for validation not to happen before sha sending
+                let pushResult = await this.callRpcOn([RequestType.Call, 'validateShaBytes', shaToSend.sha], this.shaBytes)
+                if (!pushResult)
+                    log.err(`sha not validated by remote ${shaToSend.sha} ${JSON.stringify(shaEntry)}`)
             }
         })()
 
