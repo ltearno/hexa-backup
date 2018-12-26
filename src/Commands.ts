@@ -553,17 +553,28 @@ export async function launchTests(storeIp, storePort, verbose: boolean) {
     }
 
     directoryDescriptor.files.forEach(d => {
+        let [dir, base] = dirAndBase(d.name)
+        let baseDirectory = getDirectory(dir)
 
         if (d.isDirectory) {
-            let directory = getDirectory(d.name.split(/[\/\\]/))
-            directory.lastWrite = d.lastWrite
+            if (!d.contentSha || d.contentSha.trim() == '') {
+                let directory = getDirectory(d.name.split(/[\/\\]/))
+                directory.lastWrite = d.lastWrite
+            }
+            else {
+                // copy existing
+                baseDirectory.files.push({
+                    name: base,
+                    contentSha: d.contentSha,
+                    isDirectory: true,
+                    lastWrite: d.lastWrite,
+                    size: d.size
+                })
+            }
         }
         else {
-            let [dir, base] = dirAndBase(d.name)
-
-            let directory = getDirectory(dir)
-
-            directory.files.push({
+            // copy existing
+            baseDirectory.files.push({
                 name: base,
                 contentSha: d.contentSha,
                 isDirectory: false,
@@ -573,6 +584,8 @@ export async function launchTests(storeIp, storePort, verbose: boolean) {
         }
     })
 
+    let shasToSend = new Map<string, Buffer>()
+
     let hier2Flat = (d: DirectoryInfo): Model.DirectoryDescriptor => {
         let out: Model.DirectoryDescriptor = {
             files: []
@@ -580,26 +593,46 @@ export async function launchTests(storeIp, storePort, verbose: boolean) {
 
         d.directories.forEach(subDir => {
             let subDirDescriptor = hier2Flat(subDir)
-            let subDirDescriptorRaw = OrderedJson.stringify(subDirDescriptor)
+            let stringified = OrderedJson.stringify(subDirDescriptor)
+            let subDirDescriptorRaw = Buffer.from(stringified, 'utf8')
+            let subDirDescriptorSha = HashTools.hashStringSync(stringified)
+
+            shasToSend.set(subDirDescriptorSha, subDirDescriptorRaw)
 
             out.files.push({
                 name: subDir.name,
                 isDirectory: true,
                 lastWrite: subDir.lastWrite,
-                size: Buffer.from(subDirDescriptorRaw, 'utf8').length,
-                contentSha: HashTools.hashStringSync(subDirDescriptorRaw)
+                size: subDirDescriptorRaw.length,
+                contentSha: subDirDescriptorSha
             })
         })
 
         out.files = out.files.concat(d.files)
 
-        log(`${JSON.stringify(out)}`)
-
         return out
     }
 
     console.log(`${JSON.stringify(rootDirectory, null, 4)}`)
-    hier2Flat(rootDirectory)
+    let rootDescriptor = hier2Flat(rootDirectory)
+    log(`${JSON.stringify(rootDescriptor)}`)
+
+    for (let [sha, content] of shasToSend) {
+        let len = await store.hasOneShaBytes(sha)
+        if (len < content.length) {
+            log(`send directory ${sha}`)
+            await store.putShaBytes(sha, 0, content)
+            let ok = await store.validateShaBytes(sha)
+            if (!ok)
+                log.err(`sha not validated ${sha}`)
+        }
+        else {
+            log.dbg(`directory already on remote`)
+        }
+    }
+
+    //store.registerNewCommit()
+
 }
 
 export async function lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix: string) {
