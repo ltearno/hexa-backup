@@ -41,6 +41,10 @@ function connectToRemoteSocket(host: string, port: number): Promise<NetworkApi.W
         ws.on('error', err => {
             if (!opened)
                 reject(err)
+            else {
+                log.err(`websocket error: ${err}`)
+                ws.close()
+            }
         })
     })
 }
@@ -77,6 +81,10 @@ class Peering {
             this.ws
         )
         transport.start()
+
+        this.ws.on('close', err => {
+            this.rpcRxOut.push(null)
+        })
 
         await this.startRpcLoops()
     }
