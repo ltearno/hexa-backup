@@ -93,19 +93,22 @@ class Peering {
         {
             let rpcTxPusher = Queue.waitPusher(this.rpcTxIn, 20, 10)
 
-            let rpcQueues = [{ queue: this.rpcCalls, listener: null }]
+            let rpcQueues: any[] = [{ queue: this.rpcCalls, listener: null }]
             if (this.withPush) {
-                rpcQueues = (rpcQueues as any[]).concat([
+                rpcQueues = [
                     { queue: this.shaBytes, listener: q => null },
+                    { queue: this.rpcCalls, listener: null },
                     {
                         queue: this.hasShaBytes, listener: q => {
                             if (q)
                                 this.nbHasShaBytesInTransport++
-                            else
+                            else {
                                 this.closedHasShaBytes = true
+                                log(`hasShaBytes is now closed`)
+                            }
                         }
                     }
-                ])
+                ]
             }
             else {
                 this.closedHasShaBytes = true
@@ -126,15 +129,20 @@ class Peering {
             let { request, reply } = rpcItem
             switch (request[0]) {
                 case RequestType.HasShaBytes: {
+                    //log(`OPEN`)
+                    log.dbg(`rcv hasshabytes reply, ${this.nbHasShaBytesInTransport}, ${this.closedHasShaBytes}`)
+
                     let remoteLength = reply[0]
                     await shasToSendPusher({ sha: request[1], offset: remoteLength })
+                    //this.shasToSend.push({ sha: request[1], offset: remoteLength })
 
                     this.nbHasShaBytesInTransport--
-                    log.dbg(`rcv hasshabytes reply, ${this.nbHasShaBytesInTransport}, ${this.closedHasShaBytes}`)
                     if (!this.nbHasShaBytesInTransport && this.closedHasShaBytes) {
-                        log.dbg(`RECEIVED LAST hasshabytes REPLY, no more shas to send`)
+                        log(`received last HasShaBytes reply`)
                         await shasToSendPusher(null)
+                        //this.shasToSend.push(null)
                     }
+                    //log(`CLOSE`)
 
                     break
                 }
@@ -157,11 +165,12 @@ class Peering {
             }
         }
 
-        log(`finished rpcTxOut`)
+        log(`finished rpc replies queue`)
     }
 
     private async callRpcOn(rpcCall: RpcCall, queue: Queue.Queue<RpcQuery>): Promise<any> {
         await Queue.waitAndPush(queue, rpcCall, 10, 8)
+        //queue.push(rpcCall)
 
         let result = new Promise((resolve, reject) => {
             this.rpcResolvers.set(rpcCall, resolve)
@@ -255,10 +264,10 @@ class Peering {
                 }
 
                 if (shaEntry.isDirectory) {
-                    log.dbg(`sending directory...`)
+                    log(`sending directory...`)
                     let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
                     await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, Buffer.from(shaEntry.descriptorRaw, 'utf8')])
-                    log.dbg(`sent directory`)
+                    log(`sent directory`)
                 }
                 else {
                     let fileEntry = shaEntry as DirectoryBrowser.OpenedFileEntry
@@ -282,14 +291,17 @@ class Peering {
                 }
 
                 // for validation not to happen before sha sending
-                let pushResult = await this.callRpcOn([RequestType.Call, 'validateShaBytes', shaToSend.sha], this.shaBytes)
-                if (!pushResult)
-                    log.err(`sha not validated by remote ${shaToSend.sha} ${JSON.stringify(shaEntry)}`)
+                // TODO think better about interlocking.
+                // If we await on the promise, the response might be stuck in the rxout queue, not processed because waiting for shasToSend queue to empty
+                this.callRpcOn([RequestType.Call, 'validateShaBytes', shaToSend.sha], this.shaBytes).then(pushResult => {
+                    if (!pushResult)
+                        log.err(`sha not validated by remote ${shaToSend.sha} ${JSON.stringify(shaEntry)}`)
+                })
             }
         })()
 
         log(`finished shasToSend`)
-        this.shasToSend.push(null)
+        this.shaBytes.push(null)
 
         return directoryDescriptorSha
     }
@@ -831,9 +843,10 @@ export async function store(directory: string, port: number) {
 
                 switch (request[0]) {
                     case RequestType.HasShaBytes:
+                        let count = await store.hasOneShaBytes(request[1])
                         return {
                             id,
-                            reply: [await store.hasOneShaBytes(request[1])]
+                            reply: [count]
                         }
 
                     case RequestType.ShaBytes:

@@ -34,7 +34,6 @@ export class DirectoryBrowser {
         ]
 
         let d = await this.walkDir(this.rootPath, ignoreExpressions)
-        console.log(`finished walk dir ${JSON.stringify(d, null, 2)}`)
         return d.sha
     }
 

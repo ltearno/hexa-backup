@@ -51,7 +51,8 @@
             ],
             "args": [
                 "push"
-            ]
+            ],
+            "cwd": "/tmp/tutu/scripts"
         }
     ]
 }
