@@ -492,7 +492,7 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
     }
 }
 
-export async function launchTests(storeIp, storePort, verbose: boolean) {
+export async function normalize(sourceId: string, storeIp: string, storePort: number, verbose: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort)
@@ -503,13 +503,31 @@ export async function launchTests(storeIp, storePort, verbose: boolean) {
 
     let store = peering.remoteStore
 
-    console.log(`tests`);
-    console.log()
+    log(`normalize source ${sourceId}`)
 
-    let directoryDescriptor = await store.getDirectoryDescriptor('7038910303c08a031c35d611f829fe18bfac3042d3f4adcb6451a1b14443882e')
-    log(`DESC: ${JSON.stringify(directoryDescriptor).length}`)
-    log(`nb files ${directoryDescriptor.files.length}`)
-    //log(JSON.stringify(directoryDescriptor, null, 4))
+    let state = await store.getSourceState(sourceId)
+    if (!state) {
+        log.err(`cannot get remote source state`)
+        return
+    }
+
+    if (!state.currentCommitSha) {
+        log.err(`remote has no commit (${sourceId})`)
+        return
+    }
+
+    let currentCommit = await store.getCommit(state.currentCommitSha)
+    if (!currentCommit) {
+        log.err(`cannot get remote commit ${state.currentCommitSha}`)
+        return
+    }
+
+    let startSha = currentCommit.directoryDescriptorSha
+    //let startSha = 'a153a7102edb6f88deb85cf12c087339fd50756a36bc1a5942ddd3a67921bf3f'
+    ////'7038910303c08a031c35d611f829fe18bfac3042d3f4adcb6451a1b14443882e')
+    let directoryDescriptor = await store.getDirectoryDescriptor(startSha)
+    log(`actual descriptor: ${startSha} ${directoryDescriptor.files.length} files`)
+    //log(OrderedJson.stringify(directoryDescriptor))
 
     interface DirectoryInfo {
         files: Model.FileDescriptor[]
@@ -613,8 +631,15 @@ export async function launchTests(storeIp, storePort, verbose: boolean) {
         return out
     }
 
-    console.log(`${JSON.stringify(rootDirectory, null, 4)}`)
     let rootDescriptor = hier2Flat(rootDirectory)
+    let stringified = OrderedJson.stringify(rootDescriptor)
+    let rootDescriptorRaw = Buffer.from(stringified, 'utf8')
+    let rootDescriptorSha = HashTools.hashStringSync(stringified)
+    shasToSend.set(rootDescriptorSha, rootDescriptorRaw)
+    log(`   new descriptor: ${rootDescriptorSha} ${rootDescriptor.files.length} files`)
+    //log(OrderedJson.stringify(rootDescriptor))
+
+    console.log(`${JSON.stringify(rootDirectory, null, 4)}`)
     log(`${JSON.stringify(rootDescriptor)}`)
 
     for (let [sha, content] of shasToSend) {
@@ -631,8 +656,8 @@ export async function launchTests(storeIp, storePort, verbose: boolean) {
         }
     }
 
-    //store.registerNewCommit()
-
+    let result = await store.registerNewCommit(sourceId, rootDescriptorSha)
+    log(`finished normalization: ${result}`)
 }
 
 export async function lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix: string) {
@@ -899,7 +924,7 @@ async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescr
 
     for (let fd of directoryDescriptor.files) {
         if (!prefix || fd.name.startsWith(prefix)) {
-            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${`       ${fd.size}`.slice(-12)}  ${fd.contentSha.substr(0, 7)} ${fd.name} `)
+            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${`       ${fd.size}`.slice(-12)}  ${fd.contentSha?fd.contentSha.substr(0, 7):'xxxxxxx'} ${fd.name} `)
 
             if (fd.isDirectory && fd.contentSha) {
                 let desc = await store.getDirectoryDescriptor(fd.contentSha)

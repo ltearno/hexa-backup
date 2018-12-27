@@ -151,17 +151,19 @@ async function run() {
             }
         },
         {
-            id: "test",
-            verbs: ["test"],
+            id: "normalize",
+            verbs: ["normalize"],
             options: {
+                sourceId: defaultSourceId,
                 storeIp: "localhost",
                 storePort: 5005
             },
             executor: async (options) => {
+                const sourceId = options['sourceId']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 
-                await Commands.launchTests(storeIp, storePort, false)
+                await Commands.normalize(sourceId, storeIp, storePort, false)
 
                 process.exit(0)
             }
