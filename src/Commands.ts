@@ -270,7 +270,7 @@ class Peering {
                     let start = Date.now()
 
                     let interval = setInterval(() => {
-                        log(` ... transferring ${fileEntry.fullPath} (${prettySize(f2q.transferred)} so far, ${((1000 * f2q.transferred) / (1024 * 1024 * (Date.now() - start))).toFixed(2)} Mb/s)...`)
+                        log(` ... transferring ${fileEntry.fullPath} (${prettySize(f2q.transferred)}/${prettySize(fileEntry.size)} so far, ${((1000 * f2q.transferred) / (1024 * 1024 * (Date.now() - start))).toFixed(2)} Mb/s)...`)
                     }, 1000)
 
                     let f2q = new FileStreamToQueuePipe(fileEntry.fullPath, shaToSend.sha, shaToSend.offset, this.shaBytes, 50, 40)
@@ -644,8 +644,8 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
     log(`   new descriptor: ${rootDescriptorSha} ${rootDescriptor.files.length} files`)
     //log(OrderedJson.stringify(rootDescriptor))
 
-    console.log(`${JSON.stringify(rootDirectory, null, 4)}`)
-    log(`${JSON.stringify(rootDescriptor)}`)
+    //console.log(`${JSON.stringify(rootDirectory, null, 4)}`)
+    //log(`${JSON.stringify(rootDescriptor)}`)
 
     for (let [sha, content] of shasToSend) {
         let len = await store.hasOneShaBytes(sha)
