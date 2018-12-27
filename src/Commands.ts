@@ -924,7 +924,15 @@ async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescr
 
     for (let fd of directoryDescriptor.files) {
         if (!prefix || fd.name.startsWith(prefix)) {
-            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${new Date(fd.lastWrite).toDateString()} ${`       ${fd.size}`.slice(-12)}  ${fd.contentSha?fd.contentSha.substr(0, 7):'xxxxxxx'} ${fd.name} `)
+            let lastWrite = new Date(fd.lastWrite)
+            let options = {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${lastWrite.toLocaleString('fr', options)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : 'xxxxxxx'} ${fd.name} `)
 
             if (fd.isDirectory && fd.contentSha) {
                 let desc = await store.getDirectoryDescriptor(fd.contentSha)
