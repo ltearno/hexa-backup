@@ -17,6 +17,13 @@ import {
 
 const log = LoggerBuilder.buildLogger('Commands')
 
+interface TreeDirectoryInfo {
+    files: Model.FileDescriptor[]
+    name: string
+    lastWrite: number
+    directories: TreeDirectoryInfo[]
+}
+
 function prettySize(size: number): string {
     if (size < 1024)
         return size.toString()
@@ -497,48 +504,8 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
     }
 }
 
-export async function normalize(sourceId: string, storeIp: string, storePort: number, verbose: boolean) {
-    log(`connecting to remote store ${storeIp}:${storePort}...`)
-
-    let ws = await connectToRemoteSocket(storeIp, storePort)
-    log('connected')
-
-    let peering = new Peering(ws, false)
-    peering.start().then(_ => log(`finished peering`))
-
-    let store = peering.remoteStore
-
-    log(`normalize source ${sourceId}`)
-
-    let state = await store.getSourceState(sourceId)
-    if (!state) {
-        log.err(`cannot get remote source state`)
-        return
-    }
-
-    if (!state.currentCommitSha) {
-        log.err(`remote has no commit (${sourceId})`)
-        return
-    }
-
-    let currentCommit = await store.getCommit(state.currentCommitSha)
-    if (!currentCommit) {
-        log.err(`cannot get remote commit ${state.currentCommitSha}`)
-        return
-    }
-
-    let startSha = currentCommit.directoryDescriptorSha
-    let directoryDescriptor = await store.getDirectoryDescriptor(startSha)
-    log(`actual descriptor: ${startSha} ${directoryDescriptor.files.length} files`)
-
-    interface DirectoryInfo {
-        files: Model.FileDescriptor[]
-        name: string
-        lastWrite: number
-        directories: DirectoryInfo[]
-    }
-
-    let rootDirectory: DirectoryInfo = {
+async function loadTreeDirectoryInfoFromDirectoryDescriptor(store: IHexaBackupStore, directoryDescriptor: Model.DirectoryDescriptor): Promise<TreeDirectoryInfo> {
+    let rootDirectory: TreeDirectoryInfo = {
         name: '',
         lastWrite: 0,
         files: [],
@@ -604,9 +571,50 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
         }
     })
 
+    return rootDirectory
+}
+
+export async function normalize(sourceId: string, storeIp: string, storePort: number, verbose: boolean) {
+    log(`connecting to remote store ${storeIp}:${storePort}...`)
+
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    log(`normalize source ${sourceId}`)
+
+    let state = await store.getSourceState(sourceId)
+    if (!state) {
+        log.err(`cannot get remote source state`)
+        return
+    }
+
+    if (!state.currentCommitSha) {
+        log.err(`remote has no commit (${sourceId})`)
+        return
+    }
+
+    let currentCommit = await store.getCommit(state.currentCommitSha)
+    if (!currentCommit) {
+        log.err(`cannot get remote commit ${state.currentCommitSha}`)
+        return
+    }
+
+    let startSha = currentCommit.directoryDescriptorSha
+
+    let directoryDescriptor = await store.getDirectoryDescriptor(startSha)
+    log(`actual descriptor: ${startSha} ${directoryDescriptor.files.length} files`)
+
+    let rootDirectory = await loadTreeDirectoryInfoFromDirectoryDescriptor(store, directoryDescriptor)
+
     let shasToSend = new Map<string, Buffer>()
 
-    let hier2Flat = (d: DirectoryInfo): Model.DirectoryDescriptor => {
+    // browse the tree structure and register each new directory
+    let hier2Flat = (d: TreeDirectoryInfo): Model.DirectoryDescriptor => {
         let out: Model.DirectoryDescriptor = {
             files: []
         }
@@ -644,7 +652,7 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
     for (let [sha, content] of shasToSend) {
         i++
         let len = await store.hasOneShaBytes(sha)
-        if (len < content.length) {
+        if (len != content.length) {
             log(`send directory ${i}/${shasToSend.size} ${sha}`)
             await store.putShaBytes(sha, 0, content)
             let ok = await store.validateShaBytes(sha)
@@ -871,9 +879,6 @@ export async function store(directory: string, port: number) {
 
         console.log(`bye bye client ws !`)
     })
-
-    //let transferServer = new UploadTransferServer.UploadTransferServer()
-    //transferServer.listen(port + 1, store)
 
     console.log(`ready on port ${port} !`);
 }
