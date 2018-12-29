@@ -528,11 +528,8 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
     }
 
     let startSha = currentCommit.directoryDescriptorSha
-    //let startSha = 'a153a7102edb6f88deb85cf12c087339fd50756a36bc1a5942ddd3a67921bf3f'
-    ////'7038910303c08a031c35d611f829fe18bfac3042d3f4adcb6451a1b14443882e')
     let directoryDescriptor = await store.getDirectoryDescriptor(startSha)
     log(`actual descriptor: ${startSha} ${directoryDescriptor.files.length} files`)
-    //log(OrderedJson.stringify(directoryDescriptor))
 
     interface DirectoryInfo {
         files: Model.FileDescriptor[]
@@ -642,22 +639,20 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
     let rootDescriptorSha = HashTools.hashStringSync(stringified)
     shasToSend.set(rootDescriptorSha, rootDescriptorRaw)
     log(`   new descriptor: ${rootDescriptorSha} ${rootDescriptor.files.length} files`)
-    //log(OrderedJson.stringify(rootDescriptor))
 
-    //console.log(`${JSON.stringify(rootDirectory, null, 4)}`)
-    //log(`${JSON.stringify(rootDescriptor)}`)
-
+    let i = 0
     for (let [sha, content] of shasToSend) {
+        i++
         let len = await store.hasOneShaBytes(sha)
         if (len < content.length) {
-            log(`send directory ${sha}`)
+            log(`send directory ${i}/${shasToSend.size} ${sha}`)
             await store.putShaBytes(sha, 0, content)
             let ok = await store.validateShaBytes(sha)
             if (!ok)
                 log.err(`sha not validated ${sha}`)
         }
         else {
-            log.dbg(`directory already on remote`)
+            log(`directory already in store ${i}/${shasToSend.size} ${sha}`)
         }
     }
 
@@ -681,7 +676,7 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
     await showDirectoryDescriptor(directoryDescriptor, store, prefix)
 }
 
-export async function extract(storeIp, storePort, directoryDescriptorSha, prefix: string, destinationDirectory: string) {
+export async function extract(storeIp: string, storePort: number, directoryDescriptorSha: string, prefix: string, destinationDirectory: string) {
     log('connecting to remote store...')
 
     let shaCache = new ShaCache.ShaCache('.hb-cache')
