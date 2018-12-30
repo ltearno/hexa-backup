@@ -888,6 +888,7 @@ export async function store(directory: string, port: number) {
                             }
                         }
                         catch (error) {
+                            log.wrn(`error doing RPC call ${error} ${method}(${JSON.stringify(args)})`)
                             return {
                                 id,
                                 reply: [null, error]
