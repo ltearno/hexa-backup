@@ -255,7 +255,7 @@ export class ObjectRepository {
     }
 
     async autoComplete(shaStart: string): Promise<string> {
-        if (!shaStart || shaStart.length < 5)
+        if (!shaStart || shaStart.length < 2)
             return null
 
         let prefix = shaStart.substring(0, 2)
