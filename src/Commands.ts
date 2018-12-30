@@ -681,7 +681,7 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
     log(`finished normalization: ${result}`)
 }
 
-export async function lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix: string) {
+export async function lsDirectoryStructure(storeIp: string, storePort: number, directoryDescriptorSha: string, prefix: string) {
     log('connecting to remote store...')
 
     let ws = await connectToRemoteSocket(storeIp, storePort)
@@ -691,6 +691,12 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
     peering.start().then(_ => log(`finished peering`))
 
     let store = peering.remoteStore
+
+    if (directoryDescriptorSha.length != 64) {
+        log(`autocomplete ${directoryDescriptorSha}`)
+        directoryDescriptorSha = await store.autoCompleteSha(directoryDescriptorSha)
+        log(` => ${directoryDescriptorSha}`)
+    }
 
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 

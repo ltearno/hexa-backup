@@ -254,9 +254,29 @@ export class ObjectRepository {
         });
     }
 
+    async autoComplete(shaStart: string): Promise<string> {
+        if (!shaStart || shaStart.length < 5)
+            return null
+
+        let prefix = shaStart.substring(0, 2)
+        let directory = fsPath.join(this.rootPath, prefix)
+        if (!await FsTools.fileExists(directory))
+            return null
+
+        let files = (await FsTools.readDir(directory))
+            .map(name => name.substring(name.lastIndexOf('/') + 1))
+            .filter(name => !name.endsWith('.bak'))
+            .filter(name => name.startsWith(shaStart))
+
+        if (files && files.length == 1)
+            return files[0]
+
+        return null
+    }
+
     private contentFileName(sha: string) {
         let prefix = sha.substring(0, 2);
-        let directory = fsPath.join(this.rootPath, prefix);
+        let directory = fsPath.join(this.rootPath, prefix)
         if (!fs.existsSync(directory))
             fs.mkdirSync(directory);
         return fsPath.join(this.rootPath, prefix, `${sha}`);
