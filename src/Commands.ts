@@ -513,6 +513,7 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
         console.log()
         console.log(`most recent commit's directory structure (${directoryDescriptorShaToShow}) :`)
         let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorShaToShow)
+        await showDirectoryDescriptorSummary(directoryDescriptor)
         await showDirectoryDescriptor(directoryDescriptor, store)
     }
 }
@@ -694,7 +695,8 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
 
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 
-    await showDirectoryDescriptor(directoryDescriptor, store, prefix)
+    await showDirectoryDescriptorSummary(directoryDescriptor)
+    await showDirectoryDescriptor(directoryDescriptor, store)
 }
 
 export async function extract(storeIp: string, storePort: number, directoryDescriptorSha: string, prefix: string, destinationDirectory: string) {
@@ -720,7 +722,7 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
     console.log('getting directory descriptor...')
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
 
-    //await showDirectoryDescriptor(directoryDescriptor, store, prefix)
+    await showDirectoryDescriptorSummary(directoryDescriptor)
 
     for (let k in directoryDescriptor.files) {
         let fileDesc = directoryDescriptor.files[k]
@@ -927,30 +929,30 @@ export async function browse(directory: string) {
     console.log(`finished, whole sha is ${wholeSha}`)
 }
 
-async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, store: IHexaBackupStore, prefix?: string) {
+async function showDirectoryDescriptorSummary(directoryDescriptor: Model.DirectoryDescriptor) {
     let totalSize = 0;
     let nbFiles = 0;
     let nbDirectories = 0;
     directoryDescriptor.files.forEach((fd) => {
-        totalSize += fd.size;
+        totalSize += fd.size
         if (fd.isDirectory)
-            nbDirectories++;
+            nbDirectories++
         else
-            nbFiles++;
+            nbFiles++
     });
 
     console.log(`${totalSize} bytes in ${nbFiles} files, ${nbDirectories} dirs`)
+}
 
+async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, store: IHexaBackupStore, pad: string = '') {
     for (let fd of directoryDescriptor.files) {
-        if (!prefix || fd.name.startsWith(prefix)) {
-            let lastWrite = new Date(fd.lastWrite)
+        let lastWrite = new Date(fd.lastWrite)
 
-            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${displayDate(lastWrite)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : '   -   '} ${fd.name} `)
+        console.log(`${fd.isDirectory ? '<dir>' : '     '} ${displayDate(lastWrite)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : '   -   '}${pad} ${fd.name} `)
 
-            if (fd.isDirectory && fd.contentSha) {
-                let desc = await store.getDirectoryDescriptor(fd.contentSha)
-                await showDirectoryDescriptor(desc, store, prefix)
-            }
+        if (fd.isDirectory && fd.contentSha) {
+            let desc = await store.getDirectoryDescriptor(fd.contentSha)
+            await showDirectoryDescriptor(desc, store, pad + '  ')
         }
     }
 }
