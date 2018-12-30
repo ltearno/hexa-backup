@@ -36,7 +36,7 @@ interface TreeDirectoryInfo {
 
 function prettySize(size: number): string {
     if (size < 1024)
-        return size.toString()
+        return size.toString() + ' bytes'
     if (size < 1024 * 1024)
         return (size / 1024).toFixed(2) + ' kB'
     if (size < 1024 * 1024 * 1024)
@@ -513,7 +513,6 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
         console.log()
         console.log(`most recent commit's directory structure (${directoryDescriptorShaToShow}) :`)
         let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorShaToShow)
-        await showDirectoryDescriptorSummary(directoryDescriptor)
         await showDirectoryDescriptor(directoryDescriptor, store)
     }
 }
@@ -695,7 +694,6 @@ export async function lsDirectoryStructure(storeIp, storePort, directoryDescript
 
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
 
-    await showDirectoryDescriptorSummary(directoryDescriptor)
     await showDirectoryDescriptor(directoryDescriptor, store)
 }
 
@@ -941,18 +939,24 @@ async function showDirectoryDescriptorSummary(directoryDescriptor: Model.Directo
             nbFiles++
     });
 
-    console.log(`${totalSize} bytes in ${nbFiles} files, ${nbDirectories} dirs`)
+    console.log(`total ${prettySize(totalSize)} in ${nbFiles} files, ${nbDirectories} dirs`)
 }
 
-async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, store: IHexaBackupStore, pad: string = '') {
+async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, store: IHexaBackupStore, currentPath: string = '.') {
+    console.log(``)
+    console.log(`${currentPath}:`)
+    showDirectoryDescriptorSummary(directoryDescriptor)
+
     for (let fd of directoryDescriptor.files) {
         let lastWrite = new Date(fd.lastWrite)
 
-        console.log(`${fd.isDirectory ? '<dir>' : '     '} ${displayDate(lastWrite)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : '   -   '}${pad} ${fd.name} `)
+        console.log(`${displayDate(lastWrite)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : '   -   '}   ${fd.name}${fd.isDirectory ? '/' : ''}`)
+    }
 
+    for (let fd of directoryDescriptor.files) {
         if (fd.isDirectory && fd.contentSha) {
             let desc = await store.getDirectoryDescriptor(fd.contentSha)
-            await showDirectoryDescriptor(desc, store, pad + '  ')
+            await showDirectoryDescriptor(desc, store, path.join(currentPath, fd.name))
         }
     }
 }
