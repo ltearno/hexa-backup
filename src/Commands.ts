@@ -681,7 +681,7 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
     log(`finished normalization: ${result}`)
 }
 
-export async function lsDirectoryStructure(storeIp: string, storePort: number, directoryDescriptorSha: string, prefix: string) {
+export async function lsDirectoryStructure(storeIp: string, storePort: number, directoryDescriptorSha: string, recursive: boolean) {
     log('connecting to remote store...')
 
     let ws = await connectToRemoteSocket(storeIp, storePort)
@@ -698,9 +698,9 @@ export async function lsDirectoryStructure(storeIp: string, storePort: number, d
         log(` => ${directoryDescriptorSha}`)
     }
 
-    let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha);
+    let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
 
-    await showDirectoryDescriptor(directoryDescriptor, store)
+    await showDirectoryDescriptor(directoryDescriptor, store, directoryDescriptorSha.substr(0, 7), recursive)
 }
 
 export async function extract(storeIp: string, storePort: number, directoryDescriptorSha: string, prefix: string, destinationDirectory: string) {
@@ -948,7 +948,7 @@ async function showDirectoryDescriptorSummary(directoryDescriptor: Model.Directo
     console.log(`total ${prettySize(totalSize)} in ${nbFiles} files, ${nbDirectories} dirs`)
 }
 
-async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, store: IHexaBackupStore, currentPath: string = '.') {
+async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, store: IHexaBackupStore, currentPath: string = '.', recursive: boolean = false) {
     console.log(``)
     console.log(`${currentPath}:`)
     showDirectoryDescriptorSummary(directoryDescriptor)
@@ -959,10 +959,12 @@ async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescr
         console.log(`${displayDate(lastWrite)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : '   -   '}   ${fd.name}${fd.isDirectory ? '/' : ''}`)
     }
 
-    for (let fd of directoryDescriptor.files) {
-        if (fd.isDirectory && fd.contentSha) {
-            let desc = await store.getDirectoryDescriptor(fd.contentSha)
-            await showDirectoryDescriptor(desc, store, path.join(currentPath, fd.name))
+    if (recursive) {
+        for (let fd of directoryDescriptor.files) {
+            if (fd.isDirectory && fd.contentSha) {
+                let desc = await store.getDirectoryDescriptor(fd.contentSha)
+                await showDirectoryDescriptor(desc, store, path.join(currentPath, fd.name), recursive)
+            }
         }
     }
 }

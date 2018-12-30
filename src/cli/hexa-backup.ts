@@ -134,18 +134,19 @@ async function run() {
         },
         {
             id: "lsDirectoryStructure",
-            verbs: ["ls", "!directoryDescriptorSha", "?prefix"],
+            verbs: ["ls", "!directoryDescriptorSha"],
             options: {
                 storeIp: "localhost",
-                storePort: 5005
+                storePort: 5005,
+                recursive: false
             },
             executor: async (options) => {
                 const directoryDescriptorSha = options['directoryDescriptorSha']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
-                const prefix = options['prefix'] || null;
+                const recursive = options['recursive'] || false;
 
-                await Commands.lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, prefix)
+                await Commands.lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, recursive)
 
                 process.exit(0)
             }
