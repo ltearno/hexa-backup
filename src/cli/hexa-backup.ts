@@ -190,6 +190,25 @@ async function run() {
             }
         },
         {
+            id: "extractSha",
+            verbs: ["extractSha", "!sha", "?file"],
+            options: {
+                storeIp: "localhost",
+                storePort: 5005,
+                file: 'h.out'
+            },
+            executor: async (options) => {
+                const sha = options['sha']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const file = options['file']
+
+                await Commands.extractSha(storeIp, storePort, sha, file)
+
+                process.exit(0)
+            }
+        },
+        {
             id: "push",
             verbs: ["push"],
             options: {

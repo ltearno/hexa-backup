@@ -736,6 +736,117 @@ export async function extract(storeIp: string, storePort: number, directoryDescr
     await extractDirectoryDescriptor(store, shaCache, directoryDescriptorSha, prefix, destinationDirectory)
 }
 
+export async function extractSha(storeIp: string, storePort: number, sha: string, destinationFile: string) {
+    log('connecting to remote store...')
+
+    let shaCache = new ShaCache.ShaCache('.hb-cache')
+
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    if (sha.length != 64) {
+        let autocompleted = await store.autoCompleteSha(sha)
+        if (!autocompleted) {
+            log.err(`cannot find autocompletion for ${sha}`)
+            return
+        }
+        log(` sha autocompleted: ${sha} => ${autocompleted}`)
+        sha = autocompleted
+    }
+
+    destinationFile = path.resolve(destinationFile)
+    let size = await store.hasOneShaBytes(sha)
+
+    let fileDesc: Model.FileDescriptor = {
+        contentSha: sha,
+        isDirectory: false,
+        lastWrite: 0,
+        name: path.basename(destinationFile),
+        size: size
+    }
+    await extractShaInternal(store, shaCache, fileDesc, path.dirname(destinationFile))
+
+    console.log(`extracted ${sha} to ${destinationFile}, ${prettySize(size)}...`)
+}
+
+async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, fileDesc: Model.FileDescriptor, destinationDirectory: string) {
+    console.log(`fetching ${fileDesc.name} ${prettySize(fileDesc.size)}`)
+    let currentReadPosition = 0
+
+    let displayResume = false
+    let timer = setInterval(() => {
+        displayResume = true
+        console.log(` ${prettySize(currentReadPosition)}`)
+    }, 1000)
+
+    let destinationFilePath = path.join(destinationDirectory, fileDesc.name)
+
+    if (fileDesc.isDirectory) {
+        try {
+            if (!await FsTools.fileExists(destinationFilePath))
+                fs.mkdirSync(destinationFilePath)
+
+            if (fileDesc.contentSha) {
+                await extractDirectoryDescriptor(store, shaCache, fileDesc.contentSha, '', destinationFilePath)
+            }
+        } catch (error) {
+            log("error : " + error)
+        }
+    }
+    else {
+        let fileLength = await store.hasOneShaBytes(fileDesc.contentSha)
+
+        try {
+            let stat = await FsTools.lstat(destinationFilePath)
+            currentReadPosition = stat.size
+        }
+        catch (error) {
+        }
+
+        if (!(await FsTools.fileExists(destinationFilePath)) || fileDesc.contentSha != await shaCache.hashFile(destinationFilePath)) {
+            let fd = await FsTools.openFile(destinationFilePath, 'a')
+
+            const maxSize = 1024 * 100
+            let writePromise = null
+            while (currentReadPosition < fileLength) {
+                let size = fileLength - currentReadPosition
+                if (size > maxSize)
+                    size = maxSize
+
+                let buffer = await store.readShaBytes(fileDesc.contentSha, currentReadPosition, size)
+
+                if (writePromise)
+                    await writePromise
+                writePromise = FsTools.writeFileBuffer(fd, currentReadPosition, buffer)
+
+                currentReadPosition += size
+            }
+
+            await FsTools.closeFile(fd)
+        }
+        else {
+            log.dbg(`already extracted ${destinationFilePath}`)
+        }
+
+        let contentSha = await HashTools.hashFile(destinationFilePath)
+        if (contentSha != fileDesc.contentSha) {
+            log.err(`extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`)
+        }
+    }
+
+    if (displayResume)
+        console.log(`extracted ${fileDesc.name}`)
+    clearInterval(timer)
+
+    let lastWriteUnix = parseInt((fileDesc.lastWrite / 1000).toFixed(0))
+    fs.utimesSync(destinationFilePath, lastWriteUnix, lastWriteUnix)
+}
+
 async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, directoryDescriptorSha: string, prefix: string, destinationDirectory: string) {
     console.log('getting directory descriptor...')
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
@@ -748,76 +859,7 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
         if (prefix && !fileDesc.name.startsWith(prefix))
             continue
 
-        console.log(`fetching ${fileDesc.name} ${prettySize(fileDesc.size)}`)
-        let currentReadPosition = 0
-
-        let displayResume = false
-        let timer = setInterval(() => {
-            displayResume = true
-            console.log(` ${prettySize(currentReadPosition)}`)
-        }, 1000)
-
-        let destinationFilePath = path.join(destinationDirectory, fileDesc.name)
-
-        if (fileDesc.isDirectory) {
-            try {
-                if (!await FsTools.fileExists(destinationFilePath))
-                    fs.mkdirSync(destinationFilePath)
-
-                if (fileDesc.contentSha) {
-                    await extractDirectoryDescriptor(store, shaCache, fileDesc.contentSha, '', destinationFilePath)
-                }
-            } catch (error) {
-                log("error : " + error)
-            }
-        }
-        else {
-            let fileLength = await store.hasOneShaBytes(fileDesc.contentSha)
-
-            try {
-                let stat = await FsTools.lstat(destinationFilePath)
-                currentReadPosition = stat.size
-            }
-            catch (error) {
-            }
-
-            if (!(await FsTools.fileExists(destinationFilePath)) || fileDesc.contentSha != await shaCache.hashFile(destinationFilePath)) {
-                let fd = await FsTools.openFile(destinationFilePath, 'a')
-
-                const maxSize = 1024 * 100
-                let writePromise = null
-                while (currentReadPosition < fileLength) {
-                    let size = fileLength - currentReadPosition
-                    if (size > maxSize)
-                        size = maxSize
-
-                    let buffer = await store.readShaBytes(fileDesc.contentSha, currentReadPosition, size)
-
-                    if (writePromise)
-                        await writePromise
-                    writePromise = FsTools.writeFileBuffer(fd, currentReadPosition, buffer)
-
-                    currentReadPosition += size
-                }
-
-                await FsTools.closeFile(fd)
-            }
-            else {
-                log.dbg(`already extracted ${destinationFilePath}`)
-            }
-
-            let contentSha = await HashTools.hashFile(destinationFilePath)
-            if (contentSha != fileDesc.contentSha) {
-                log.err(`extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`)
-            }
-        }
-
-        if (displayResume)
-            console.log(`extracted ${fileDesc.name}`)
-        clearInterval(timer)
-
-        let lastWriteUnix = parseInt((fileDesc.lastWrite / 1000).toFixed(0))
-        fs.utimesSync(destinationFilePath, lastWriteUnix, lastWriteUnix)
+        await extractShaInternal(store, shaCache, fileDesc, destinationDirectory)
     }
 }
 
