@@ -40,8 +40,8 @@ function prettySize(size: number): string {
     if (size < 1024 * 1024)
         return (size / 1024).toFixed(2) + ' kB'
     if (size < 1024 * 1024 * 1024)
-        return (size / (1024 * 1024)).toFixed(2) + ' MB'
-    return (size / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+        return (size / (1024 * 1024)).toFixed(3) + ' MB'
+    return (size / (1024 * 1024 * 1024)).toFixed(3) + ' GB'
 }
 
 function connectToRemoteSocket(host: string, port: number): Promise<NetworkApi.WebSocket> {
@@ -693,9 +693,13 @@ export async function lsDirectoryStructure(storeIp: string, storePort: number, d
     let store = peering.remoteStore
 
     if (directoryDescriptorSha.length != 64) {
-        log(`autocomplete ${directoryDescriptorSha}`)
-        directoryDescriptorSha = await store.autoCompleteSha(directoryDescriptorSha)
-        log(` => ${directoryDescriptorSha}`)
+        let autocompleted = await store.autoCompleteSha(directoryDescriptorSha)
+        if (!autocompleted) {
+            log.err(`cannot find autocompletion for ${directoryDescriptorSha}`)
+            return
+        }
+        log(` sha autocompleted: ${directoryDescriptorSha} => ${autocompleted}`)
+        directoryDescriptorSha = autocompleted
     }
 
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
@@ -716,6 +720,16 @@ export async function extract(storeIp: string, storePort: number, directoryDescr
 
     let store = peering.remoteStore
 
+    if (directoryDescriptorSha.length != 64) {
+        let autocompleted = await store.autoCompleteSha(directoryDescriptorSha)
+        if (!autocompleted) {
+            log.err(`cannot find autocompletion for ${directoryDescriptorSha}`)
+            return
+        }
+        log(` sha autocompleted: ${directoryDescriptorSha} => ${autocompleted}`)
+        directoryDescriptorSha = autocompleted
+    }
+
     destinationDirectory = path.resolve(destinationDirectory)
 
     console.log(`extracting ${directoryDescriptorSha} to ${destinationDirectory}, prefix='${prefix}'...`)
@@ -734,7 +748,14 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
         if (prefix && !fileDesc.name.startsWith(prefix))
             continue
 
-        console.log(`fetching ${fileDesc.name}`)
+        console.log(`fetching ${fileDesc.name} ${prettySize(fileDesc.size)}`)
+        let currentReadPosition = 0
+
+        let displayResume = false
+        let timer = setInterval(() => {
+            displayResume = true
+            console.log(` ${prettySize(currentReadPosition)}`)
+        }, 1000)
 
         let destinationFilePath = path.join(destinationDirectory, fileDesc.name)
 
@@ -753,7 +774,6 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
         else {
             let fileLength = await store.hasOneShaBytes(fileDesc.contentSha)
 
-            let currentReadPosition = 0
             try {
                 let stat = await FsTools.lstat(destinationFilePath)
                 currentReadPosition = stat.size
@@ -761,13 +781,11 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
             catch (error) {
             }
 
-            if ((await FsTools.fileExists(destinationFilePath)) && fileDesc.contentSha == await shaCache.hashFile(destinationFilePath)) {
-                log(`already extracted ${destinationFilePath}`)
-            }
-            else {
+            if (!(await FsTools.fileExists(destinationFilePath)) || fileDesc.contentSha != await shaCache.hashFile(destinationFilePath)) {
                 let fd = await FsTools.openFile(destinationFilePath, 'a')
 
                 const maxSize = 1024 * 100
+                let writePromise = null
                 while (currentReadPosition < fileLength) {
                     let size = fileLength - currentReadPosition
                     if (size > maxSize)
@@ -775,21 +793,28 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
 
                     let buffer = await store.readShaBytes(fileDesc.contentSha, currentReadPosition, size)
 
-                    await FsTools.writeFileBuffer(fd, currentReadPosition, buffer)
+                    if (writePromise)
+                        await writePromise
+                    writePromise = FsTools.writeFileBuffer(fd, currentReadPosition, buffer)
 
                     currentReadPosition += size
                 }
 
                 await FsTools.closeFile(fd)
             }
+            else {
+                log.dbg(`already extracted ${destinationFilePath}`)
+            }
 
             let contentSha = await HashTools.hashFile(destinationFilePath)
             if (contentSha != fileDesc.contentSha) {
                 log.err(`extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`)
             }
-
-            //log(`extracted ${fileDesc.name}`)
         }
+
+        if (displayResume)
+            console.log(`extracted ${fileDesc.name}`)
+        clearInterval(timer)
 
         let lastWriteUnix = parseInt((fileDesc.lastWrite / 1000).toFixed(0))
         fs.utimesSync(destinationFilePath, lastWriteUnix, lastWriteUnix)
@@ -957,7 +982,7 @@ async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescr
     for (let fd of directoryDescriptor.files) {
         let lastWrite = new Date(fd.lastWrite)
 
-        console.log(`${displayDate(lastWrite)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : '   -   '}   ${fd.name}${fd.isDirectory ? '/' : ''}`)
+        console.log(`${displayDate(lastWrite)} ${fd.contentSha ? fd.contentSha.substr(0, 5) : '   -   '} ${prettySize(fd.size).padStart(12)}   ${fd.name}${fd.isDirectory ? '/' : ''}`)
     }
 
     if (recursive) {
