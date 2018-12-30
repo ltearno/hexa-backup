@@ -461,7 +461,7 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
 
     let store = peering.remoteStore
 
-    console.log(`history of ${sourceId} in store`);
+    console.log(`history of ${sourceId} in store`)
     console.log()
 
     let sourceState = await store.getSourceState(sourceId);
@@ -482,13 +482,16 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
         console.log('empty !')
 
     while (commitSha != null) {
-        let commit = await store.getCommit(commitSha);
+        let commit = await store.getCommit(commitSha)
         if (commit == null) {
-            console.log(`error : commit ${commitSha} not found !`);
-            break;
+            console.log(`error : commit ${commitSha} not found !`)
+            break
         }
 
-        console.log(`${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc ${commit.directoryDescriptorSha}`);
+        console.log(`${new Date(commit.commitDate).toDateString()}`)
+        console.log(` commit: ${commitSha}`)
+        console.log(` desc:   ${commit.directoryDescriptorSha}`)
+        console.log('')
 
         if (directoryDescriptorShaToShow == null)
             directoryDescriptorShaToShow = commit.directoryDescriptorSha
