@@ -17,6 +17,16 @@ import {
 
 const log = LoggerBuilder.buildLogger('Commands')
 
+const DATE_DISPLAY_OPTIONS = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+}
+
+const displayDate = (date: number | Date) => (typeof date === 'number' ? new Date(date) : date).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
+
 interface TreeDirectoryInfo {
     files: Model.FileDescriptor[]
     name: string
@@ -435,7 +445,7 @@ export async function sources(storeIp, storePort, verbose) {
                                 break
                             }
 
-                            console.log(`  ${new Date(commit.commitDate).toDateString()} commit ${commitSha} desc ${commit.directoryDescriptorSha}`)
+                            console.log(`  ${displayDate(commit.commitDate)} commit ${commitSha} desc ${commit.directoryDescriptorSha}`)
 
                             commitSha = commit.parentSha
                         }
@@ -488,7 +498,7 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
             break
         }
 
-        console.log(`${new Date(commit.commitDate).toDateString()}`)
+        console.log(`${displayDate(commit.commitDate)}`)
         console.log(` commit: ${commitSha}`)
         console.log(` desc:   ${commit.directoryDescriptorSha}`)
         console.log('')
@@ -934,14 +944,8 @@ async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescr
     for (let fd of directoryDescriptor.files) {
         if (!prefix || fd.name.startsWith(prefix)) {
             let lastWrite = new Date(fd.lastWrite)
-            let options = {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            };
-            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${lastWrite.toLocaleString('fr', options)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : 'xxxxxxx'} ${fd.name} `)
+
+            console.log(`${fd.isDirectory ? '<dir>' : '     '} ${displayDate(lastWrite)} ${fd.size.toFixed(0).padStart(12)}  ${fd.contentSha ? fd.contentSha.substr(0, 7) : '   -   '} ${fd.name} `)
 
             if (fd.isDirectory && fd.contentSha) {
                 let desc = await store.getDirectoryDescriptor(fd.contentSha)
