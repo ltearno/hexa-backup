@@ -124,10 +124,15 @@ export class HexaBackupStore implements IHexaBackupStore {
                 currentCommitSha: null
             };
 
-            this.sourceStateCache[sourceId] = sourceState;
+            this.sourceStateCache[sourceId] = sourceState
         }
         else {
-            this.sourceStateCache[sourceId] = sourceState;
+            if ("currentTransactionContent" in sourceState) {
+                delete sourceState["currentTransactionContent"]
+                await this.referenceRepository.put(clientStateReferenceName, sourceState)
+            }
+
+            this.sourceStateCache[sourceId] = sourceState
         }
 
         return sourceState;
