@@ -1024,7 +1024,7 @@ async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescr
     for (let fd of directoryDescriptor.files) {
         let lastWrite = new Date(fd.lastWrite)
 
-        console.log(`${displayDate(lastWrite)} ${fd.contentSha ? fd.contentSha.substr(0, 5) : '   -   '} ${prettySize(fd.size).padStart(12)}   ${fd.name}${fd.isDirectory ? '/' : ''}`)
+        console.log(`${displayDate(lastWrite)} ${fd.contentSha ? fd.contentSha.substr(0, 7) : '   -   '} ${prettySize(fd.size).padStart(12)}   ${fd.name}${fd.isDirectory ? '/' : ''}`)
     }
 
     if (recursive) {
