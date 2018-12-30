@@ -128,6 +128,7 @@ export class HexaBackupStore implements IHexaBackupStore {
         }
         else {
             if ("currentTransactionContent" in sourceState) {
+                log(`removing old "currentTransactionContent" field from source state`)
                 delete sourceState["currentTransactionContent"]
                 await this.referenceRepository.put(clientStateReferenceName, sourceState)
             }

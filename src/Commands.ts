@@ -419,7 +419,7 @@ export async function sources(storeIp, storePort, verbose) {
             let state = await store.getSourceState(sourceId)
             state.currentTransactionId && console.log(` current transaction : ${state.currentTransactionId}`)
             if (state.currentCommitSha) {
-                console.log(` current commit sha : ${state.currentCommitSha}`)
+                console.log(` current commit sha : ${state.currentCommitSha.substr(0, 7)}`)
                 let commitSha = state.currentCommitSha
 
                 let currentCommit = await store.getCommit(commitSha)
@@ -435,9 +435,9 @@ export async function sources(storeIp, storePort, verbose) {
                         let payload = JSON.stringify(currentDirectoryDescriptor)
 
                         console.log(` nb descriptor items : ${currentDirectoryDescriptor.files.length}`)
-                        console.log(` descriptor size : ${prettySize(payload.length)}`)
+                        console.log(` descriptor size     : ${prettySize(payload.length)}`)
 
-                        console.log(` commit history :`)
+                        console.log(` commit history      :`)
                         while (commitSha != null) {
                             let commit = await store.getCommit(commitSha)
                             if (commit == null) {
@@ -445,7 +445,7 @@ export async function sources(storeIp, storePort, verbose) {
                                 break
                             }
 
-                            console.log(`  ${displayDate(commit.commitDate)} commit ${commitSha} desc ${commit.directoryDescriptorSha}`)
+                            console.log(`  ${displayDate(commit.commitDate)} commit ${commitSha.substr(0, 7)} desc ${commit.directoryDescriptorSha.substr(0, 7)}`)
 
                             commitSha = commit.parentSha
                         }
