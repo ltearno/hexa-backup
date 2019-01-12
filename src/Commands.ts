@@ -621,8 +621,9 @@ export async function pushStore(directory: string, storeIp: string, storePort: n
     log('connected')
 
     log(`preparing read store in ${directory}`)
-    let localStore = new HexaBackupStore(directory)
-    let pushedDirectory = localStore.getObjectRepository().getRootPath()
+    //let localStore = new HexaBackupStore(directory)
+    //let pushedDirectory = localStore.getObjectRepository().getRootPath()
+    let pushedDirectory = path.join(directory, '.hb-object')
     log(` store objects directory: ${pushedDirectory}`)
 
     log(`start push objects`)
