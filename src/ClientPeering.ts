@@ -178,6 +178,7 @@ export class Peering {
 
         let f2q: FileStreamToQueuePipe = null
 
+        let lastStartSendTime = 0
         let lastShaEntry: DirectoryBrowser.OpenedEntry = null
         let lastShaToSend: ShaToSend = null
 
@@ -192,10 +193,11 @@ export class Peering {
                     res = res.concat([``, `sending directory`, ``])
                 }
                 else {
+                    let transferred = (f2q ? f2q.transferred : 0)
                     res = res.concat([
                         `sending:              ${lastShaToSend.sha.substr(0, 7)} ${lastShaEntry.fullPath}`,
                         `offset @ size:        ${Tools.prettySize(lastShaToSend.offset)} @ ${Tools.prettySize(lastShaEntry.size)}`,
-                        `progress:             ${f2q ? Tools.prettySize(f2q.transferred) : '-'} ${(100 * (lastShaToSend.offset + (f2q ? f2q.transferred : 0)) / lastShaEntry.size).toFixed(2)} %`
+                        `progress:             ${Tools.prettySize(transferred)} ${Tools.prettySpeed(transferred, Date.now() - lastStartSendTime)} ${(100 * (lastShaToSend.offset + transferred) / lastShaEntry.size).toFixed(2)} %`
                     ])
                 }
             }
@@ -277,6 +279,7 @@ export class Peering {
                 isSending = true
                 lastShaEntry = shaEntry
                 lastShaToSend = shaToSend
+                lastStartSendTime = Date.now()
 
                 if (shaEntry.type == 'directory') {
                     log.dbg(`sending directory...`)

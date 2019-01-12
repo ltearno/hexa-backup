@@ -21,5 +21,5 @@ export function prettySize(size: number): string {
 export function prettySpeed(size: number, time: number) {
     if (time <= 0)
         return '-'
-    return prettySize((1000 * size) / (time))
+    return `${prettySize((1000 * size) / (time))}/s`
 }
