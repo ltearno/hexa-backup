@@ -147,6 +147,30 @@ export async function sources(storeIp, storePort, verbose) {
     }
 }
 
+export async function stats(storeIp, storePort, verbose) {
+    log(`connecting to remote store ${storeIp}:${storePort}...`)
+
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    let peering = new ClientPeering.Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    console.log(`stats on store`)
+
+    let stats = await store.stats()
+
+    if (stats == null) {
+        console.log()
+        console.log(`stats not found !`)
+        return
+    }
+
+    log(JSON.stringify(stats, null, 4))
+}
+
 
 export async function history(sourceId: string, storeIp: string, storePort: number, verbose: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)

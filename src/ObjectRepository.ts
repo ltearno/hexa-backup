@@ -24,6 +24,16 @@ export class ObjectRepository {
             fs.mkdirSync(this.rootPath);
     }
 
+    async stats() {
+        let s = await this.countObjects()
+
+        return {
+            rootPath: this.rootPath,
+            objectCount: s.count,
+            objectSize: s.size
+        }
+    }
+
     async storePayload(payload: string): Promise<string> {
         let sha = await HashTools.hashString(payload)
 
@@ -284,5 +294,29 @@ export class ObjectRepository {
 
     private tempFileName() {
         return fsPath.join(this.rootPath, `temp_${Date.now()}`);
+    }
+
+    private async countObjects() {
+        let result = {
+            count: 0,
+            size: 0
+        }
+
+        let dirs = await FsTools.readDir(this.rootPath)
+        for (let dir of dirs) {
+            dir = fsPath.join(this.rootPath, dir)
+            let files = await FsTools.readDir(dir)
+            result.count += files.length
+            for (let file of files) {
+                try {
+                    result.size += (await FsTools.lstat(fsPath.join(dir, file))).size
+                }
+                catch (err) {
+                    log.err(`cannot read object file ${file}`)
+                }
+            }
+        }
+
+        return result
     }
 }

@@ -99,6 +99,24 @@ async function run() {
             }
         },
         {
+            id: "stats",
+            verbs: ["stats"],
+            options: {
+                storeIp: "localhost",
+                storePort: 5005,
+                verbose: false
+            },
+            executor: async (options) => {
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const verbose = options['verbose']
+
+                await Commands.stats(storeIp, storePort, verbose)
+
+                process.exit(0)
+            }
+        },
+        {
             id: "browse",
             verbs: ["browse"],
             options: {

@@ -32,6 +32,12 @@ export class ShaCache {
 
     private temporaryFiles: { [key: string]: { fd: number; offset: number; } } = {}
 
+    async stats() {
+        return {
+            tempFilesCacheSize: Object.getOwnPropertyNames(this.temporaryFiles).length
+        }
+    }
+
     /**
      * Returns the id of the temporary file
      */

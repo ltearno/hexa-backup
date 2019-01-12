@@ -20,6 +20,7 @@ export interface IHexaBackupStore {
     getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>
     validateShaBytes(sha: string): Promise<boolean>
     autoCompleteSha(shaStart: string): Promise<string>
+    stats(): Promise<any>
 }
 
 export class HexaBackupStore implements IHexaBackupStore {
@@ -149,6 +150,15 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     async autoCompleteSha(shaStart: string) {
         return this.objectRepository.autoComplete(shaStart)
+    }
+
+    async stats() {
+        return {
+            rootPath: this.rootPath,
+            objectRepository: await this.objectRepository.stats(),
+            shaCache: await this.shaCache.stats(),
+            referenceRepository: await this.referenceRepository.stats()
+        }
     }
 
     private async storeClientState(sourceId: string, sourceState: Model.SourceState, force: boolean) {

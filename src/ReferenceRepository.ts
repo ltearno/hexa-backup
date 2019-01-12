@@ -11,6 +11,12 @@ export class ReferenceRepository {
             fs.mkdirSync(this.rootPath);
     }
 
+    async stats() {
+        return {
+            nbRefs: (await this.list()).length
+        }
+    }
+
     async put(name: string, value: any) {
         return new Promise<void>(async (resolve, reject) => {
             let contentFileName = this.contentFileName(name);
