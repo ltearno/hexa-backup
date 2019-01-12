@@ -244,7 +244,7 @@ export class Peering {
                     let start = Date.now()
 
                     let interval = setInterval(() => {
-                        log(` ... transferring ${fileEntry.fullPath} (${Tools.prettySize(f2q.transferred)}/${Tools.prettySize(fileEntry.size)} so far, ${((1000 * f2q.transferred) / (1024 * 1024 * (Date.now() - start))).toFixed(2)} Mb/s)...`)
+                        log(` ... transferring ${fileEntry.fullPath} (${Tools.prettySize(f2q.transferred)}/${Tools.prettySize(fileEntry.size)} so far, ${Tools.prettySize((1000 * f2q.transferred) / ((Date.now() - start)))}/s)...`)
                     }, 1000)
 
                     let f2q = new FileStreamToQueuePipe(fileEntry.fullPath, shaToSend.sha, shaToSend.offset, this.shaBytes, 50, 40)
@@ -255,7 +255,7 @@ export class Peering {
 
                     clearInterval(interval)
 
-                    log(`finished push ${fileEntry.fullPath} speed = ${Tools.prettySize(sentBytes)} in ${sendingTime} => ${((1000 * sentBytes) / (1024 * 1024 * sendingTime)).toFixed(2)} Mb/s`)
+                    log(`finished push ${fileEntry.fullPath} speed = ${Tools.prettySize(sentBytes)} in ${sendingTime} => ${Tools.prettySize((1000 * sentBytes) / (sendingTime))}/s`)
                 }
 
                 // for validation not to happen before sha sending
