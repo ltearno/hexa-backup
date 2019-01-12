@@ -168,6 +168,26 @@ export class Peering {
     }
 
     async startPushLoop(pushedDirectory: string, pushDirectories: boolean) {
+        let sentBytes = 0
+        let sendingTime = 0
+        let isSending = false
+        let sentDirectories = 0
+        let sentFiles = 0
+
+        log.setStatus(() => {
+            return [
+                `files queue: ${this.fileInfos.size()}`,
+                `hasShaBytes queue: ${this.hasShaBytes.size()}`,
+                `shasToSend queue: ${this.shasToSend.size()}`,
+                `sending: ${isSending}`,
+                `sent bytes: ${Tools.prettySize(sentBytes)}`,
+                `sending time: ${(sendingTime / 1000).toFixed(3)} seconds`,
+                `sending speed: ${Tools.prettySize((1000 * sentBytes) / (sendingTime))}/s`,
+                `sent directories: ${sentDirectories}`,
+                `sent files: ${sentFiles}`
+            ]
+        })
+
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
         let directoryBrowser = new DirectoryBrowser.DirectoryBrowser(
             pushedDirectory,
@@ -203,9 +223,6 @@ export class Peering {
 
             let sentShas = new Set<string>()
 
-            let sentBytes = 0
-            let sendingTime = 0
-
             while (true) {
                 let shaToSend = await popper()
                 if (!shaToSend)
@@ -236,32 +253,37 @@ export class Peering {
                     continue
                 }
 
+                isSending = true
+
+
                 if (shaEntry.isDirectory) {
                     log.dbg(`sending directory...`)
                     let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
-                    await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, Buffer.from(shaEntry.descriptorRaw, 'utf8')])
+                    let buffer = Buffer.from(shaEntry.descriptorRaw, 'utf8')
+                    let start = Date.now()
+                    await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, buffer])
                     log.dbg(`sent directory`)
+                    sentDirectories++
+                    sendingTime += Date.now() - start
+                    sentBytes += buffer.length
                 }
                 else {
                     let fileEntry = shaEntry as DirectoryBrowser.OpenedFileEntry
 
                     log.dbg(`pushing ${shaToSend.sha.substr(0, 7)} ${fileEntry.fullPath} @ ${shaToSend.offset}/${fileEntry.size}`)
+                    
                     let start = Date.now()
-
-                    let interval = setInterval(() => {
-                        log(` ... transferring ${fileEntry.fullPath} (${Tools.prettySize(f2q.transferred)}/${Tools.prettySize(fileEntry.size)} so far, ${Tools.prettySize((1000 * f2q.transferred) / ((Date.now() - start)))}/s)...`)
-                    }, 1000)
-
                     let f2q = new FileStreamToQueuePipe(fileEntry.fullPath, shaToSend.sha, shaToSend.offset, this.shaBytes, 50, 40)
                     await f2q.start()
 
                     sendingTime += Date.now() - start
                     sentBytes += fileEntry.size
 
-                    clearInterval(interval)
-
                     log(`finished push ${fileEntry.fullPath} speed = ${Tools.prettySize(sentBytes)} in ${sendingTime} => ${Tools.prettySize((1000 * sentBytes) / (sendingTime))}/s`)
+                    sentFiles++
                 }
+
+                isSending = false
 
                 // for validation not to happen before sha sending
                 // TODO think better about interlocking.
