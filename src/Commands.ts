@@ -105,7 +105,6 @@ export async function sources(storeIp, storePort, verbose) {
 
         try {
             let state = await store.getSourceState(sourceId)
-            state.currentTransactionId && console.log(` current transaction : ${state.currentTransactionId}`)
             if (state.currentCommitSha) {
                 console.log(` current commit sha : ${state.currentCommitSha.substr(0, 7)}`)
                 let commitSha = state.currentCommitSha
@@ -191,11 +190,6 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
     if (sourceState == null) {
         console.log(`source state not found !`)
         return
-    }
-
-    if (sourceState.currentTransactionId) {
-        console.log()
-        console.log(`current transaction ${sourceState.currentTransactionId}`)
     }
 
     let directoryDescriptorShaToShow = null

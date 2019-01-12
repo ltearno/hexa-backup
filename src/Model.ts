@@ -11,7 +11,6 @@ export interface DirectoryDescriptor {
 }
 
 export interface SourceState {
-    currentTransactionId: string
     currentCommitSha: string
 }
 

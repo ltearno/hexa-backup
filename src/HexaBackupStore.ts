@@ -114,7 +114,6 @@ export class HexaBackupStore implements IHexaBackupStore {
             log(`source ${sourceId} commited content : ${directoryDescriptorSha} in commit ${commitSha}`)
         }
 
-        clientState.currentTransactionId = null
         await this.storeClientState(sourceId, clientState, true)
 
         return clientState.currentCommitSha
@@ -129,9 +128,8 @@ export class HexaBackupStore implements IHexaBackupStore {
 
         if (sourceState == null) {
             sourceState = {
-                currentTransactionId: null,
                 currentCommitSha: null
-            };
+            }
 
             this.sourceStateCache[sourceId] = sourceState
         }
