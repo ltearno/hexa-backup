@@ -151,7 +151,7 @@ export class Peering {
     private createProxy<T>(): T {
         let me = this
         return <T>new Proxy({}, {
-            get(propKey) {
+            get(_, propKey) {
                 return (...args) => {
                     args = args.slice()
                     args.unshift(propKey)
