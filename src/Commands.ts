@@ -603,7 +603,7 @@ export async function push(sourceId: string, pushedDirectory: string, storeIp: s
 
     log(`starting push`)
 
-    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory)
+    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, true)
     log(`directory descriptor  : ${directoryDescriptorSha}`)
 
     let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
@@ -633,7 +633,7 @@ export async function pushStore(directory: string, storeIp: string, storePort: n
 
     log(`starting push`)
 
-    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory)
+    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, false)
     log(`store objects pushed (directory descriptor  : ${directoryDescriptorSha})`)
 
     log(`TODO : push refs`)

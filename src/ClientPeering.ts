@@ -231,16 +231,16 @@ export class Peering {
                     continue
                 }
 
+                if (!pushDirectories && shaEntry.isDirectory) {
+                    log.dbg(`skipping sending directory`)
+                    continue
+                }
+
                 if (shaEntry.isDirectory) {
-                    if (pushDirectories) {
-                        log.dbg(`sending directory...`)
-                        let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
-                        await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, Buffer.from(shaEntry.descriptorRaw, 'utf8')])
-                        log.dbg(`sent directory`)
-                    }
-                    else {
-                        log.dbg(`skipping sending directory`)
-                    }
+                    log.dbg(`sending directory...`)
+                    let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
+                    await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, Buffer.from(shaEntry.descriptorRaw, 'utf8')])
+                    log.dbg(`sent directory`)
                 }
                 else {
                     let fileEntry = shaEntry as DirectoryBrowser.OpenedFileEntry
