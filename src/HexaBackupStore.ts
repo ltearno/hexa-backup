@@ -81,25 +81,23 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     async registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string> {
-        let clientState = await this.getSourceState(sourceId);
+        let clientState = await this.getSourceState(sourceId)
+        let saveCommit = true
 
         // check if state changed
-        let saveCommit = true;
         if (clientState.currentCommitSha != null) {
-            let currentCommit: Model.Commit = await this.objectRepository.readObject(clientState.currentCommitSha);
+            let currentCommit: Model.Commit = await this.objectRepository.readObject(clientState.currentCommitSha)
             if (currentCommit == null) {
                 log.err(`not found commit ${clientState.currentCommitSha}, create a new commit`)
 
                 clientState.currentCommitSha = null
-                saveCommit = true
             }
             else if (currentCommit.directoryDescriptorSha == directoryDescriptorSha) {
-                log(`commit makes no change, ignoring`)
+                log(`commit introduces no change, ignoring`)
                 saveCommit = false
             }
         }
 
-        // prepare and store the commit
         if (saveCommit) {
             let commit: Model.Commit = {
                 parentSha: clientState.currentCommitSha,

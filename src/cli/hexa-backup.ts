@@ -7,10 +7,6 @@ import * as Commands from '../Commands'
 const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)
 
-//process.on('unhandledRejection', (reason, p) => {
-//    log.err(`Unhandled Rejection at: Promise ${p} reason: ${reason}`)
-//});
-
 function parseArgs(args: string[], defaultParameters): { verbs: string[]; parameters: { [k: string]: any } } {
     let parameters = {}
 
@@ -358,8 +354,10 @@ class CommandManager {
                     else
                         console.log(`  -${k}`)
             }
-            console.log();
+            console.log()
         }
+        console.log()
+        console.log(`you can use "--debug" to activate debug traces`)
     }
 
     execute(processed) {
