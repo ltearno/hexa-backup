@@ -172,6 +172,7 @@ export class Peering {
         let sentBytes = 0
         let sendingTime = 0
         let isSending = false
+        let isValidating = false
         let sentDirectories = 0
         let sentFiles = 0
 
@@ -182,31 +183,27 @@ export class Peering {
 
         log.setStatus(() => {
             let res = [
-                `date:                 ${Date.now()}`,
-                `files queue:          ${this.fileInfos.size()}`,
-                `hasShaBytes queue:    ${this.hasShaBytes.size()} ${this.closedHasShaBytes ? '[CLOSED]' : ''}`,
-                `shasToSend queue:     ${this.shasToSend.size()}`,
-                `shaBytes queue:       ${this.shaBytes.size()}`,
-                `sending speed:        ${Tools.prettySpeed(sentBytes, sendingTime)}/s`,
-                `sent:                 ${sentDirectories} directories, ${sentFiles} files`,
-                `sending time:         ${(sendingTime / 1000).toFixed(3)} seconds`,
-                `sent bytes:           ${Tools.prettySize(sentBytes)}`
+                `queues:               files ${this.fileInfos.size()} / hasShaBytes ${this.hasShaBytes.size()} ${this.closedHasShaBytes ? '[CLOSED]' : ''} / shasToSend ${this.shasToSend.size()} / shaBytes ${this.shaBytes.size()}`,
+                `tx:                   ${Tools.prettySize(sentBytes)}, ${(sendingTime / 1000).toFixed(3)} seconds, ${Tools.prettySpeed(sentBytes, sendingTime)}/s, ${sentDirectories} directories, ${sentFiles} files`
             ]
 
             if (isSending) {
                 if (lastShaEntry.type == 'directory') {
-                    res.push(`sending directory`)
+                    res = res.concat([``, `sending directory`, ``])
                 }
                 else {
                     res = res.concat([
-                        `sending:              ${lastShaEntry.fullPath}`,
-                        `sha:                  ${lastShaToSend.sha}`,
-                        `size:                 ${Tools.prettySize(lastShaEntry.size)}`,
-                        `offset:               ${Tools.prettySize(lastShaToSend.offset)}`,
-                        `transferred current:  ${f2q ? Tools.prettySize(f2q.transferred) : '-'}`,
-                        `progress:             ${(100 * (lastShaToSend.offset + (f2q ? f2q.transferred : 0)) / lastShaEntry.size).toFixed(2)} %`
+                        `sending:              ${lastShaToSend.sha.substr(0, 7)} ${lastShaEntry.fullPath}`,
+                        `offset @ size:        ${Tools.prettySize(lastShaToSend.offset)} @ ${Tools.prettySize(lastShaEntry.size)}`,
+                        `progress:             ${f2q ? Tools.prettySize(f2q.transferred) : '-'} ${(100 * (lastShaToSend.offset + (f2q ? f2q.transferred : 0)) / lastShaEntry.size).toFixed(2)} %`
                     ])
                 }
+            }
+            else if (isValidating) {
+                res = res.concat([``, `(remote validating ${Tools.prettySize(lastShaEntry.size)})`, ``])
+            }
+            else {
+                res = res.concat([``, `(not sending shaBytes)`, ``])
             }
 
             return res
@@ -283,7 +280,7 @@ export class Peering {
 
                 if (shaEntry.type == 'directory') {
                     log.dbg(`sending directory...`)
-                    
+
                     let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
                     let buffer = Buffer.from(shaEntry.descriptorRaw, 'utf8')
                     let start = Date.now()
@@ -313,9 +310,11 @@ export class Peering {
                 // for validation not to happen before sha sending
                 // TODO think better about interlocking.
                 // If we await on the promise, the response might be stuck in the rxout queue, not processed because waiting for shasToSend queue to empty
+                isValidating = true
                 let pushResult = await this.callRpcOn([RequestType.Call, 'validateShaBytes', shaToSend.sha], this.shaBytes)
                 if (!pushResult)
                     log.err(`sha not validated by remote ${shaToSend.sha} ${JSON.stringify(shaEntry)}`)
+                isValidating = false
             }
         })()
 
