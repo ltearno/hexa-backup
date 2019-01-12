@@ -42,6 +42,14 @@ export class HexaBackupStore implements IHexaBackupStore {
         this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'))
     }
 
+    /** Public local interface */
+
+    getObjectRepository() {
+        return this.objectRepository
+    }
+
+    /** Public remote interface */
+
     async getRefs() {
         return this.referenceRepository.list()
     }

@@ -24,6 +24,10 @@ export class ObjectRepository {
             fs.mkdirSync(this.rootPath);
     }
 
+    getRootPath() {
+        return this.rootPath
+    }
+
     async stats() {
         let s = await this.countObjects()
 

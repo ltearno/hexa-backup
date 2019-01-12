@@ -611,11 +611,39 @@ export async function push(sourceId: string, pushedDirectory: string, storeIp: s
     log(`finished push, commit : ${commitSha}`)
 }
 
-export async function store(directory: string, port: number) {
-    console.log(`preparing store in ${directory}`);
-    let store = new HexaBackupStore(directory);
+export async function pushStore(directory: string, storeIp: string, storePort: number, estimateSize: boolean) {
+    log(`push options :`)
+    log(`  server: ${storeIp}:${storePort}`)
+    log(`  estimateSize: ${estimateSize}`)
 
-    console.log('server intialisation')
+    log('connecting to remote store...')
+    let ws = await connectToRemoteSocket(storeIp, storePort)
+    log('connected')
+
+    log(`preparing read store in ${directory}`)
+    let localStore = new HexaBackupStore(directory)
+    let pushedDirectory = localStore.getObjectRepository().getRootPath()
+    log(` store objects directory: ${pushedDirectory}`)
+
+    log(`start push objects`)
+    let peering = new ClientPeering.Peering(ws, true)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    log(`starting push`)
+
+    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory)
+    log(`store objects pushed (directory descriptor  : ${directoryDescriptorSha})`)
+
+    log(`TODO : push refs`)
+}
+
+export async function store(directory: string, port: number) {
+    console.log(`preparing store in ${directory}`)
+    let store = new HexaBackupStore(directory)
+
+    console.log('server initialisation')
 
     let app = ExpressTools.createExpressApp(port)
     app.ws('/hexa-backup', async (ws: NetworkApi.WebSocket, req: any) => {

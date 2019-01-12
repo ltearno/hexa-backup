@@ -181,7 +181,7 @@ async function run() {
                 const sourceId = options['sourceId']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
-                
+
                 await Commands.normalize(sourceId, storeIp, storePort, false)
 
                 process.exit(0)
@@ -244,6 +244,26 @@ async function run() {
                 const estimateSize = options['estimateSize']
 
                 await Commands.push(sourceId, pushedDirectory, storeIp, storePort, estimateSize)
+
+                process.exit(0)
+            }
+        },
+        {
+            id: "pushStore",
+            verbs: ["pushStore"],
+            options: {
+                storeIp: "localhost",
+                storePort: 5005,
+                estimateSize: false,
+                storeDirectory: '.'
+            },
+            executor: async (options) => {
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const estimateSize = options['estimateSize']
+                const directory = fsPath.resolve(options['storeDirectory'])
+
+                await Commands.pushStore(directory, storeIp, storePort, estimateSize)
 
                 process.exit(0)
             }

@@ -167,7 +167,7 @@ export class Peering {
         hashedBytes: 0
     }
 
-    async startPushLoop(pushedDirectory: string) {
+    async startPushLoop(pushedDirectory: string, pushDirectories: boolean) {
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
         let directoryBrowser = new DirectoryBrowser.DirectoryBrowser(
             pushedDirectory,
@@ -232,10 +232,15 @@ export class Peering {
                 }
 
                 if (shaEntry.isDirectory) {
-                    log.dbg(`sending directory...`)
-                    let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
-                    await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, Buffer.from(shaEntry.descriptorRaw, 'utf8')])
-                    log.dbg(`sent directory`)
+                    if (pushDirectories) {
+                        log.dbg(`sending directory...`)
+                        let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
+                        await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, Buffer.from(shaEntry.descriptorRaw, 'utf8')])
+                        log.dbg(`sent directory`)
+                    }
+                    else {
+                        log.dbg(`skipping sending directory`)
+                    }
                 }
                 else {
                     let fileEntry = shaEntry as DirectoryBrowser.OpenedFileEntry
