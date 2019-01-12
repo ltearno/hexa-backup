@@ -7,13 +7,13 @@ import { ShaCache } from './ShaCache';
 const log = LoggerBuilder.buildLogger('directory-browser')
 
 export interface OpenedFileEntry {
-    isDirectory: false
+    type: 'file'
     fullPath: string
     size: number
 }
 
 export interface OpenedDirectoryEntry {
-    isDirectory: true
+    type: 'directory'
     descriptorRaw: string
     size: number
 }
@@ -124,7 +124,7 @@ export class DirectoryBrowser {
 
                         directoryDescriptor.files.push(entry)
 
-                        this.openedEntries.set(fileSha, { isDirectory: false, fullPath, size: desc.size })
+                        this.openedEntries.set(fileSha, { type: 'file', fullPath, size: desc.size })
                         await this.pusher(entry)
                     }
                 }
@@ -136,7 +136,7 @@ export class DirectoryBrowser {
             let directoryDescriptorRaw = OrderedJson.stringify(directoryDescriptor)
             let directoryDescriptorSha = await HashTools.hashString(directoryDescriptorRaw)
 
-            this.openedEntries.set(directoryDescriptorSha, { isDirectory: true, descriptorRaw: directoryDescriptorRaw, size: Buffer.from(directoryDescriptorRaw, 'utf8').length })
+            this.openedEntries.set(directoryDescriptorSha, { type: 'directory', descriptorRaw: directoryDescriptorRaw, size: Buffer.from(directoryDescriptorRaw, 'utf8').length })
 
             let stat = fs.statSync(path)
             await this.pusher({

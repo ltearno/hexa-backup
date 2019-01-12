@@ -732,11 +732,11 @@ export async function browse(directory: string) {
                 let entry = await browser.closeEntry(item.contentSha)
 
                 console.log(`${JSON.stringify(item)}`)
-                if (entry.isDirectory) {
+                if (entry.type == 'directory') {
                     console.log(`${entry.descriptorRaw}`)
                 }
                 else {
-                    console.log(`${(entry as any).fullPath}`)
+                    console.log(`${entry.fullPath}`)
                 }
             }
         })()

@@ -17,3 +17,9 @@ export function prettySize(size: number): string {
         return (size / (1024 * 1024)).toFixed(3) + ' MB'
     return (size / (1024 * 1024 * 1024)).toFixed(3) + ' GB'
 }
+
+export function prettySpeed(size: number, time: number) {
+    if (time <= 0)
+        return '-'
+    return prettySize((1000 * size) / (time))
+}

@@ -24,6 +24,11 @@ const log = LoggerBuilder.buildLogger('ClientPeering')
  * But this splits Commands.ts into two files, which is more practical...
  */
 
+interface ShaToSend {
+    sha: string
+    offset: number
+}
+
 export class Peering {
     constructor(private ws: NetworkApi.WebSocket, private withPush: boolean) { }
 
@@ -33,7 +38,7 @@ export class Peering {
     hasShaBytes = new Queue.Queue<HasShaBytes>('has-sha-bytes')
     closedHasShaBytes = false
     nbHasShaBytesInTransport = 0
-    shasToSend = new Queue.Queue<{ sha: string; offset: number }>('shas-to-send')
+    shasToSend = new Queue.Queue<ShaToSend>('shas-to-send')
     shaBytes = new Queue.Queue<ShaBytes>('sha-bytes')
 
     remoteStore = this.createProxy<IHexaBackupStore>()
@@ -163,10 +168,6 @@ export class Peering {
         });
     }
 
-    status = {
-        hashedBytes: 0
-    }
-
     async startPushLoop(pushedDirectory: string, pushDirectories: boolean) {
         let sentBytes = 0
         let sendingTime = 0
@@ -174,18 +175,41 @@ export class Peering {
         let sentDirectories = 0
         let sentFiles = 0
 
+        let f2q: FileStreamToQueuePipe = null
+
+        let lastShaEntry: DirectoryBrowser.OpenedEntry = null
+        let lastShaToSend: ShaToSend = null
+
         log.setStatus(() => {
-            return [
-                `files queue: ${this.fileInfos.size()}`,
-                `hasShaBytes queue: ${this.hasShaBytes.size()}`,
-                `shasToSend queue: ${this.shasToSend.size()}`,
-                `sending: ${isSending}`,
-                `sent bytes: ${Tools.prettySize(sentBytes)}`,
-                `sending time: ${(sendingTime / 1000).toFixed(3)} seconds`,
-                `sending speed: ${Tools.prettySize((1000 * sentBytes) / (sendingTime))}/s`,
-                `sent directories: ${sentDirectories}`,
-                `sent files: ${sentFiles}`
+            let res = [
+                `date:                 ${Date.now()}`,
+                `files queue:          ${this.fileInfos.size()}`,
+                `hasShaBytes queue:    ${this.hasShaBytes.size()} ${this.closedHasShaBytes ? '[CLOSED]' : ''}`,
+                `shasToSend queue:     ${this.shasToSend.size()}`,
+                `shaBytes queue:       ${this.shaBytes.size()}`,
+                `sending speed:        ${Tools.prettySpeed(sentBytes, sendingTime)}/s`,
+                `sent:                 ${sentDirectories} directories, ${sentFiles} files`,
+                `sending time:         ${(sendingTime / 1000).toFixed(3)} seconds`,
+                `sent bytes:           ${Tools.prettySize(sentBytes)}`
             ]
+
+            if (isSending) {
+                if (lastShaEntry.type == 'directory') {
+                    res.push(`sending directory`)
+                }
+                else {
+                    res = res.concat([
+                        `sending:              ${lastShaEntry.fullPath}`,
+                        `sha:                  ${lastShaToSend.sha}`,
+                        `size:                 ${Tools.prettySize(lastShaEntry.size)}`,
+                        `offset:               ${Tools.prettySize(lastShaToSend.offset)}`,
+                        `transferred current:  ${f2q ? Tools.prettySize(f2q.transferred) : '-'}`,
+                        `progress:             ${(100 * (lastShaToSend.offset + (f2q ? f2q.transferred : 0)) / lastShaEntry.size).toFixed(2)} %`
+                    ])
+                }
+            }
+
+            return res
         })
 
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
@@ -248,39 +272,40 @@ export class Peering {
                     continue
                 }
 
-                if (!pushDirectories && shaEntry.isDirectory) {
+                if (!pushDirectories && shaEntry.type == 'directory') {
                     log.dbg(`skipping sending directory`)
                     continue
                 }
 
                 isSending = true
+                lastShaEntry = shaEntry
+                lastShaToSend = shaToSend
 
-
-                if (shaEntry.isDirectory) {
+                if (shaEntry.type == 'directory') {
                     log.dbg(`sending directory...`)
+                    
                     let shaBytesPusher = Queue.waitPusher(this.shaBytes, 50, 40)
                     let buffer = Buffer.from(shaEntry.descriptorRaw, 'utf8')
                     let start = Date.now()
                     await shaBytesPusher([RequestType.ShaBytes, shaToSend.sha, 0, buffer])
-                    log.dbg(`sent directory`)
                     sentDirectories++
                     sendingTime += Date.now() - start
                     sentBytes += buffer.length
+
+                    log.dbg(`sent directory`)
                 }
                 else {
-                    let fileEntry = shaEntry as DirectoryBrowser.OpenedFileEntry
+                    log.dbg(`pushing ${shaToSend.sha.substr(0, 7)} ${shaEntry.fullPath} @ ${shaToSend.offset}/${shaEntry.size}`)
 
-                    log.dbg(`pushing ${shaToSend.sha.substr(0, 7)} ${fileEntry.fullPath} @ ${shaToSend.offset}/${fileEntry.size}`)
-                    
                     let start = Date.now()
-                    let f2q = new FileStreamToQueuePipe(fileEntry.fullPath, shaToSend.sha, shaToSend.offset, this.shaBytes, 50, 40)
+                    f2q = new FileStreamToQueuePipe(shaEntry.fullPath, shaToSend.sha, shaToSend.offset, this.shaBytes, 50, 40)
                     await f2q.start()
 
                     sendingTime += Date.now() - start
-                    sentBytes += fileEntry.size
-
-                    log(`finished push ${fileEntry.fullPath} speed = ${Tools.prettySize(sentBytes)} in ${sendingTime} => ${Tools.prettySize((1000 * sentBytes) / (sendingTime))}/s`)
+                    sentBytes += shaEntry.size
                     sentFiles++
+
+                    log.dbg(`finished push ${shaEntry.fullPath} speed = ${Tools.prettySize(sentBytes)} in ${sendingTime} => ${Tools.prettySize((1000 * sentBytes) / (sendingTime))}/s`)
                 }
 
                 isSending = false
