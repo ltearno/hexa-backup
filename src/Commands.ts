@@ -1,3 +1,4 @@
+import * as express from 'express'
 import * as ShaCache from './ShaCache'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
 import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
@@ -642,7 +643,35 @@ export async function store(directory: string, port: number) {
 
     console.log('server initialisation')
 
-    let app = ExpressTools.createExpressApp(port)
+    let app = ExpressTools.createExpressApp(port);
+
+    (app as any).get('/refs', async (req, res) => {
+        let refs = await store.getRefs()
+        res.send(JSON.stringify(refs))
+    });
+
+    (app as any).get('/refs/:id', async (req, res) => {
+        let id = req.params.id
+
+        let result = await store.getSourceState(id)
+
+        res.send(JSON.stringify(result))
+    });
+
+    (app as any).get('/sha/:sha/content', async (req, res) => {
+        let sha = req.params.sha
+
+        if (req.query.type)
+            res.set('Content-Type', req.query.type)
+
+        try {
+            res.send(await store.readShaBytes(sha, 0, -1))
+        }
+        catch (err) {
+            res.send(`{"error":"missing sha ${sha}!"}`)
+        }
+    });
+
     app.ws('/hexa-backup', async (ws: NetworkApi.WebSocket, req: any) => {
         console.log(`serving new client ws`)
 

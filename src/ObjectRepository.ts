@@ -211,9 +211,21 @@ export class ObjectRepository {
                 return
             }
 
+            let contentFileName = this.contentFileName(sha)
+
+            if (length <= 0) {
+                if (!fs.existsSync(contentFileName)) {
+                    reject(`content file does not exist`)
+                    return
+                }
+
+                let stat = fs.lstatSync(contentFileName)
+                log.dbg(`read length is now ${stat.size}`)
+                length = stat.size
+            }
+
             log.dbg(`read bytes for ${sha} @${offset}, size=${length}`)
 
-            let contentFileName = this.contentFileName(sha)
             fs.open(contentFileName, 'r', (err, fd) => {
                 if (err) {
                     log.err(`readShaBytes: opening ${contentFileName}, err='${err}'`)
