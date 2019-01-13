@@ -183,8 +183,12 @@ export class Peering {
         let lastShaToSend: ShaToSend = null
 
         log.setStatus(() => {
+            let shaStats = shaCache.stats()
+
             let res = [
                 `queues:               files ${this.fileInfos.size()} / hasShaBytes ${this.hasShaBytes.size()} ${this.closedHasShaBytes ? '[CLOSED]' : ''} / shasToSend ${this.shasToSend.size()} / shaBytes ${this.shaBytes.size()}`,
+                `browsing:             ${directoryBrowser.stats.nbDirectoriesBrowsed} dirs, ${directoryBrowser.stats.nbFilesBrowsed} files, ${Tools.prettySize(directoryBrowser.stats.bytesBrowsed)} browsed, ${Tools.prettySize(directoryBrowser.stats.bytesHashed)} hashed, ${Tools.prettyTime(directoryBrowser.stats.timeHashing)} hashing`,
+                `hashing:              ${Tools.prettySize(shaStats.totalHashedBytes)} hashed, ${Tools.prettyTime(shaStats.totalTimeHashing)}, ${Tools.prettySpeed(shaStats.totalHashedBytes, shaStats.totalTimeHashing)}, ${Tools.prettySize(shaStats.totalBytesCacheHit)} cache hit`,
                 `tx:                   ${Tools.prettySize(sentBytes)}, ${(sendingTime / 1000).toFixed(3)} seconds, ${Tools.prettySpeed(sentBytes, sendingTime)}/s, ${sentDirectories} directories, ${sentFiles} files`
             ]
 

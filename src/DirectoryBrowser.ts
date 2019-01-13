@@ -26,6 +26,14 @@ export class DirectoryBrowser {
     constructor(private rootPath: string, private pusher: Queue.Pusher<Model.FileDescriptor>, private shaCache: ShaCache) {
     }
 
+    stats = {
+        nbFilesBrowsed: 0,
+        nbDirectoriesBrowsed: 0,
+        bytesBrowsed: 0,
+        bytesHashed: 0,
+        timeHashing: 0
+    }
+
     async start() {
         let ignoreExpressions: RegExp[] = [
             /^\.hb-cache$|^.*\\\.hb-cache$/gi,
@@ -79,12 +87,20 @@ export class DirectoryBrowser {
                     try {
                         let stat = fs.statSync(fileName)
 
-                        return {
+                        let element = {
                             name: fileName,
                             isDirectory: stat.isDirectory(),
                             lastWrite: stat.mtime.getTime(),
                             size: stat.isDirectory() ? 0 : stat.size
                         }
+
+                        this.stats.bytesBrowsed += element.size
+                        if (element.isDirectory)
+                            this.stats.nbDirectoriesBrowsed++
+                        else
+                            this.stats.nbFilesBrowsed++
+
+                        return element
                     }
                     catch (error) {
                         log(`cannot stat ${fileName}`)
@@ -112,6 +128,8 @@ export class DirectoryBrowser {
                         }
                     }
                     else {
+                        let startTime = Date.now()
+
                         const fullPath = desc.name
                         let fileSha = await this.shaCache.hashFile(fullPath)
                         let entry = {
@@ -121,6 +139,9 @@ export class DirectoryBrowser {
                             contentSha: fileSha,
                             size: desc.size
                         }
+
+                        this.stats.timeHashing += Date.now() - startTime
+                        this.stats.bytesHashed += desc.size
 
                         directoryDescriptor.files.push(entry)
 

@@ -17,6 +17,10 @@ export class ShaCache {
     private cacheDirectory: string
     private db: any
 
+    private totalBytesCacheHit: number = 0
+    private totalHashedBytes: number = 0
+    private totalTimeHashing: number = 0
+
     constructor(cacheDirectory: string) {
         this.cacheDirectory = fsPath.resolve(cacheDirectory)
         if (!fs.existsSync(this.cacheDirectory))
@@ -32,9 +36,12 @@ export class ShaCache {
 
     private temporaryFiles: { [key: string]: { fd: number; offset: number; } } = {}
 
-    async stats() {
+    stats() {
         return {
-            tempFilesCacheSize: Object.getOwnPropertyNames(this.temporaryFiles).length
+            tempFilesCacheSize: Object.getOwnPropertyNames(this.temporaryFiles).length,
+            totalHashedBytes: this.totalHashedBytes,
+            totalTimeHashing: this.totalTimeHashing,
+            totalBytesCacheHit: this.totalBytesCacheHit
         }
     }
 
@@ -102,14 +109,21 @@ export class ShaCache {
         let stat = await FsTools.stat(fullFileName)
 
         let cacheInfo = await this.getDb(fullFileName)
-        if (cacheInfo && cacheInfo.lastWrite == stat.mtime.getTime() && cacheInfo.size == stat.size)
+        if (cacheInfo && cacheInfo.lastWrite == stat.mtime.getTime() && cacheInfo.size == stat.size) {
+            this.totalBytesCacheHit += cacheInfo.size
             return cacheInfo.contentSha
+        }
+
+        let startTime = Date.now()
 
         cacheInfo = {
             lastWrite: stat.mtime.getTime(),
             size: stat.size,
             contentSha: await HashTools.hashFile(fullFileName)
         }
+
+        this.totalTimeHashing += Date.now() - startTime
+        this.totalHashedBytes += stat.size
 
         await this.putDb(fullFileName, cacheInfo)
 
