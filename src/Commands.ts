@@ -606,6 +606,8 @@ export async function push(sourceId: string, pushedDirectory: string, storeIp: s
 }
 
 export async function pushStore(directory: string, storeIp: string, storePort: number, estimateSize: boolean) {
+    // TODO : ignore .bak files and shabytes currently received
+    
     log(`push options :`)
     log(`  server: ${storeIp}:${storePort}`)
     log(`  estimateSize: ${estimateSize}`)
