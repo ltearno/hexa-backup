@@ -241,6 +241,8 @@ export class Peering {
             Queue.waitPopper(this.fileInfos),
             Queue.waitPusher(this.hasShaBytes, 20, 15),
             async i => {
+                if (this.shasToSend.size() > 50)
+                    await Queue.waitLevel(this.shasToSend, 20, -1)
                 return [
                     RequestType.HasShaBytes,
                     i.contentSha
