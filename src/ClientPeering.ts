@@ -171,6 +171,7 @@ export class Peering {
     async startPushLoop(pushedDirectory: string, pushDirectories: boolean) {
         let sentBytes = 0
         let sendingTime = 0
+        let isBrowsing = false
         let isSending = false
         let isValidating = false
         let sentDirectories = 0
@@ -187,29 +188,32 @@ export class Peering {
 
             let res = [
                 `queues:               files ${this.fileInfos.size()} / hasShaBytes ${this.hasShaBytes.size()} ${this.closedHasShaBytes ? '[CLOSED]' : ''} / shasToSend ${this.shasToSend.size()} / shaBytes ${this.shaBytes.size()}`,
-                `browsing:             ${directoryBrowser.stats.nbDirectoriesBrowsed} dirs, ${directoryBrowser.stats.nbFilesBrowsed} files, ${Tools.prettySize(directoryBrowser.stats.bytesBrowsed)} browsed, ${Tools.prettySize(directoryBrowser.stats.bytesHashed)} hashed, ${Tools.prettyTime(directoryBrowser.stats.timeHashing)} hashing`,
+                `browsing:             ${directoryBrowser.stats.nbDirectoriesBrowsed} dirs, ${directoryBrowser.stats.nbFilesBrowsed} files, ${Tools.prettySize(directoryBrowser.stats.bytesBrowsed)} browsed, ${Tools.prettySize(directoryBrowser.stats.bytesHashed)} hashed, ${Tools.prettyTime(directoryBrowser.stats.timeHashing)} hashing ${isBrowsing ? '' : ' [FINISHED]'}`,
                 `hashing:              ${Tools.prettySize(shaStats.totalHashedBytes)} hashed, ${Tools.prettyTime(shaStats.totalTimeHashing)}, ${Tools.prettySpeed(shaStats.totalHashedBytes, shaStats.totalTimeHashing)}, ${Tools.prettySize(shaStats.totalBytesCacheHit)} cache hit`,
                 `tx:                   ${Tools.prettySize(sentBytes)}, ${(sendingTime / 1000).toFixed(3)} seconds, ${Tools.prettySpeed(sentBytes, sendingTime)}/s, ${sentDirectories} directories, ${sentFiles} files`
             ]
 
             if (isSending) {
                 if (lastShaEntry.type == 'directory') {
-                    res = res.concat([``, `sending directory`, ``])
+                    res = res.concat([``, `                      sending directory`, ``])
                 }
                 else {
                     let transferred = (f2q ? f2q.transferred : 0)
+                    let txTime = Date.now() - lastStartSendTime
+                    let leftBytes = (lastShaEntry.size - (lastShaToSend.offset + transferred))
+                    let eta = transferred > 0 ? (txTime * leftBytes) / transferred : 0
                     res = res.concat([
-                        `sending:              ${lastShaToSend.sha.substr(0, 7)} ${lastShaEntry.fullPath}`,
-                        `offset @ size:        ${Tools.prettySize(lastShaToSend.offset)} @ ${Tools.prettySize(lastShaEntry.size)}`,
-                        `progress:             ${Tools.prettySize(transferred)} ${Tools.prettySpeed(transferred, Date.now() - lastStartSendTime)} ${(100 * (lastShaToSend.offset + transferred) / lastShaEntry.size).toFixed(2)} %`
+                        ` sending:             ${lastShaToSend.sha.substr(0, 7)} ${lastShaEntry.fullPath}`,
+                        ` offset @ size:       ${Tools.prettySize(lastShaToSend.offset)} @ ${Tools.prettySize(lastShaEntry.size)}`,
+                        ` progress:            ${Tools.prettySize(transferred)} ${Tools.prettySpeed(transferred, txTime)} ${(100 * (lastShaToSend.offset + transferred) / lastShaEntry.size).toFixed(2)} % (${Tools.prettySize(leftBytes)} left, ETA ${Tools.prettyTime(eta)})`
                     ])
                 }
             }
             else if (isValidating) {
-                res = res.concat([``, `(remote validating ${Tools.prettySize(lastShaEntry.size)})`, ``])
+                res = res.concat([``, `                      (remote validating ${Tools.prettySize(lastShaEntry.size)})`, ``])
             }
             else {
-                res = res.concat([``, `(not sending shaBytes)`, ``])
+                res = res.concat([``, `                      (not sending shaBytes)`, ``])
             }
 
             return res
@@ -225,9 +229,11 @@ export class Peering {
 
         {
             (async () => {
+                isBrowsing = true
                 directoryDescriptorSha = await directoryBrowser.start()
                 this.fileInfos.push(null)
-                log(`done directory browsing`)
+                log.dbg(`done directory browsing`)
+                isBrowsing = false
             })()
         }
 
@@ -241,7 +247,7 @@ export class Peering {
                 ] as HasShaBytes
             }
         ).then(_ => {
-            log(`finished directory parsing`)
+            log.dbg(`finished directory parsing`)
             this.hasShaBytes.push(null)
         })
 

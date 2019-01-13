@@ -103,7 +103,7 @@ export class DirectoryBrowser {
                         return element
                     }
                     catch (error) {
-                        log(`cannot stat ${fileName}`)
+                        log.wrn(`cannot stat ${fileName}`)
                         return null
                     }
                 })

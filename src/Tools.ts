@@ -26,7 +26,7 @@ export function prettySpeed(size: number, time: number) {
 
 export function prettyTime(time: number): string {
     if (time < 1000)
-        return time.toString() + ' ms'
+        return Math.floor(time) + ' ms'
     if (time < 1000 * 60)
         return (time / 1000).toFixed(2) + ' s'
     if (time < 1000 * 60 * 60)
