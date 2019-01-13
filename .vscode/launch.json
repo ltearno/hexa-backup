@@ -27,7 +27,8 @@
             ],
             "args": [
                 "browse"
-            ]
+            ],
+            "cwd": "/home/arnaud/repos/stacklabs/stack-labs.gitlab.io"
         },
         {
             "type": "node",

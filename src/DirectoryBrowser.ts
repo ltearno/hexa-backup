@@ -85,7 +85,19 @@ export class DirectoryBrowser {
                 })
                 .map(fileName => {
                     try {
-                        let stat = fs.statSync(fileName)
+                        let stat = fs.lstatSync(fileName)
+                        if (!stat)
+                            return null
+
+                        if (stat.isSymbolicLink()) {
+                            log.wrn(`skipped symbolic link ${fileName}`)
+                            return null
+                        }
+
+                        if (!(stat.isDirectory() || stat.isFile())) {
+                            log.wrn(`skipped ${fileName}`)
+                            return null
+                        }
 
                         let element = {
                             name: fileName,

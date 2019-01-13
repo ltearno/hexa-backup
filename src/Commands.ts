@@ -607,7 +607,7 @@ export async function push(sourceId: string, pushedDirectory: string, storeIp: s
 
 export async function pushStore(directory: string, storeIp: string, storePort: number, estimateSize: boolean) {
     // TODO : ignore .bak files and shabytes currently received
-    
+
     log(`push options :`)
     log(`  server: ${storeIp}:${storePort}`)
     log(`  estimateSize: ${estimateSize}`)
@@ -717,10 +717,12 @@ export async function store(directory: string, port: number) {
     console.log(`ready on port ${port} !`);
 }
 
-export async function browse(directory: string) {
+export async function browse(directory: string, verbose: boolean) {
     let queue = new Queue.Queue<Model.FileDescriptor>('filesanddirs')
     let shaCache = new ShaCache.ShaCache('.hb-cache')
     let browser = new DirectoryBrowser.DirectoryBrowser(directory, Queue.waitPusher(queue, 10, 5), shaCache)
+
+    log.setStatus(() => JSON.stringify(browser.stats, null, 4).split('\n'))
 
     {
         (async () => {
@@ -733,19 +735,22 @@ export async function browse(directory: string) {
 
                 let entry = await browser.closeEntry(item.contentSha)
 
-                console.log(`${JSON.stringify(item)}`)
-                if (entry.type == 'directory') {
-                    console.log(`${entry.descriptorRaw}`)
-                }
-                else {
-                    console.log(`${entry.fullPath}`)
+                if (verbose) {
+                    if (entry.type == 'directory') {
+                        log.dbg(`${entry.descriptorRaw}`)
+                    }
+                    else {
+                        log(`${entry.fullPath}`)
+                    }
                 }
             }
         })()
     }
 
     let wholeSha = await browser.start()
-    console.log(`finished, whole sha is ${wholeSha}`)
+
+    log(`${JSON.stringify(browser.stats, null, 4)}`)
+    log(`finished, whole sha is ${wholeSha}`)
 }
 
 async function showDirectoryDescriptorSummary(directoryDescriptor: Model.DirectoryDescriptor) {

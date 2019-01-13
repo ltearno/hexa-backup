@@ -116,12 +116,14 @@ async function run() {
             id: "browse",
             verbs: ["browse"],
             options: {
-                directory: '.'
+                directory: '.',
+                verbose: false
             },
             executor: async (options) => {
                 const directory = fsPath.resolve(options['directory'])
+                const verbose = options['verbose']
 
-                await Commands.browse(directory)
+                await Commands.browse(directory, verbose)
 
                 process.exit(0)
             }
