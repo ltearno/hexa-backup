@@ -82,6 +82,14 @@
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
 
+    const wait = (ms) => {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve()
+            }, ms)
+        })
+    }
+
     let el = (id) => document.querySelector(id)
 
     const DATE_DISPLAY_OPTIONS = {
@@ -147,14 +155,23 @@
         }
 
         let files = directoryDescriptor.files
+
+        finishLoading = startLoading(`listing directories`)
+        let directoriesContent = ''
         for (let file of files) {
             if (file.isDirectory) {
-                el('#directories').innerHTML += `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`
+                directoriesContent += `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`
             }
         }
+        el('#directories').innerHTML = directoriesContent
+        finishLoading()
+
+        await wait(1)
 
         let images = []
 
+        finishLoading = startLoading(`listing files`)
+        let filesContent = ''
         for (let file of files) {
             if (!file.isDirectory) {
                 let mimeTypes = ['application/octet-stream']
@@ -171,16 +188,26 @@
                 let imageHtml = `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> ${file.name} <span class='small'>${file.size} ${links}</span>`
 
                 mimeTypes.filter(t => t.startsWith('image/')).forEach(mimeType => {
-                    images.push({ sha: file.contentSha, mimeType: mimeType })
+                    images.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
                 })
 
-                el('#files').innerHTML += `<div>${imageHtml}</div>`
+                filesContent += `<div>${imageHtml}</div>`
             }
         }
+        el('#files').innerHTML = filesContent
+        finishLoading()
 
-        images.forEach(({ sha, mimeType }) => {
+        await wait(1)
+
+        finishLoading = startLoading(`inserting images`)
+        let nb = 0
+        for (let { sha, mimeType, fileName } of images) {
             el('#extras').innerHTML += `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`
-        })
+            nb++
+            if (nb % 20 == 0)
+                await wait(1)
+        }
+        finishLoading()
     }
 
     async function showRef(ref) {

@@ -664,20 +664,20 @@ export async function store(directory: string, port: number) {
     app.get('/sha/:sha/content', async (req, res) => {
         let sha = req.params.sha
 
-        if (req.query.type)
-            res.set('Content-Type', req.query.type)
-
-        if (req.query.fileName)
-            res.set('Content-Disposition', `attachment; filename="${req.query.fileName}"`)
-
         try {
+            if (req.query.type)
+                res.set('Content-Type', req.query.type)
+
+            if (req.query.fileName)
+                res.set('Content-Disposition', `attachment; filename="${req.query.fileName}"`)
+
             let out = await store.readShaBytes(sha, 0, -1)
             res.set('ETag', sha)
             res.set('Cache-Control', 'private, max-age=31536000')
             res.send(out)
         }
         catch (err) {
-            res.send(`{"error":"missing sha ${sha}!"}`)
+            res.send(`{"error":"missing sha ${sha}, ${err}!"}`)
         }
     });
 
@@ -687,10 +687,10 @@ export async function store(directory: string, port: number) {
     app.get('/sha/:sha/plugins/image/thumbnail', async (req, res) => {
         let sha = req.params.sha
 
-        if (req.query.type)
-            res.set('Content-Type', req.query.type)
-
         try {
+            if (req.query.type)
+                res.set('Content-Type', req.query.type)
+
             let out = null
             if (thumbnailCache.has(sha)) {
                 out = thumbnailCache.get(sha)
