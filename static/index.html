@@ -232,7 +232,7 @@
     }
 
     const maxImagesSeen = 100
-    const imagesStep = 50
+    const imagesStep = 100
 
     async function restartImagesPool() {
         imagesPoolStart = 0
@@ -260,12 +260,12 @@
         el('#images').innerHTML = imagesPool.slice(from, to).map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`).join('')
 
         if (from > 0)
-            el('#lessImages').style.display = undefined
+            el('#lessImages').style.display = 'block'
         else
             el('#lessImages').style.display = 'none'
 
         if (to < imagesPool.length)
-            el('#moreImages').style.display = undefined
+            el('#moreImages').style.display = 'block'
         else
             el('#moreImages').style.display = 'none'
 
@@ -339,7 +339,13 @@
         showLessImages()
     })
 
-    el('#fullScreen').addEventListener('click', () => el('#extras').webkitRequestFullScreen())
+    el('#fullScreen').addEventListener('click', () => {
+        el('#extras').webkitRequestFullScreen()
+        el('#extras').style.display = 'block'
+        el('#extras').style.width = '100%'
+        el('#extras').style.height = '100%'
+        el('#extras').style.maxWidth = 'inherit'
+    })
 
     el('#extended').addEventListener('input', () => {
         EXTENDED = !!el('#extended').checked
