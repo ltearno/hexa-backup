@@ -74,6 +74,7 @@
             <div id="directories"></div>
             <div id="files"></div>
             <div id="extras">
+                <button id="lessImages">less...</button>
                 <div id="images"></div>
                 <button id="moreImages">more...</button>
             </div>
@@ -85,7 +86,7 @@
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
     let imagesPool = []
-    let imagesPoolLength = 0
+    let imagesPoolStart = 0
 
     const wait = (ms) => {
         return new Promise(resolve => {
@@ -218,30 +219,45 @@
         restartImagesPool()
     }
 
+    const maxImagesSeen = 100
+    const imagesStep = 50
+
     async function restartImagesPool() {
-        imagesPoolLength = Math.min(100, imagesPool.length)
-        displayImagesPool(0, imagesPoolLength)
+        imagesPoolStart = 0
+
+        displayImagesPool(imagesPoolStart, Math.min(imagesPool.length, imagesPoolStart + maxImagesSeen))
+    }
+
+    async function showLessImages() {
+        imagesPoolStart -= imagesStep
+        imagesPoolStart = Math.max(0, Math.min(imagesPoolStart, imagesPool.length - maxImagesSeen))
+
+        displayImagesPool(imagesPoolStart, Math.min(imagesPool.length, imagesPoolStart + maxImagesSeen))
+    }
+
+    async function showMoreImages() {
+        imagesPoolStart += imagesStep
+        imagesPoolStart = Math.max(0, Math.min(imagesPoolStart, imagesPool.length - maxImagesSeen))
+
+        displayImagesPool(imagesPoolStart, Math.min(imagesPool.length, imagesPoolStart + maxImagesSeen))
     }
 
     async function displayImagesPool(from, to) {
         finishLoading = startLoading(`inserting images ${from} -> ${to}`)
 
-        el('#images').innerHTML += imagesPool.slice(from, to).map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`).join('')
+        el('#images').innerHTML = imagesPool.slice(from, to).map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`).join('')
 
-        if (to < imagesPool.length) {
+        if (from > 0)
+            el('#lessImages').style.display = undefined
+        else
+            el('#lessImages').style.display = 'none'
+
+        if (to < imagesPool.length)
             el('#moreImages').style.display = undefined
-        }
-        else {
+        else
             el('#moreImages').style.display = 'none'
-        }
 
         finishLoading()
-    }
-
-    async function showMoreImages() {
-        let old = imagesPoolLength
-        imagesPoolLength = Math.min(imagesPoolLength + 100, imagesPool.length)
-        displayImagesPool(old, imagesPoolLength)
     }
 
     async function showRef(ref) {
@@ -305,6 +321,10 @@
 
     el('#moreImages').addEventListener('click', () => {
         showMoreImages()
+    })
+
+    el('#lessImages').addEventListener('click', () => {
+        showLessImages()
     })
 
     window.onpopstate = function (event) {
