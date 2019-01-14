@@ -73,7 +73,10 @@
         <div id="directoryContent">
             <div id="directories"></div>
             <div id="files"></div>
-            <div id="extras"></div>
+            <div id="extras">
+                <div id="images"></div>
+                <button id="moreImages">more...</button>
+            </div>
         </div>
     </div>
 </body>
@@ -142,7 +145,7 @@
     async function showDirectory(directoryDescriptorSha) {
         el('#directories').innerHTML = ''
         el('#files').innerHTML = ''
-        el('#extras').innerHTML = ''
+        el('#images').innerHTML = ''
 
         if (!directoryDescriptorSha)
             return
@@ -219,10 +222,14 @@
         imagesPoolStart = 0
         finishLoading = startLoading(`inserting images`)
         let images = imagesPool.slice(imagesPoolStart, 100)
-        el('#extras').innerHTML = images.map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`)
+        el('#images').innerHTML = images.map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`)
             .join('')
-        if (imagesPool.length > 100)
-            el('#extras').innerHTML += '<div>There are more...</div>'
+        if (imagesPool.length > 100) {
+            el('#moreImages').style.display = undefined
+        }
+        else {
+            el('#moreImages').style.display = 'none'
+        }
         finishLoading()
     }
 
