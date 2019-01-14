@@ -65,6 +65,9 @@
         commit history
         <div id="commitHistory"></div>
 
+        <h2>Settings</h2>
+        <label>extended <input type="checkbox" id="extended"></label>
+
         <h2>Status</h2>
         <span id="status"></span>
     </div>
@@ -84,6 +87,8 @@
 </body>
 
 <script>
+    let EXTENDED = false
+
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
     let imagesPool = []
@@ -175,7 +180,9 @@
                     return -1
                 return 0
             })
-            .map(file => `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`)
+            .map(file => EXTENDED ?
+                `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>` :
+                `<div><a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`)
             .join('')
         finishLoading()
 
@@ -203,9 +210,11 @@
                     }
                 }
 
-                let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.name}` : ''}' >${mimeType}</a>]`).join(' ')
+                let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.name}` : ''}' >${EXTENDED ? mimeType : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType)}</a>]`).join(' ')
 
-                let imageHtml = `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> ${file.name} <span class='small'>${file.size} ${links}</span>`
+                let imageHtml = EXTENDED ?
+                    `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> ${file.name} <span class='small'>${file.size} ${links}</span>` :
+                    `${file.name} <span class='small'>${links}</span>`
 
                 mimeTypes.filter(t => t.startsWith('image/')).forEach(mimeType => {
                     images.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
@@ -332,22 +341,27 @@
 
     el('#fullScreen').addEventListener('click', () => el('#extras').webkitRequestFullScreen())
 
+    el('#extended').addEventListener('input', () => {
+        EXTENDED = !!el('#extended').checked
+
+        showDirectory(currentDirectoryDescriptorSha)
+        showRef(currentClientId)
+    })
+
     window.onpopstate = function (event) {
         currentDirectoryDescriptorSha = event.state.currentDirectoryDescriptorSha
         currentClientId = event.state.currentClientId
 
-        console.log(`pop ${JSON.stringify(event.state)}`)
-        showDirectory(event.state.currentDirectoryDescriptorSha)
-        showRef(event.state.currentClientId)
+        showDirectory(currentDirectoryDescriptorSha)
+        showRef(currentClientId)
     }
 
     if (history.state) {
         currentDirectoryDescriptorSha = history.state.currentDirectoryDescriptorSha
         currentClientId = history.state.currentClientId
 
-        console.log(`history ${JSON.stringify(history.state)}`)
-        showDirectory(history.state.currentDirectoryDescriptorSha)
-        showRef(history.state.currentClientId)
+        showDirectory(currentDirectoryDescriptorSha)
+        showRef(currentClientId)
     }
 </script>
 
