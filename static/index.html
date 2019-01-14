@@ -157,13 +157,17 @@
         let files = directoryDescriptor.files
 
         finishLoading = startLoading(`listing directories`)
-        let directoriesContent = ''
-        for (let file of files) {
-            if (file.isDirectory) {
-                directoriesContent += `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`
-            }
-        }
-        el('#directories').innerHTML = directoriesContent
+        el('#directories').innerHTML = files
+            .filter(file => file.isDirectory)
+            .sort((a, b) => {
+                if (a.name > b.name)
+                    return 1
+                if (a.name < b.name)
+                    return -1
+                return 0
+            })
+            .map(file => `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`)
+            .join('')
         finishLoading()
 
         await wait(1)
@@ -171,9 +175,16 @@
         let images = []
 
         finishLoading = startLoading(`listing files`)
-        let filesContent = ''
-        for (let file of files) {
-            if (!file.isDirectory) {
+        el('#files').innerHTML = files
+            .filter(file => !file.isDirectory)
+            .sort((a, b) => {
+                if (a.name > b.name)
+                    return 1
+                if (a.name < b.name)
+                    return -1
+                return 0
+            })
+            .map(file => {
                 let mimeTypes = ['application/octet-stream']
                 let pos = file.name.lastIndexOf('.')
                 if (pos >= 0) {
@@ -191,10 +202,9 @@
                     images.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
                 })
 
-                filesContent += `<div>${imageHtml}</div>`
-            }
-        }
-        el('#files').innerHTML = filesContent
+                return `<div>${imageHtml}</div>`
+            })
+            .join('')
         finishLoading()
 
         await wait(1)
