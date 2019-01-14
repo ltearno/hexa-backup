@@ -675,6 +675,35 @@ export async function store(directory: string, port: number) {
         }
     });
 
+    // TODO should use a LRU cache
+    let thumbnailCache = new Map<string, Buffer>()
+
+    app.get('/sha/:sha/plugins/image/resize', async (req, res) => {
+        let sha = req.params.sha
+
+        if (req.query.type)
+            res.set('Content-Type', req.query.type)
+
+        try {
+            let out = null
+            if (thumbnailCache.has(sha)) {
+                out = thumbnailCache.get(sha)
+            }
+            else {
+                let input = await store.readShaBytes(sha, 0, -1)
+
+                const sharp = require('sharp')
+                out = await sharp(input).resize(200).toBuffer()
+                thumbnailCache.set(sha, out)
+            }
+
+            res.send(out)
+        }
+        catch (err) {
+            res.send(`{"error":"missing sha ${sha}!"}`)
+        }
+    });
+
     app.ws('/hexa-backup', async (ws: NetworkApi.WebSocket, req: any) => {
         console.log(`serving new client ws`)
 
