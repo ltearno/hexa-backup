@@ -682,7 +682,7 @@ export async function store(directory: string, port: number) {
     // TODO should use a LRU cache
     let thumbnailCache = new Map<string, Buffer>()
 
-    app.get('/sha/:sha/plugins/image/resize', async (req, res) => {
+    app.get('/sha/:sha/plugins/image/thumbnail', async (req, res) => {
         let sha = req.params.sha
 
         if (req.query.type)
@@ -701,6 +701,8 @@ export async function store(directory: string, port: number) {
                 thumbnailCache.set(sha, out)
             }
 
+            res.set('ETag', sha)
+            res.set('Cache-Control', 'private, max-age=31536000')
             res.send(out)
         }
         catch (err) {
