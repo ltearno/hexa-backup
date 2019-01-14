@@ -667,8 +667,12 @@ export async function store(directory: string, port: number) {
         if (req.query.type)
             res.set('Content-Type', req.query.type)
 
+
         try {
-            res.send(await store.readShaBytes(sha, 0, -1))
+            let out = await store.readShaBytes(sha, 0, -1)
+            res.set('ETag', sha)
+            res.set('Cache-Control', 'private, max-age=31536000')
+            res.send(out)
         }
         catch (err) {
             res.send(`{"error":"missing sha ${sha}!"}`)
