@@ -645,7 +645,8 @@ export async function store(directory: string, port: number) {
 
     let app: any = ExpressTools.createExpressApp(port)
 
-    app.use('/public', express.static('static'))
+    console.log(`base dir: ${path.dirname(__dirname)}`)
+    app.use('/public', express.static(path.join(path.dirname(__dirname), 'static')))
 
     app.get('/refs', async (req, res) => {
         let refs = await store.getRefs()
