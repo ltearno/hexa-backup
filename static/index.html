@@ -81,6 +81,8 @@
 <script>
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
+    let imagesPool = []
+    let imagesPoolStart = 0
 
     const wait = (ms) => {
         return new Promise(resolve => {
@@ -209,10 +211,18 @@
 
         await wait(1)
 
+        imagesPool = images
+        restartImagesPool()
+    }
+
+    async function restartImagesPool() {
+        imagesPoolStart = 0
         finishLoading = startLoading(`inserting images`)
-        for (let { sha, mimeType, fileName } of images) {
-            el('#extras').innerHTML += `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`
-        }
+        let images = imagesPool.slice(imagesPoolStart, 100)
+        el('#extras').innerHTML = images.map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`)
+            .join('')
+        if (imagesPool.length > 100)
+            el('#extras').innerHTML += '<div>There are more...</div>'
         finishLoading()
     }
 
