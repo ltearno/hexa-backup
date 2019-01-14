@@ -80,16 +80,18 @@
     <div id="menu">
         <button id="fullScreen">full screen</button>
 
-        <h2>Sources</h2>
-        <div id="refs-list"></div>
+        <div id="optional">
+            <h2>Sources</h2>
+            <div id="refs-list"></div>
 
-        <h2>Current</h2>
-        <b><span id=refName></span></b><br><br>
-        commit history
-        <div id="commitHistory"></div>
+            <h2>Current</h2>
+            <b><span id=refName></span></b><br><br>
+            commit history
+            <div id="commitHistory"></div>
 
-        <h2>Settings</h2>
-        <label>extended <input type="checkbox" id="extended"></label>
+            <h2>Settings</h2>
+            <label>extended <input type="checkbox" id="extended"></label>
+        </div>
 
         <h2>Status</h2>
         <span id="status"></span>
@@ -401,7 +403,7 @@
         currentDirectoryDescriptorSha = window.location.hash.substr(1)
         currentClientId = null
 
-        el('#menu').style.display = 'none'
+        el('#optional').style.display = 'none'
 
         showDirectory(currentDirectoryDescriptorSha)
         showRef(currentClientId)
