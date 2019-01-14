@@ -33,6 +33,11 @@
             flex-shrink: 1;
         }
 
+        #extras {
+            max-width: 15em;
+            overflow: auto;
+        }
+
         .full {
             display: flex;
             flex-flow: column;
@@ -64,6 +69,7 @@
         <div id="directoryContent">
             <div id="directories"></div>
             <div id="files"></div>
+            <div id="extras"></div>
         </div>
     </div>
 </body>
@@ -122,6 +128,7 @@
     async function showDirectory(directoryDescriptorSha) {
         el('#directories').innerHTML = ''
         el('#files').innerHTML = ''
+        el('#extras').innerHTML = ''
 
         if (!directoryDescriptorSha)
             return
@@ -142,6 +149,8 @@
             }
         }
 
+        let images = []
+
         for (let file of files) {
             if (!file.isDirectory) {
                 let mimeTypes = ['application/octet-stream']
@@ -153,9 +162,19 @@
                     }
                 }
 
-                el('#files').innerHTML += `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> ${file.name} <span class='small'>${file.size} ${mimeTypes.map(mimeType => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}' >${mimeType}</a>]`).join(' ')}</span></div>`
+                let imageHtml = `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> ${file.name} <span class='small'>${file.size} ${mimeTypes.map(mimeType => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}' >${mimeType}</a>]`).join(' ')}</span>`
+
+                mimeTypes.filter(t => t.startsWith('image/')).forEach(mimeType => {
+                    images.push({ sha: file.contentSha, mimeType: mimeType })
+                })
+
+                el('#files').innerHTML += `<div>${imageHtml}</div>`
             }
         }
+
+        images.forEach(({ sha, mimeType }) => {
+            el('#extras').innerHTML += `<a href='/sha/${sha}/content?type=${mimeType}'><img src="http://localhost:5005/sha/${sha}/plugins/image/resize?type=${mimeType}"/></a>`
+        })
     }
 
     async function showRef(ref) {

@@ -693,7 +693,7 @@ export async function store(directory: string, port: number) {
                 let input = await store.readShaBytes(sha, 0, -1)
 
                 const sharp = require('sharp')
-                out = await sharp(input).resize(200).toBuffer()
+                out = await sharp(input).resize(150).toBuffer()
                 thumbnailCache.set(sha, out)
             }
 
