@@ -10,36 +10,42 @@
     <script src="/public/mime-types.js"></script>
     <style>
         body {
-            display: flex;
             position: absolute;
             top: 0px;
             left: 0;
             right: 0;
             bottom: 0;
-        }
 
-        .aside {
-            overflow: auto;
+            display: flex;
+            overflow-x: auto;
         }
 
         #directoryContent {
             display: flex;
         }
 
+        .menu{
+            overflow: auto;
+            flex-grow: 0;
+            flex-shrink: 0;
+            padding:.5em;
+        }
+
         #directories,
         #files {
             font-family: monospace;
             overflow: auto;
-            flex-grow: 1;
+            flex-grow: 0;
+            flex-shrink: 0;
+            padding:.5em;
         }
 
         #directories {
-            flex-shrink: 1;
         }
 
         #extras {
-            max-width: 15em;
             overflow: auto;
+            flex-grow: 1;
         }
 
         #extras:-webkit-full-screen {
@@ -47,12 +53,6 @@
             width :100%;
             height :100%;
             max-width :inherit;
-        }
-
-        .full {
-            display: flex;
-            flex-flow: column;
-            flex-grow: 1;
         }
 
         .small {
@@ -63,7 +63,9 @@
 </head>
 
 <body>
-    <div class="aside">
+    <div class="menu">
+        <button id="fullScreen">full screen</button>
+
         <h2>Sources</h2>
         <div id="refs-list"></div>
 
@@ -78,18 +80,12 @@
         <h2>Status</h2>
         <span id="status"></span>
     </div>
-    <div class="full">
-        <h2>Directory content:</h2>
-        <div id="directoryContent">
-            <div id="directories"></div>
-            <div id="files"></div>
-            <div id="extras">
-                <button id="fullScreen">full screen</button>
-                <button id="lessImages">less...</button>
-                <div id="images"></div>
-                <button id="moreImages">more...</button>
-            </div>
-        </div>
+    <div id="directories"></div>
+    <div id="files"></div>
+    <div id="extras">
+        <button id="lessImages">less...</button>
+        <div id="images"></div>
+        <button id="moreImages">more...</button>
     </div>
 </body>
 
@@ -178,7 +174,7 @@
         let files = directoryDescriptor.files
 
         finishLoading = startLoading(`listing directories`)
-        el('#directories').innerHTML = files
+        let directoriesContent = files
             .filter(file => file.isDirectory)
             .sort((a, b) => {
                 if (a.name > b.name)
@@ -191,6 +187,13 @@
                 `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>` :
                 `<div><a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`)
             .join('')
+        if (directoriesContent.length) {
+            el('#directories').style.display = 'block'
+            el('#directories').innerHTML = `<h2>Directories</h2>` + directoriesContent
+        }
+        else {
+            el('#directories').style.display = 'none'
+        }
         finishLoading()
 
         await wait(1)
@@ -198,7 +201,7 @@
         let images = []
 
         finishLoading = startLoading(`listing files`)
-        el('#files').innerHTML = files
+        let filesContent = files
             .filter(file => !file.isDirectory)
             .sort((a, b) => {
                 if (a.name > b.name)
@@ -230,6 +233,13 @@
                 return `<div>${imageHtml}</div>`
             })
             .join('')
+        if (filesContent.length) {
+            el('#files').style.display = 'block'
+            el('#files').innerHTML = `<h2>Files</h2>` + filesContent
+        }
+        else {
+            el('#files').style.display = 'none'
+        }
         finishLoading()
 
         await wait(1)
