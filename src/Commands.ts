@@ -643,14 +643,16 @@ export async function store(directory: string, port: number) {
 
     console.log('server initialisation')
 
-    let app = ExpressTools.createExpressApp(port);
+    let app: any = ExpressTools.createExpressApp(port)
 
-    (app as any).get('/refs', async (req, res) => {
+    app.use('/public', express.static('static'))
+
+    app.get('/refs', async (req, res) => {
         let refs = await store.getRefs()
         res.send(JSON.stringify(refs))
     });
 
-    (app as any).get('/refs/:id', async (req, res) => {
+    app.get('/refs/:id', async (req, res) => {
         let id = req.params.id
 
         let result = await store.getSourceState(id)
@@ -658,7 +660,7 @@ export async function store(directory: string, port: number) {
         res.send(JSON.stringify(result))
     });
 
-    (app as any).get('/sha/:sha/content', async (req, res) => {
+    app.get('/sha/:sha/content', async (req, res) => {
         let sha = req.params.sha
 
         if (req.query.type)
