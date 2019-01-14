@@ -29,6 +29,10 @@
             flex-grow: 1;
         }
 
+        #directories {
+            flex-shrink: 1;
+        }
+
         .full {
             display: flex;
             flex-flow: column;
@@ -149,7 +153,7 @@
                     }
                 }
 
-                el('#files').innerHTML += `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> ${file.name} ${file.size} ${mimeTypes.map(mimeType => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}' >${mimeType}</a>]`).join(' ')}</div>`
+                el('#files').innerHTML += `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> ${file.name} <span class='small'>${file.size} ${mimeTypes.map(mimeType => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}' >${mimeType}</a>]`).join(' ')}</span></div>`
             }
         }
     }
