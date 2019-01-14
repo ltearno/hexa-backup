@@ -210,12 +210,8 @@
         await wait(1)
 
         finishLoading = startLoading(`inserting images`)
-        let nb = 0
         for (let { sha, mimeType, fileName } of images) {
             el('#extras').innerHTML += `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`
-            nb++
-            if (nb % 20 == 0)
-                await wait(1)
         }
         finishLoading()
     }
