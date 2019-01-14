@@ -18,6 +18,10 @@
             bottom: 0;
         }
 
+        .aside {
+            overflow: auto;
+        }
+
         #directoryContent {
             display: flex;
         }
@@ -173,7 +177,7 @@
         }
 
         images.forEach(({ sha, mimeType }) => {
-            el('#extras').innerHTML += `<a href='/sha/${sha}/content?type=${mimeType}'><img src="http://localhost:5005/sha/${sha}/plugins/image/resize?type=${mimeType}"/></a>`
+            el('#extras').innerHTML += `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/resize?type=${mimeType}"/></a>`
         })
     }
 
