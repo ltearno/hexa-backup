@@ -85,7 +85,7 @@
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
     let imagesPool = []
-    let imagesPoolStart = 0
+    let imagesPoolLength = 0
 
     const wait = (ms) => {
         return new Promise(resolve => {
@@ -219,18 +219,29 @@
     }
 
     async function restartImagesPool() {
-        imagesPoolStart = 0
-        finishLoading = startLoading(`inserting images`)
-        let images = imagesPool.slice(imagesPoolStart, 100)
-        el('#images').innerHTML = images.map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`)
-            .join('')
-        if (imagesPool.length > 100) {
+        imagesPoolLength = Math.min(100, imagesPool.length)
+        displayImagesPool(0, imagesPoolLength)
+    }
+
+    async function displayImagesPool(from, to) {
+        finishLoading = startLoading(`inserting images ${from} -> ${to}`)
+
+        el('#images').innerHTML += imagesPool.slice(from, to).map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`).join('')
+
+        if (to < imagesPool.length) {
             el('#moreImages').style.display = undefined
         }
         else {
             el('#moreImages').style.display = 'none'
         }
+
         finishLoading()
+    }
+
+    async function showMoreImages() {
+        let old = imagesPoolLength
+        imagesPoolLength = Math.min(imagesPoolLength + 100, imagesPool.length)
+        displayImagesPool(old, imagesPoolLength)
     }
 
     async function showRef(ref) {
@@ -290,6 +301,10 @@
         let resp = await fetch('/refs')
         let refs = (await resp.json()).filter(e => e.startsWith('CLIENT_')).map(e => e.substr(7))
         el('#refs-list').innerHTML = refs.map(ref => `<a href='#' onclick='event.preventDefault() || goRef("${ref}")'>${ref}</a>`).join('<br/>')
+    })
+
+    el('#moreImages').addEventListener('click', () => {
+        showMoreImages()
     })
 
     window.onpopstate = function (event) {
