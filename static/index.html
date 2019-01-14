@@ -401,6 +401,8 @@
         currentDirectoryDescriptorSha = window.location.hash.substr(1)
         currentClientId = null
 
+        el('#menu').style.display = 'none'
+
         showDirectory(currentDirectoryDescriptorSha)
         showRef(currentClientId)
     }
