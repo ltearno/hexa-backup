@@ -7,122 +7,229 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Hexa-Backup Store</title>
     <base href="/public">
+    <script src="/public/mime-types.js"></script>
+    <style>
+        body {
+            display: flex;
+            position: absolute;
+            top: 0px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        #directoryContent {
+            display: flex;
+        }
+
+        #directories,
+        #files {
+            font-family: monospace;
+            overflow: auto;
+            flex-grow: 1;
+        }
+
+        .full {
+            display: flex;
+            flex-flow: column;
+            flex-grow: 1;
+        }
+
+        .small {
+            font-size: .8em;
+            color: #333;
+        }
+    </style>
 </head>
 
 <body>
-    <button id='fetchRefs'>Fetch REFS</button>
-    <div id="refs-list"></div>
+    <div class="aside">
+        <h2>Sources</h2>
+        <div id="refs-list"></div>
 
-    <h2>Current reference: <span id=refName></span></h2>
-    <div id=refContent></div>
+        <h2>Current</h2>
+        <b><span id=refName></span></b><br><br>
+        commit history
+        <div id="commitHistory"></div>
 
-    <h2>Current commit: <span id=commitSha></span></h2>
-    <div id="commitHistory"></div>
-
-    <h2>Directory content:</h2>
-    <div id="directoryContent"></div>
-
-    <script>
-        let el = (id) => document.querySelector(id)
-
-        async function showDirectory(directoryDescriptorSha) {
-            el('#directoryContent').innerHTML = ''
-
-            let directoryDescriptor = await fetchDirectoryDescriptor(directoryDescriptorSha)
-            if (!directoryDescriptor || !directoryDescriptor.files) {
-                el('#directoryContent').innerHTML = `error fetching ${directoryDescriptorSha}`
-                return
-            }
-
-            let files = directoryDescriptor.files
-            for (let file of files) {
-                if (file.isDirectory) {
-                    el('#directoryContent').innerHTML += `<div>[DIR] ${new Date(file.lastWrite).toUTCString()} ${file.contentSha.substr(0, 7)} <a onclick='goDirectory("${file.contentSha}")'>${file.name}</a></div>`
-                }
-            }
-
-            let predefMimes = {
-                'json': 'application/json',
-                'md': 'text/plain',
-                'txt': 'text/plain',
-                'png': 'image/png',
-                'jpeg': 'image/jpeg',
-                'jpg': 'image/jpeg'
-            }
-
-            for (let file of files) {
-                if (!file.isDirectory) {
-                    let mimeTypes = ['application/octet-stream']
-                    let pos = file.name.lastIndexOf('.')
-                    if (pos >= 0) {
-                        let extension = file.name.substr(pos + 1).toLocaleLowerCase()
-                        if (extension in predefMimes) {
-                            mimeTypes.push(predefMimes[extension])
-                        }
-                    }
-
-                    el('#directoryContent').innerHTML += `<div>${new Date(file.lastWrite).toUTCString()} ${file.contentSha.substr(0, 7)} ${file.name} ${file.size} ${mimeTypes.map(mimeType => `[<a target="_blank" href='/sha/${file.contentSha}/content?type=${mimeType}' >${mimeType}</a>]`).join(' ')}</div>`
-                }
-            }
-        }
-
-        async function goDirectory(directoryDescriptorSha) {
-            history.pushState({ directoryDescriptorSha }, `directory ${directoryDescriptorSha}`, `#${directoryDescriptorSha}`)
-            showDirectory(directoryDescriptorSha)
-        }
-
-        async function showRef(ref) {
-            el('#refName').innerText = ref
-            el('#commitHistory').innerHTML = ''
-
-            let clientState = await (await fetch(`/refs/${ref}`)).json()
-            el('#refContent').innerHTML = `<pre>${JSON.stringify(clientState, null, 4)}</pre>`
-
-            if (!clientState)
-                return
-
-            let commitSha = clientState.currentCommitSha
-            while (commitSha != null) {
-                let commit = await fetchCommit(commitSha)
-                if (!commit)
-                    break
-
-                let date = new Date(commit.commitDate)
-                let directoryDescriptorSha = commit.directoryDescriptorSha
-
-                el('#commitHistory').innerHTML += `<div>${date.toUTCString()} - <a onclick='goDirectory("${directoryDescriptorSha}")'>${directoryDescriptorSha.substr(0, 7)}</a></div>`
-
-                commitSha = commit.parentSha
-            }
-        }
-
-        async function fetchCommit(sha) {
-            let mimeType = 'text/json'
-            let content = await fetch(`/sha/${sha}/content?type=${mimeType}`)
-            return await content.json()
-        }
-
-        async function fetchDirectoryDescriptor(sha) {
-            let mimeType = 'text/json'
-            let content = await fetch(`/sha/${sha}/content?type=${mimeType}`)
-            return await content.json()
-        }
-
-        el('#fetchRefs').addEventListener('click', async () => {
-            let resp = await fetch('/refs')
-            let refs = (await resp.json()).filter(e => e.startsWith('CLIENT_')).map(e => e.substr(7))
-            refs.forEach(ref => el('#refs-list').innerHTML += `<button onclick='showRef("${ref}")'>${ref}</button>`)
-        })
-
-        window.onpopstate = function (event) {
-            showDirectory(event.state.directoryDescriptorSha)
-        }
-
-        if (history.state && history.state.directoryDescriptorSha) {
-            showDirectory(history.state.directoryDescriptorSha)
-        }
-    </script>
-
+        <h2>Status</h2>
+        <span id="status"></span>
+    </div>
+    <div class="full">
+        <h2>Directory content:</h2>
+        <div id="directoryContent">
+            <div id="directories"></div>
+            <div id="files"></div>
+        </div>
+    </div>
 </body>
+
+<script>
+    let currentClientId = null
+    let currentDirectoryDescriptorSha = null
+
+    let el = (id) => document.querySelector(id)
+
+    const DATE_DISPLAY_OPTIONS = {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    }
+    const displayDate = date => (typeof date === 'number' ? new Date(date) : date).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
+
+    let lastPushedHistoryState = null
+    const updateHistoryState = () => {
+        let footprint = `${currentDirectoryDescriptorSha}#${currentClientId}`
+        if (footprint != lastPushedHistoryState) {
+            lastPushedHistoryState = footprint
+            history.pushState({ currentDirectoryDescriptorSha, currentClientId }, `directory ${currentDirectoryDescriptorSha}`, `/public/#${currentDirectoryDescriptorSha}`)
+        }
+    }
+
+    async function goDirectory(directoryDescriptorSha) {
+        currentDirectoryDescriptorSha = directoryDescriptorSha
+        updateHistoryState()
+        showDirectory(currentDirectoryDescriptorSha)
+    }
+
+    async function goRef(ref) {
+        if (currentClientId != ref) {
+            currentDirectoryDescriptorSha = null
+            showDirectory(null)
+        }
+        currentClientId = ref
+        updateHistoryState()
+        showRef(currentClientId)
+    }
+
+    let loaders = []
+
+    let startLoading = (text) => {
+        loaders.push(text)
+        el('#status').innerHTML = loaders.join('<br>')
+        return () => {
+            loaders.splice(loaders.indexOf(text), 1)
+            el('#status').innerHTML = loaders.join('<br>')
+        }
+    }
+
+    async function showDirectory(directoryDescriptorSha) {
+        el('#directories').innerHTML = ''
+        el('#files').innerHTML = ''
+
+        if (!directoryDescriptorSha)
+            return
+
+        let finishLoading = startLoading(`loading directory descriptor ${directoryDescriptorSha.substr(0, 7)}`)
+        let directoryDescriptor = await fetchDirectoryDescriptor(directoryDescriptorSha)
+        finishLoading()
+
+        if (!directoryDescriptor || !directoryDescriptor.files) {
+            el('#directories').innerHTML = `error fetching ${directoryDescriptorSha}`
+            return
+        }
+
+        let files = directoryDescriptor.files
+        for (let file of files) {
+            if (file.isDirectory) {
+                el('#directories').innerHTML += `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`
+            }
+        }
+
+        for (let file of files) {
+            if (!file.isDirectory) {
+                let mimeTypes = ['application/octet-stream']
+                let pos = file.name.lastIndexOf('.')
+                if (pos >= 0) {
+                    let extension = file.name.substr(pos + 1).toLocaleLowerCase()
+                    if (extension in MimeTypes) {
+                        mimeTypes.push(MimeTypes[extension])
+                    }
+                }
+
+                el('#files').innerHTML += `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> ${file.name} ${file.size} ${mimeTypes.map(mimeType => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}' >${mimeType}</a>]`).join(' ')}</div>`
+            }
+        }
+    }
+
+    async function showRef(ref) {
+        el('#refName').innerText = ref || ''
+        el('#commitHistory').innerHTML = ''
+
+        if (!ref)
+            return
+
+        let clientState = await (await fetch(`/refs/${ref}`)).json()
+        if (!clientState)
+            return
+
+        let commitSha = clientState.currentCommitSha
+        let firstDirectoryDescriptorSha = null
+
+        let finishLoading = startLoading(`loading commit history`)
+
+        while (commitSha != null) {
+            let commit = await fetchCommit(commitSha)
+            if (!commit)
+                break
+
+            let date = new Date(commit.commitDate)
+            let directoryDescriptorSha = commit.directoryDescriptorSha
+            if (directoryDescriptorSha) {
+                if (!firstDirectoryDescriptorSha)
+                    firstDirectoryDescriptorSha = directoryDescriptorSha
+                el('#commitHistory').innerHTML += `<div>${commitSha.substr(0, 7)} ${displayDate(date)} - <a href='#' onclick='event.preventDefault() || goDirectory("${directoryDescriptorSha}")'>${directoryDescriptorSha.substr(0, 7)}</a></div>`
+            } else {
+                el('#commitHistory').innerHTML += `<div>${commitSha.substr(0, 7)} no directory descriptor in commit !</div>`
+            }
+
+            commitSha = commit.parentSha
+        }
+
+        finishLoading()
+
+        if (firstDirectoryDescriptorSha && !currentDirectoryDescriptorSha) {
+            showDirectory(firstDirectoryDescriptorSha)
+        }
+    }
+
+    async function fetchCommit(sha) {
+        let mimeType = 'text/json'
+        let content = await fetch(`/sha/${sha}/content?type=${mimeType}`)
+        return await content.json()
+    }
+
+    async function fetchDirectoryDescriptor(sha) {
+        let mimeType = 'text/json'
+        let content = await fetch(`/sha/${sha}/content?type=${mimeType}`)
+        return await content.json()
+    }
+
+    window.addEventListener('load', async () => {
+        let resp = await fetch('/refs')
+        let refs = (await resp.json()).filter(e => e.startsWith('CLIENT_')).map(e => e.substr(7))
+        el('#refs-list').innerHTML = refs.map(ref => `<a href='#' onclick='event.preventDefault() || goRef("${ref}")'>${ref}</a>`).join('<br/>')
+    })
+
+    window.onpopstate = function (event) {
+        currentDirectoryDescriptorSha = event.state.currentDirectoryDescriptorSha
+        currentClientId = event.state.currentClientId
+
+        console.log(`pop ${JSON.stringify(event.state)}`)
+        showDirectory(event.state.currentDirectoryDescriptorSha)
+        showRef(event.state.currentClientId)
+    }
+
+    if (history.state) {
+        currentDirectoryDescriptorSha = history.state.currentDirectoryDescriptorSha
+        currentClientId = history.state.currentClientId
+
+        console.log(`history ${JSON.stringify(history.state)}`)
+        showDirectory(history.state.currentDirectoryDescriptorSha)
+        showRef(history.state.currentClientId)
+    }
+</script>
 
 </html>

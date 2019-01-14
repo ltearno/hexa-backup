@@ -118,6 +118,9 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     async getSourceState(sourceId: string) {
+        if (sourceId)
+            sourceId = sourceId.toLocaleUpperCase()
+
         if (this.sourceStateCache != null && sourceId in this.sourceStateCache)
             return this.sourceStateCache[sourceId];
 
@@ -166,6 +169,9 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     private async storeClientState(sourceId: string, sourceState: Model.SourceState, force: boolean) {
+        if (sourceId)
+            sourceId = sourceId.toLocaleUpperCase()
+
         this.sourceStateCache[sourceId] = sourceState;
 
         return new Promise<void>(async (resolve, reject) => {
