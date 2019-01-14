@@ -146,13 +146,16 @@
     }
 
     async function goRef(ref) {
-        if (currentClientId != ref) {
-            currentDirectoryDescriptorSha = null
-            showDirectory(null)
-        }
+        let oldClientId = currentClientId
         currentClientId = ref
+        if (currentClientId != oldClientId) {
+            currentDirectoryDescriptorSha = await showRef(ref)
+            showDirectory(currentDirectoryDescriptorSha)
+        }
+        else {
+            await showRef(ref)
+        }
         updateHistoryState()
-        showRef(currentClientId)
     }
 
     let loaders = []
@@ -234,7 +237,7 @@
                     }
                 }
 
-                let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.name}` : ''}' >${EXTENDED ? mimeType : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType)}</a>]`).join(' ')
+                let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.name}` : ''}' >${EXTENDED ? mimeType : (index == 0 ? 'dl' : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType))}</a>]`).join(' ')
 
                 let imageHtml = EXTENDED ?
                     `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> ${file.name} <span class='small'>${file.size} ${links}</span>` :
@@ -308,11 +311,11 @@
         el('#commitHistory').innerHTML = ''
 
         if (!ref)
-            return
+            return null
 
         let clientState = await (await fetch(`/refs/${ref}`)).json()
         if (!clientState)
-            return
+            return null
 
         let commitSha = clientState.currentCommitSha
         let firstDirectoryDescriptorSha = null
@@ -339,9 +342,7 @@
 
         finishLoading()
 
-        if (firstDirectoryDescriptorSha && !currentDirectoryDescriptorSha) {
-            showDirectory(firstDirectoryDescriptorSha)
-        }
+        return firstDirectoryDescriptorSha
     }
 
     async function fetchCommit(sha) {
@@ -392,6 +393,13 @@
     if (history.state) {
         currentDirectoryDescriptorSha = history.state.currentDirectoryDescriptorSha
         currentClientId = history.state.currentClientId
+
+        showDirectory(currentDirectoryDescriptorSha)
+        showRef(currentClientId)
+    }
+    else if (window.location.hash && window.location.hash.startsWith('#') && window.location.hash != '#null') {
+        currentDirectoryDescriptorSha = window.location.hash.substr(1)
+        currentClientId = null
 
         showDirectory(currentDirectoryDescriptorSha)
         showRef(currentClientId)
