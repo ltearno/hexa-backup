@@ -42,6 +42,13 @@
             overflow: auto;
         }
 
+        #extras:-webkit-full-screen {
+            display :block;
+            width :100%;
+            height :100%;
+            max-width :inherit;
+        }
+
         .full {
             display: flex;
             flex-flow: column;
@@ -341,10 +348,6 @@
 
     el('#fullScreen').addEventListener('click', () => {
         el('#extras').webkitRequestFullScreen()
-        el('#extras').style.display = 'block'
-        el('#extras').style.width = '100%'
-        el('#extras').style.height = '100%'
-        el('#extras').style.maxWidth = 'inherit'
     })
 
     el('#extended').addEventListener('input', () => {
