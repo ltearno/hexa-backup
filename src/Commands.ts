@@ -667,6 +667,8 @@ export async function store(directory: string, port: number) {
         if (req.query.type)
             res.set('Content-Type', req.query.type)
 
+        if (req.query.fileName)
+            res.set('Content-Disposition', `attachment; filename="${req.query.fileName}"`)
 
         try {
             let out = await store.readShaBytes(sha, 0, -1)

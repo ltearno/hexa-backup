@@ -166,7 +166,9 @@
                     }
                 }
 
-                let imageHtml = `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> ${file.name} <span class='small'>${file.size} ${mimeTypes.map(mimeType => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}' >${mimeType}</a>]`).join(' ')}</span>`
+                let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.name}` : ''}' >${mimeType}</a>]`).join(' ')
+
+                let imageHtml = `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha.substr(0, 7)}</span> ${file.name} <span class='small'>${file.size} ${links}</span>`
 
                 mimeTypes.filter(t => t.startsWith('image/')).forEach(mimeType => {
                     images.push({ sha: file.contentSha, mimeType: mimeType })
