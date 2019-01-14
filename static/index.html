@@ -74,6 +74,7 @@
             <div id="directories"></div>
             <div id="files"></div>
             <div id="extras">
+                <button id="fullScreen">full screen</button>
                 <button id="lessImages">less...</button>
                 <div id="images"></div>
                 <button id="moreImages">more...</button>
@@ -147,6 +148,8 @@
         el('#directories').innerHTML = ''
         el('#files').innerHTML = ''
         el('#images').innerHTML = ''
+        el('#lessImages').style.display = 'none'
+        el('#moreImages').style.display = 'none'
 
         if (!directoryDescriptorSha)
             return
@@ -326,6 +329,8 @@
     el('#lessImages').addEventListener('click', () => {
         showLessImages()
     })
+
+    el('#fullScreen').addEventListener('click', () => el('#extras').webkitRequestFullScreen())
 
     window.onpopstate = function (event) {
         currentDirectoryDescriptorSha = event.state.currentDirectoryDescriptorSha
