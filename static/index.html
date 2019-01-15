@@ -210,10 +210,9 @@
             .map(file => EXTENDED ?
                 `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>` :
                 `<div><a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`)
-            .join('')
         if (directoriesContent.length) {
             el('#directories').style.display = 'block'
-            el('#directories').innerHTML = `<h2>Directories</h2>` + directoriesContent
+            el('#directories').innerHTML = `<h2>${directoriesContent.length} Directories</h2>` + directoriesContent.join('')
         }
         else {
             el('#directories').style.display = 'none'
@@ -256,10 +255,9 @@
 
                 return `<div>${imageHtml}</div>`
             })
-            .join('')
         if (filesContent.length) {
             el('#files').style.display = 'block'
-            el('#files').innerHTML = `<h2>Files</h2>` + filesContent
+            el('#files').innerHTML = `<h2>${filesContent.length} Files</h2>` + filesContent.join('')
         }
         else {
             el('#files').style.display = 'none'
