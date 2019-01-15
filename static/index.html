@@ -194,6 +194,8 @@
 
         let files = directoryDescriptor.files
 
+        console.log(`entry files+dirs ${directoryDescriptorSha} = ${directoryDescriptor.files.length}`)
+
         finishLoading = startLoading(`listing directories`)
         let directoriesContent = files
             .filter(file => file.isDirectory)
