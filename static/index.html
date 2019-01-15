@@ -344,7 +344,7 @@
 
     function infiniteScroll(db, domCreator, scrollContainer, scrollContent) {
         let nextElementToInsert = 0
-        let poolSize = 10
+        let poolSize = 5
         let stopped = false
         let waitContinueResolver = null
 
@@ -370,7 +370,7 @@
                 scrollContent.innerHTML += domCreator(elem)
 
                 if (nextElementToInsert % poolSize == 1) {
-                    await wait(50)
+                    await wait(150)
 
                     if (!shouldAdd())
                         await new Promise(resolve => waitContinueResolver = resolve)
