@@ -134,15 +134,16 @@
 
     let lastPushedHistoryState = null
     const updateHistoryState = () => {
-        let footprint = `${currentDirectoryDescriptorSha}#${currentClientId}`
+        let footprint = `${currentDirectoryDescriptorSha}#${currentClientId}#${imagesPoolStart}`
         if (footprint != lastPushedHistoryState) {
             lastPushedHistoryState = footprint
-            history.pushState({ currentDirectoryDescriptorSha, currentClientId }, `directory ${currentDirectoryDescriptorSha}`, `/public/#${currentDirectoryDescriptorSha}`)
+            history.pushState({ currentDirectoryDescriptorSha, currentClientId, imagesPoolStart }, `directory ${currentDirectoryDescriptorSha}`, `/public/#${currentDirectoryDescriptorSha}`)
         }
     }
 
     async function goDirectory(directoryDescriptorSha) {
         currentDirectoryDescriptorSha = directoryDescriptorSha
+        imagesPoolStart = 0
         updateHistoryState()
         showDirectory(currentDirectoryDescriptorSha)
     }
@@ -151,6 +152,7 @@
         let oldClientId = currentClientId
         currentClientId = ref
         if (currentClientId != oldClientId) {
+            imagesPoolStart = 0
             currentDirectoryDescriptorSha = await showRef(ref)
             showDirectory(currentDirectoryDescriptorSha)
         }
@@ -271,26 +273,27 @@
     const imagesStep = 100
 
     async function restartImagesPool() {
-        imagesPoolStart = 0
-
-        displayImagesPool(imagesPoolStart, Math.min(imagesPool.length, imagesPoolStart + maxImagesSeen))
+        displayImagesPool()
     }
 
     async function showLessImages() {
         imagesPoolStart -= imagesStep
         imagesPoolStart = Math.max(0, Math.min(imagesPoolStart, imagesPool.length - maxImagesSeen))
 
-        displayImagesPool(imagesPoolStart, Math.min(imagesPool.length, imagesPoolStart + maxImagesSeen))
+        displayImagesPool()
     }
 
     async function showMoreImages() {
         imagesPoolStart += imagesStep
         imagesPoolStart = Math.max(0, Math.min(imagesPoolStart, imagesPool.length - maxImagesSeen))
 
-        displayImagesPool(imagesPoolStart, Math.min(imagesPool.length, imagesPoolStart + maxImagesSeen))
+        displayImagesPool()
     }
 
-    async function displayImagesPool(from, to) {
+    async function displayImagesPool() {
+        let from = Math.min(imagesPoolStart, imagesPool.length)
+        let to = Math.min(imagesPool.length, imagesPoolStart + maxImagesSeen)
+
         finishLoading = startLoading(`inserting images ${from} -> ${to}`)
 
         el('#images').innerHTML = imagesPool.slice(from, to).map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`).join('')
@@ -387,6 +390,7 @@
     window.onpopstate = function (event) {
         currentDirectoryDescriptorSha = event.state.currentDirectoryDescriptorSha
         currentClientId = event.state.currentClientId
+        imagesPoolStart = event.state.imagesPoolStart || 0
 
         showDirectory(currentDirectoryDescriptorSha)
         showRef(currentClientId)
@@ -395,6 +399,7 @@
     if (history.state) {
         currentDirectoryDescriptorSha = history.state.currentDirectoryDescriptorSha
         currentClientId = history.state.currentClientId
+        imagesPoolStart = history.state.imagesPoolStart || 0
 
         showDirectory(currentDirectoryDescriptorSha)
         showRef(currentClientId)
