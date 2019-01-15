@@ -60,6 +60,10 @@
             color: #333;
         }
 
+        #images-container {
+            overflow: auto;
+        }
+
         @media screen and (max-width: 1215px) {
             body {
                 flex-flow: column;
@@ -99,9 +103,9 @@
     <div id="directories"></div>
     <div id="files"></div>
     <div id="extras">
-        <button id="lessImages">less...</button>
-        <div id="images"></div>
-        <button id="moreImages">more...</button>
+        <div id="images-container">
+            <div id="images"></div>
+        </div>
     </div>
 </body>
 
@@ -111,7 +115,6 @@
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
     let imagesPool = []
-    let imagesPoolStart = 0
 
     const wait = (ms) => {
         return new Promise(resolve => {
@@ -134,16 +137,15 @@
 
     let lastPushedHistoryState = null
     const updateHistoryState = () => {
-        let footprint = `${currentDirectoryDescriptorSha}#${currentClientId}#${imagesPoolStart}`
+        let footprint = `${currentDirectoryDescriptorSha}#${currentClientId}`
         if (footprint != lastPushedHistoryState) {
             lastPushedHistoryState = footprint
-            history.pushState({ currentDirectoryDescriptorSha, currentClientId, imagesPoolStart }, `directory ${currentDirectoryDescriptorSha}`, `/public/#${currentDirectoryDescriptorSha}`)
+            history.pushState({ currentDirectoryDescriptorSha, currentClientId }, `directory ${currentDirectoryDescriptorSha}`, `/public/#${currentDirectoryDescriptorSha}`)
         }
     }
 
     async function goDirectory(directoryDescriptorSha) {
         currentDirectoryDescriptorSha = directoryDescriptorSha
-        imagesPoolStart = 0
         updateHistoryState()
         showDirectory(currentDirectoryDescriptorSha)
     }
@@ -152,7 +154,6 @@
         let oldClientId = currentClientId
         currentClientId = ref
         if (currentClientId != oldClientId) {
-            imagesPoolStart = 0
             currentDirectoryDescriptorSha = await showRef(ref)
             showDirectory(currentDirectoryDescriptorSha)
         }
@@ -177,8 +178,6 @@
         el('#directories').innerHTML = ''
         el('#files').innerHTML = ''
         el('#images').innerHTML = ''
-        el('#lessImages').style.display = 'none'
-        el('#moreImages').style.display = 'none'
 
         if (!directoryDescriptorSha)
             return
@@ -274,45 +273,20 @@
     const maxImagesSeen = 100
     const imagesStep = 100
 
+    let infiniteScrollerStop = null
+
     async function restartImagesPool() {
-        displayImagesPool()
-    }
+        if (infiniteScrollerStop) {
+            infiniteScrollerStop()
+            infiniteScrollerStop = null
+        }
 
-    async function showLessImages() {
-        imagesPoolStart -= imagesStep
-        imagesPoolStart = Math.max(0, Math.min(imagesPoolStart, imagesPool.length - maxImagesSeen))
+        el('#images').innerHTML = ''
 
-        updateHistoryState()
-        displayImagesPool()
-    }
-
-    async function showMoreImages() {
-        imagesPoolStart += imagesStep
-        imagesPoolStart = Math.max(0, Math.min(imagesPoolStart, imagesPool.length - maxImagesSeen))
-
-        updateHistoryState()
-        displayImagesPool()
-    }
-
-    async function displayImagesPool() {
-        let from = Math.min(imagesPoolStart, imagesPool.length)
-        let to = Math.min(imagesPool.length, imagesPoolStart + maxImagesSeen)
-
-        finishLoading = startLoading(`inserting images ${from} -> ${to}`)
-
-        el('#images').innerHTML = imagesPool.slice(from, to).map(({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`).join('')
-
-        if (from > 0)
-            el('#lessImages').style.display = 'block'
-        else
-            el('#lessImages').style.display = 'none'
-
-        if (to < imagesPool.length)
-            el('#moreImages').style.display = 'block'
-        else
-            el('#moreImages').style.display = 'none'
-
-        finishLoading()
+        infiniteScrollerStop = infiniteScroll(imagesPool,
+            ({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`,
+            el('#images-container'),
+            el('#images'))
     }
 
     async function showRef(ref) {
@@ -366,18 +340,61 @@
         return await content.json()
     }
 
+    function infiniteScroll(db, domCreator, scrollContainer, scrollContent) {
+        let nextElementToInsert = 0
+        let poolSize = 10
+        let stopped = false
+        let waitContinueResolver = null
+
+        async function run() {
+            const shouldAdd = () => scrollContent.lastChild.offsetTop - (scrollContainer.offsetHeight / 1) <= scrollContainer.scrollTop + scrollContainer.offsetHeight
+
+            const scrollListener = event => {
+                if (waitContinueResolver && shouldAdd()) {
+                    let r = waitContinueResolver
+                    waitContinueResolver = null
+                    r()
+                }
+            }
+            scrollContainer.addEventListener('scroll', scrollListener)
+
+            stopped = false
+            while (!stopped) {
+                if (nextElementToInsert >= db.length)
+                    break
+
+                let elem = db[nextElementToInsert++]
+
+                scrollContent.innerHTML += domCreator(elem)
+
+                if (nextElementToInsert % poolSize == 1) {
+                    await wait(50)
+
+                    if (!shouldAdd())
+                        await new Promise(resolve => waitContinueResolver = resolve)
+                }
+            }
+
+            scrollContainer.removeEventListener('scroll', scrollListener)
+        }
+
+        function stop() {
+            stopped = true
+            if (waitContinueResolver) {
+                waitContinueResolver()
+                waitContinueResolver = null
+            }
+        }
+
+        run()
+
+        return stop
+    }
+
     window.addEventListener('load', async () => {
         let resp = await fetch('/refs')
         let refs = (await resp.json()).filter(e => e.startsWith('CLIENT_')).map(e => e.substr(7))
         el('#refs-list').innerHTML = refs.map(ref => `<a href='#' onclick='event.preventDefault() || goRef("${ref}")'>${ref}</a>`).join('<br/>')
-    })
-
-    el('#moreImages').addEventListener('click', () => {
-        showMoreImages()
-    })
-
-    el('#lessImages').addEventListener('click', () => {
-        showLessImages()
     })
 
     el('#fullScreen').addEventListener('click', () => {
@@ -394,7 +411,6 @@
     window.onpopstate = function (event) {
         currentDirectoryDescriptorSha = event.state.currentDirectoryDescriptorSha
         currentClientId = event.state.currentClientId
-        imagesPoolStart = event.state.imagesPoolStart || 0
 
         showDirectory(currentDirectoryDescriptorSha)
         showRef(currentClientId)
@@ -403,7 +419,6 @@
     if (history.state) {
         currentDirectoryDescriptorSha = history.state.currentDirectoryDescriptorSha
         currentClientId = history.state.currentClientId
-        imagesPoolStart = history.state.imagesPoolStart || 0
 
         showDirectory(currentDirectoryDescriptorSha)
         showRef(currentClientId)
