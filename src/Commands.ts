@@ -706,6 +706,9 @@ export async function store(directory: string, port: number) {
             res.set('ETag', sha)
             res.set('Cache-Control', 'private, max-age=31536000')
             res.send(out)
+
+            if (thumbnailCache.size > 200)
+                thumbnailCache = new Map<string, Buffer>()
         }
         catch (err) {
             res.send(`{"error":"missing sha ${sha}!"}`)
