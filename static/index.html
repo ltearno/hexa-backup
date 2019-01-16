@@ -146,7 +146,7 @@
 </body>
 
 <script>
-    let EXTENDED = false
+    let EXTENDED = localStorage.getItem('EXTENDED') == 'true'
 
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
@@ -554,7 +554,9 @@
 
         publishHistoryState()
 
-        el('#optional').style.display = 'none'
+        if (window.location.hash && window.location.hash.startsWith('#') && window.location.hash.length > 10 && window.location.hash != '#null')
+            el('#optional').style.display = 'none'
+
         syncUi()
     }
 
