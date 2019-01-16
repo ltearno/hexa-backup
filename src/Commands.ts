@@ -720,6 +720,9 @@ export async function store(directory: string, port: number) {
         }
     });
 
+    let mediumCache = new Map<string, Buffer>()
+    let mediumCacheEntries = []
+
     app.get('/sha/:sha/plugins/image/medium', async (req, res) => {
         let sha = req.params.sha
 
@@ -728,15 +731,28 @@ export async function store(directory: string, port: number) {
                 res.set('Content-Type', req.query.type)
 
             let out = null
-            let input = await store.readShaBytes(sha, 0, -1)
+            if (mediumCache.has(sha)) {
+                out = mediumCache.get(sha)
+            }
+            else {
+                let input = await store.readShaBytes(sha, 0, -1)
 
-            const sharp = require('sharp')
+                const sharp = require('sharp')
 
-            out = await sharp(input).resize(1024).toBuffer()
+                out = await sharp(input).resize(1024).toBuffer()
+                mediumCache.set(sha, out)
+                mediumCacheEntries.push(sha)
+            }
 
             res.set('ETag', sha)
             res.set('Cache-Control', 'private, max-age=31536000')
             res.send(out)
+
+            if (mediumCache.size > 20) {
+                while (mediumCacheEntries.length > 5) {
+                    mediumCache.delete(mediumCacheEntries.shift())
+                }
+            }
         }
         catch (err) {
             res.send(`{"error":"missing sha ${sha}!"}`)
