@@ -26,6 +26,7 @@
             overflow-x: auto;
 
             background-color: white;
+            font-family: monospace;
         }
 
         #directoryContent {
@@ -231,6 +232,7 @@
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
     let currentPictureIndex = -1
+    let currentAudioIndex = -1
     let imagesPool = []
     let videosPool = []
     let audioPool = []
@@ -443,6 +445,7 @@
         videosPool = videos
         restartVideosPool()
 
+        currentAudioIndex = -1
         audioPool = audios
         restartAudioPool()
     }
@@ -486,9 +489,15 @@
     }
 
     async function listenAudio(index) {
+        currentAudioIndex = index
         let { sha, mimeType, fileName } = audioPool[index]
         el('#audio-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
         el('#audio-player').setAttribute('type', mimeType)
+        el('#audio-player').play()
+    }
+
+    async function listenNext() {
+        listenAudio(currentAudioIndex + 1)
     }
 
     async function restartAudioPool() {
@@ -651,6 +660,10 @@
         localStorage.setItem('EXTENDED', `${EXTENDED}`)
 
         syncUi()
+    })
+
+    el('#audio-player').addEventListener('ended', () => {
+        listenNext()
     })
 
     window.onpopstate = function (event) {
