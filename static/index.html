@@ -228,6 +228,14 @@
         await syncUi()
     }
 
+    async function goNoPicture() {
+        currentPictureIndex = -1
+
+        publishHistoryState()
+
+        await syncUi()
+    }
+
     let loaders = []
 
     let startLoading = (text) => {
@@ -365,8 +373,8 @@
             el('#image-full-container').style.display = 'block'
 
             let { sha, mimeType, fileName } = imagesPool[index]
-            el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;background-color: white;text-align: center;'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></div>`
-            el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button onclick='goPreviousPicture()'>&lt;</button><button onclick='goNextPicture()'>&gt;</button></div>`
+            el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;background-color: white;text-align: center;'><a href='/sha/${sha}/content?type=${mimeType}'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></a></div>`
+            el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button onclick='goPreviousPicture()'>&lt;</button><button onclick='goNextPicture()'>&gt;</button><button onclick='goNoPicture()'>X</button></div>`
         }
     }
 
