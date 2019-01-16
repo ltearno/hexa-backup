@@ -89,6 +89,7 @@
 
         #videos-container {
             max-height: 100vh;
+            width: 30em;
             display: flex;
             flex-flow: column;
             overflow: auto;
@@ -114,6 +115,11 @@
             }
 
             #image-full-container {
+                flex-shrink: 0;
+            }
+
+            #videos-container {
+                width: 100%;
                 flex-shrink: 0;
             }
 
