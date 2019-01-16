@@ -33,6 +33,10 @@
             padding:.5em;
         }
 
+        #menu.hide-optional > #optional {
+            display:none;
+        }
+
         #directories,
         #files {
             font-family: monospace;
@@ -91,7 +95,8 @@
 
 <body>
     <div id="menu">
-        <button id="fullScreen">full screen</button>
+        <button id="fullScreen">full screen</button><br />
+        <button onclick='el("#menu").classList.toggle("hide-optional")'>show/hide menu</button>
 
         <div id="optional">
             <h2>Sources</h2>
@@ -288,12 +293,16 @@
             infiniteScrollerStop = null
         }
 
-        el('#images').innerHTML = ''
-
-        infiniteScrollerStop = infiniteScroll(imagesPool,
-            ({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`,
-            el('#images-container'),
-            el('#images'))
+        if (imagesPool.length) {
+            el('#images').innerHTML = ''
+            infiniteScrollerStop = infiniteScroll(imagesPool,
+                ({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`,
+                el('#images-container'),
+                el('#images'))
+        }
+        else {
+            el('#images').innerHTML = '<i>no photo in this folder</i>'
+        }
     }
 
     async function showRef(ref) {
