@@ -61,6 +61,7 @@
         #images-container {
             overflow: auto;
             height: 100vh;
+            position: relative;
         }
 
         @media screen and (max-width: 1215px) {
@@ -344,7 +345,10 @@
         let waitContinueResolver = null
 
         async function run() {
-            const shouldAdd = () => scrollContent.lastChild.offsetTop - (scrollContainer.offsetHeight / 1) <= scrollContainer.scrollTop + scrollContainer.offsetHeight
+            const shouldAdd = () => {
+                console.log(`shouldAdd ${scrollContent.lastChild.offsetTop} ${scrollContainer.scrollTop} ${scrollContainer.offsetHeight}`)
+                return scrollContent.lastChild.offsetTop - (scrollContainer.offsetHeight / 1) <= scrollContainer.scrollTop + scrollContainer.offsetHeight
+            }
 
             const scrollListener = event => {
                 if (waitContinueResolver && shouldAdd()) {
@@ -364,7 +368,7 @@
 
                 scrollContent.innerHTML += domCreator(elem)
 
-                if (nextElementToInsert % poolSize == 1) {
+                if (nextElementToInsert % poolSize == 0) {
                     await wait(150)
 
                     if (!shouldAdd())
