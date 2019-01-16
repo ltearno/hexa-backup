@@ -87,19 +87,21 @@
             image-orientation: from-image;
         }
 
-        #video-player {
-            max-width: 100vw;
-            max-height: 80vh;
-        }
-
         #videos-container {
             max-height: 100vh;
             display: flex;
             flex-flow: column;
+            overflow: auto;
+        }
+
+        #video-player {
+            max-width: 100vw;
+            max-height: 80vh;
+            flex-shrink: 0;
         }
 
         #video-list {
-            overflow: auto;
+            flex-shrink: 1;
         }
 
         @media screen and (max-width: 1215px) {
@@ -411,7 +413,7 @@
     }
 
     async function restartVideosPool() {
-        let html = `${videosPool.length} videos :`
+        let html = ''
         for (let i in videosPool) {
             html += `<a href='#' onclick='event.preventDefault() || showVideo(${i})'>${videosPool[i].fileName}</a><br>`
         }
