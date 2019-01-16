@@ -697,17 +697,42 @@ export async function store(directory: string, port: number, insecure: boolean) 
             return
         }
 
+        const range = req.headers.range
+
         try {
-            if (req.query.type)
-                res.set('Content-Type', req.query.type)
+            const fileSize = await store.hasOneShaBytes(sha)
 
-            if (req.query.fileName)
-                res.set('Content-Disposition', `attachment; filename="${req.query.fileName}"`)
+            if (range) {
+                const parts = range.replace(/bytes=/, "").split("-")
+                const start = parseInt(parts[0])
+                const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+                const chunksize = (end - start) + 1
+                const head = {
+                    'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+                    'Accept-Ranges': 'bytes',
+                    'Content-Length': chunksize,
+                    'Content-Type': req.query.type,
+                }
 
-            res.set('ETag', sha)
-            res.set('Cache-Control', 'private, max-age=31536000')
+                if (req.query.fileName)
+                    head['Content-Disposition'] = `attachment; filename="${req.query.fileName}"`
 
-            store.readShaAsStream(sha).pipe(res)
+                res.writeHead(206, head)
+                store.readShaAsStream(sha, start, end).pipe(res)
+            }
+            else {
+                if (req.query.type)
+                    res.set('Content-Type', req.query.type)
+
+                if (req.query.fileName)
+                    res.set('Content-Disposition', `attachment; filename="${req.query.fileName}"`)
+
+                res.set('ETag', sha)
+                res.set('Cache-Control', 'private, max-age=31536000')
+                res.set('Content-Length', fileSize)
+
+                store.readShaAsStream(sha, 0, -1).pipe(res)
+            }
         }
         catch (err) {
             res.send(`{"error":"missing sha ${sha}, ${err}!"}`)

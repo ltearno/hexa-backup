@@ -204,13 +204,22 @@ export class ObjectRepository {
         }
     }
 
-    readShaAsStream(sha: string) {
+    readShaAsStream(sha: string, start: number, end: number) {
         if (!sha)
             return null
-            
+
         let contentFileName = this.contentFileName(sha)
 
-        return fs.createReadStream(contentFileName, { autoClose: true })
+        let options: any = {
+            autoClose: true
+        }
+
+        if (start >= 0)
+            options.start = start
+        if (end >= 0)
+            options.end = end
+
+        return fs.createReadStream(contentFileName, options)
     }
 
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
