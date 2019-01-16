@@ -60,7 +60,7 @@
             position: relative;
         }
 
-        #images-container:-webkit-full-screen {
+        body:-webkit-full-screen #images-container {
             height :100vw;
             max-width :inherit;
         }
@@ -134,6 +134,10 @@
                 flex-wrap: wrap;
                 justify-content: space-around;
             }
+        }
+
+        .is-hidden, body:-webkit-full-screen #directories, body:-webkit-full-screen #files, body:-webkit-full-screen #menu, body:-webkit-full-screen #videos-container {
+            display: none;
         }
     </style>
 </head>
@@ -320,11 +324,11 @@
                 `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>` :
                 `<div><a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`)
         if (directoriesContent.length) {
-            el('#directories').style.display = 'block'
+            el('#directories').classList.remove('is-hidden')
             el('#directories').innerHTML = `<h2>${directoriesContent.length} Directories</h2>` + directoriesContent.join('')
         }
         else {
-            el('#directories').style.display = 'none'
+            el('#directories').classList.add('is-hidden')
         }
         finishLoading()
 
@@ -370,11 +374,11 @@
                 return `<div>${imageHtml}</div>`
             })
         if (filesContent.length) {
-            el('#files').style.display = 'block'
+            el('#files').classList.remove('is-hidden')
             el('#files').innerHTML = `<h2>${filesContent.length} Files</h2>` + filesContent.join('')
         }
         else {
-            el('#files').style.display = 'none'
+            el('#files').classList.add('is-hidden')
         }
         finishLoading()
 
@@ -572,10 +576,7 @@
     })
 
     el('#fullScreen').addEventListener('click', () => {
-        if (currentPictureIndex < 0)
-            el('#images-container').webkitRequestFullScreen()
-        else
-            el('#image-full-container').webkitRequestFullScreen()
+        el('body').webkitRequestFullScreen()
     })
 
     el('#extended').addEventListener('change', () => {
@@ -613,7 +614,7 @@
         publishHistoryState()
 
         if (window.location.hash && window.location.hash.startsWith('#') && window.location.hash.length > 10 && window.location.hash != '#null')
-            el('#optional').style.display = 'none'
+            el('#optional').classList.add('optional')
 
         syncUi()
     }
@@ -634,20 +635,12 @@
 
     async function syncUi() {
         if (currentPictureIndex < 0) {
-            if (document.webkitFullscreenElement != null && document.webkitFullscreenElement != el('#images-container')) {
-                document.webkitExitFullscreen()
-            }
-
-            el('#image-full-container').style.display = 'none'
-            el('#images-container').style.display = 'block'
+            el('#image-full-container').classList.add('is-hidden')
+            el('#images-container').classList.remove('is-hidden')
         }
         else {
-            if (document.webkitFullscreenElement != null && document.webkitFullscreenElement != el('#image-full-container')) {
-                document.webkitExitFullscreen()
-            }
-
-            el('#image-full-container').style.display = 'block'
-            el('#images-container').style.display = 'none'
+            el('#image-full-container').classList.remove('is-hidden')
+            el('#images-container').classList.add('is-hidden')
         }
 
         const extChange = displayedExtended != EXTENDED
@@ -660,12 +653,12 @@
             await showRef(currentClientId)
 
         if (videosPool.length)
-            el('#videos-container').style.display = 'block'
+            el('#videos-container').classList.remove('is-hidden')
         else
-            el('#videos-container').style.display = 'none'
+            el('#videos-container').classList.add('is-hidden')
 
         if (!imagesPool.length)
-            el('#images-container').style.display = 'none'
+            el('#images-container').classList.add('is-hidden')
 
         if (currentPictureIndex != displayedPictureIndex)
             await showPicture(currentPictureIndex)
