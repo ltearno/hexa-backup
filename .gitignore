@@ -4,3 +4,5 @@ target/
 .hb-refs/
 .hb-cache/
 *.log
+server.key
+server.crt

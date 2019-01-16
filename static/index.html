@@ -469,7 +469,7 @@
         if (commitSha == null)
             return null
 
-        let finishLoading = startLoading(`loading commit for default directory descriptor`)
+        let finishLoading = startLoading(`loading commit ${commitSha.substr(0, 7)} for default directory descriptor`)
 
         let commit = await fetchCommit(commitSha)
         if (!commit)

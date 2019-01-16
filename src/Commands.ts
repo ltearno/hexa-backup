@@ -1,9 +1,12 @@
 import * as express from 'express'
+import * as bodyParser from 'body-parser'
 import * as ShaCache from './ShaCache'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
-import { HashTools, FsTools, LoggerBuilder, ExpressTools, Queue, Transport, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
+import { HashTools, FsTools, LoggerBuilder, Queue, ExpressTools, Transport, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
 import * as Model from './Model'
 import * as fs from 'fs'
+import * as http from 'http'
+import * as https from 'https'
 import * as path from 'path'
 import * as DirectoryBrowser from './DirectoryBrowser'
 import {
@@ -637,13 +640,36 @@ export async function pushStore(directory: string, storeIp: string, storePort: n
     log(`TODO : push refs`)
 }
 
-export async function store(directory: string, port: number) {
+export async function store(directory: string, port: number, insecure: boolean) {
     console.log(`preparing store in ${directory}`)
     let store = new HexaBackupStore(directory)
 
     console.log('server initialisation')
 
-    let app: any = ExpressTools.createExpressApp(port)
+    let app: any = express()
+    require('express-ws')(app)
+    app.use(bodyParser.json())
+
+    if (insecure) {
+        //app = ExpressTools.createExpressApp(port)
+        http.createServer(app).listen(port)
+
+        console.log(`listening HTTP on ${port}`)
+    }
+    else {
+        const CERT_KEY = 'server.key'
+        const CERT_PUB = 'server.crt'
+        if (!fs.existsSync(CERT_KEY) || !fs.existsSync(CERT_PUB)) {
+            console.error(`error, no certificates found. Generate your certificates or use the --insecure option !\n\nyou can generate self-signed certificates with this command:\nopenssl req -new -x509 -sha256 -newkey rsa:4096 -nodes -keyout server.key -days 365 -out server.crt`)
+            return
+        }
+
+        let key = fs.readFileSync(CERT_KEY)
+        let cert = fs.readFileSync(CERT_PUB)
+        https.createServer({ key, cert }, app).listen(port)
+
+        console.log(`listening HTTPS on ${port}`)
+    }
 
     console.log(`base dir: ${path.dirname(__dirname)}`)
     app.use('/public', express.static(path.join(path.dirname(__dirname), 'static')))

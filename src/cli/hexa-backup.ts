@@ -271,13 +271,15 @@ async function run() {
             verbs: ["store"],
             options: {
                 storePort: 5005,
-                storeDirectory: '.'
+                storeDirectory: '.',
+                insecure: false
             },
             executor: async (options) => {
                 const port = options['storePort']
                 const directory = fsPath.resolve(options['storeDirectory'])
+                const insecure = !!options['insecure']
 
-                await Commands.store(directory, port)
+                await Commands.store(directory, port, insecure)
             }
         }
     ])
