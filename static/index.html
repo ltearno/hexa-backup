@@ -333,6 +333,10 @@
                     images.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
                 })
 
+                mimeTypes.filter(t => t.startsWith('video/')).forEach(mimeType => {
+                    imageHtml += `<video controls><source src='/sha/${file.contentSha}/content?type=${mimeType}' type='${mimeType}'></video>`
+                })
+
                 return `<div>${imageHtml}</div>`
             })
         if (filesContent.length) {
