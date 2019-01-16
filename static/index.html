@@ -233,6 +233,7 @@
     let currentDirectoryDescriptorSha = null
     let currentPictureIndex = -1
     let currentAudioIndex = -1
+    let currentVideoIndex = -1
     let imagesPool = []
     let videosPool = []
     let audioPool = []
@@ -442,6 +443,7 @@
         imagesPool = images
         restartImagesPool()
 
+        currentVideoIndex = -1
         videosPool = videos
         restartVideosPool()
 
@@ -475,25 +477,41 @@
     }
 
     async function showVideo(index) {
+        if (index < 0 || index >= videosPool.length)
+            return
+
+        currentVideoIndex = index
         let { sha, mimeType, fileName } = videosPool[index]
         el('#video-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
         el('#video-player').setAttribute('type', mimeType)
+        el('#video-player').play()
+
+        el(`#video-${index}`).style.fontWeight = 'bold'
+    }
+
+    async function showNextVideo() {
+        showVideo(currentVideoIndex + 1)
     }
 
     async function restartVideosPool() {
         let html = ''
         for (let i in videosPool) {
-            html += `<a href='#' onclick='event.preventDefault() || showVideo(${i})'>${videosPool[i].fileName}</a><br>`
+            html += `<a id='video-${i}' href='#' onclick='event.preventDefault(), showVideo(${i})'>${videosPool[i].fileName}</a><br>`
         }
         el('#video-list').innerHTML = html
     }
 
     async function listenAudio(index) {
+        if (index < 0 || index >= audioPool.length)
+            return
+
         currentAudioIndex = index
         let { sha, mimeType, fileName } = audioPool[index]
         el('#audio-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
         el('#audio-player').setAttribute('type', mimeType)
         el('#audio-player').play()
+
+        el(`#audio-${index}`).style.fontWeight = 'bold'
     }
 
     async function listenNext() {
@@ -503,7 +521,7 @@
     async function restartAudioPool() {
         let html = ''
         for (let i in audioPool) {
-            html += `<a href='#' onclick='event.preventDefault() || listenAudio(${i})'>${audioPool[i].fileName}</a><br>`
+            html += `<a id='audio-${i}' href='#' onclick='event.preventDefault() || listenAudio(${i})'>${audioPool[i].fileName}</a><br>`
         }
         el('#audio-list').innerHTML = html
     }
@@ -664,6 +682,10 @@
 
     el('#audio-player').addEventListener('ended', () => {
         listenNext()
+    })
+
+    el('#video-player').addEventListener('ended', () => {
+        showNextVideo()
     })
 
     window.onpopstate = function (event) {
