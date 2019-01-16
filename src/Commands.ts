@@ -720,6 +720,29 @@ export async function store(directory: string, port: number) {
         }
     });
 
+    app.get('/sha/:sha/plugins/image/medium', async (req, res) => {
+        let sha = req.params.sha
+
+        try {
+            if (req.query.type)
+                res.set('Content-Type', req.query.type)
+
+            let out = null
+            let input = await store.readShaBytes(sha, 0, -1)
+
+            const sharp = require('sharp')
+
+            out = await sharp(input).resize(1024).toBuffer()
+
+            res.set('ETag', sha)
+            res.set('Cache-Control', 'private, max-age=31536000')
+            res.send(out)
+        }
+        catch (err) {
+            res.send(`{"error":"missing sha ${sha}!"}`)
+        }
+    });
+
     app.ws('/hexa-backup', async (ws: NetworkApi.WebSocket, req: any) => {
         console.log(`serving new client ws`)
 
