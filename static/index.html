@@ -94,6 +94,10 @@
                 flex-shrink: 0;
             }
 
+            #image-full-container {
+                flex-shrink: 0;
+            }
+
             img {
                 width: 50vw;
             }
@@ -365,14 +369,12 @@
     }
 
     async function showPicture(index) {
-        if (index < 0) {
-            el('#image-full-container').innerHTML = ''
-        }
-        else {
-            let { sha, mimeType, fileName } = imagesPool[index]
-            el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;background-color: white;text-align: center;'><a href='/sha/${sha}/content?type=${mimeType}'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></a></div>`
-            el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button onclick='goPreviousPicture()'>&lt;</button><button onclick='goNextPicture()'>&gt;</button><button onclick='goNoPicture()'>X</button></div>`
-        }
+        el('#image-full-container').innerHTML = ''
+        if (index < 0)
+            return
+        let { sha, mimeType, fileName } = imagesPool[index]
+        el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;'><a style='width:100%;height:100%;display:flex;align-items:center;justify-content: center;' href='/sha/${sha}/content?type=${mimeType}'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></a></div>`
+        el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;padding:.5em;'><button onclick='goPreviousPicture()'>&lt;</button><button onclick='goNextPicture()'>&gt;</button><button onclick='goNoPicture()'>X</button></div>`
     }
 
     async function getClientDefaultDirectoryDescriptorSha(ref) {
@@ -456,10 +458,7 @@
         let waitContinueResolver = null
 
         async function run() {
-            const shouldAdd = () => {
-                console.log(`shouldAdd ${scrollContent.lastChild.offsetTop} ${scrollContainer.scrollTop} ${scrollContainer.offsetHeight}`)
-                return scrollContent.lastChild.offsetTop - (scrollContainer.offsetHeight / 1) <= scrollContainer.scrollTop + scrollContainer.offsetHeight
-            }
+            const shouldAdd = () => scrollContent.lastChild.offsetTop - (scrollContainer.offsetHeight / 1) <= scrollContainer.scrollTop + scrollContainer.offsetHeight
 
             const scrollListener = event => {
                 if (waitContinueResolver && shouldAdd()) {
@@ -511,7 +510,10 @@
     })
 
     el('#fullScreen').addEventListener('click', () => {
-        el('#images-container').webkitRequestFullScreen()
+        if (currentPictureIndex < 0)
+            el('#images-container').webkitRequestFullScreen()
+        else
+            el('#image-full-container').webkitRequestFullScreen()
     })
 
     el('#extended').addEventListener('input', () => {
@@ -568,10 +570,18 @@
 
     async function syncUi() {
         if (currentPictureIndex < 0) {
+            if (document.webkitFullscreenElement != null && document.webkitFullscreenElement != el('#images-container')) {
+                document.webkitExitFullscreen()
+            }
+
             el('#image-full-container').style.display = 'none'
             el('#images-container').style.display = 'block'
         }
         else {
+            if (document.webkitFullscreenElement != null && document.webkitFullscreenElement != el('#image-full-container')) {
+                document.webkitExitFullscreen()
+            }
+
             el('#image-full-container').style.display = 'block'
             el('#images-container').style.display = 'none'
         }
