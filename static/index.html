@@ -100,6 +100,23 @@
             image-orientation: from-image;
         }
 
+        #audio-container {
+            max-height: 100vh;
+            min-width: 30em;
+            display: flex;
+            flex-flow: column;
+            overflow-y: auto;
+        }
+
+        #audio-list {
+            flex-shrink: 1;
+        }
+
+        #audio-player {
+            width: 100%;
+            flex-shrink: 1;
+        }
+
         #videos-container {
             max-height: 100vh;
             min-width: 30em;
@@ -137,6 +154,12 @@
                 max-height: initial;
             }
 
+            #audio-container {
+                width: 100%;
+                flex-shrink: 0;
+                max-height: initial;
+            }
+
             img {
                 width: 50vw;
             }
@@ -149,7 +172,7 @@
             }
         }
 
-        .is-hidden, body:-webkit-full-screen #directories, body:-webkit-full-screen #files, body:-webkit-full-screen #menu, body:-webkit-full-screen #videos-container {
+        .is-hidden, body:-webkit-full-screen #directories, body:-webkit-full-screen #files, body:-webkit-full-screen #menu, body:-webkit-full-screen #videos-container, body:-webkit-full-screen #audio-container {
             display: none !important;
         }
     </style>
@@ -183,6 +206,11 @@
         <video id="video-player" controls preload="metadata"></video>
         <div id="video-list"></div>
     </div>
+    <div id="audio-container">
+        <h2>Audio files</h2>
+        <audio id="audio-player" controls preload="metadata"></audio>
+        <div id="audio-list"></div>
+    </div>
     <div id="images-container">
         <div id="images"></div>
     </div>
@@ -205,6 +233,7 @@
     let currentPictureIndex = -1
     let imagesPool = []
     let videosPool = []
+    let audioPool = []
 
     let displayedDirectoryDescriptorSha = null
     let displayedClientId = null
@@ -311,6 +340,7 @@
         el('#files').innerHTML = ''
         el('#images').innerHTML = ''
         el('#video-list').innerHTML = ''
+        el('#audio-list').innerHTML = ''
 
         if (!directoryDescriptorSha)
             return
@@ -354,6 +384,7 @@
 
         let images = []
         let videos = []
+        let audios = []
 
         finishLoading = startLoading(`listing files`)
         let filesContent = files
@@ -389,6 +420,10 @@
                     videos.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
                 })
 
+                mimeTypes.filter(t => t.startsWith('audio/')).forEach(mimeType => {
+                    audios.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
+                })
+
                 return `<div>${imageHtml}</div>`
             })
         if (filesContent.length) {
@@ -407,6 +442,9 @@
 
         videosPool = videos
         restartVideosPool()
+
+        audioPool = audios
+        restartAudioPool()
     }
 
     const maxImagesSeen = 100
@@ -437,8 +475,6 @@
         let { sha, mimeType, fileName } = videosPool[index]
         el('#video-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
         el('#video-player').setAttribute('type', mimeType)
-
-        //el('#video-player').innerHTML += `<source id="video-source" src='/sha/${sha}/content?type=${mimeType}' type='${mimeType}'>`
     }
 
     async function restartVideosPool() {
@@ -447,6 +483,20 @@
             html += `<a href='#' onclick='event.preventDefault() || showVideo(${i})'>${videosPool[i].fileName}</a><br>`
         }
         el('#video-list').innerHTML = html
+    }
+
+    async function listenAudio(index) {
+        let { sha, mimeType, fileName } = audioPool[index]
+        el('#audio-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
+        el('#audio-player').setAttribute('type', mimeType)
+    }
+
+    async function restartAudioPool() {
+        let html = ''
+        for (let i in audioPool) {
+            html += `<a href='#' onclick='event.preventDefault() || listenAudio(${i})'>${audioPool[i].fileName}</a><br>`
+        }
+        el('#audio-list').innerHTML = html
     }
 
     async function showPicture(index) {
@@ -673,6 +723,11 @@
             el('#videos-container').classList.remove('is-hidden')
         else
             el('#videos-container').classList.add('is-hidden')
+
+        if (audioPool.length)
+            el('#audio-container').classList.remove('is-hidden')
+        else
+            el('#audio-container').classList.add('is-hidden')
 
         if (!imagesPool.length)
             el('#images-container').classList.add('is-hidden')
