@@ -70,6 +70,20 @@
             position: relative;
         }
 
+        #image-full-container {
+            overflow: auto;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        .image-full{
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
         @media screen and (max-width: 1215px) {
             body {
                 flex-flow: column;
@@ -121,6 +135,7 @@
             <div id="images"></div>
         </div>
     </div>
+    <div id="image-full-container"></div>
 </body>
 
 <script>
@@ -296,13 +311,20 @@
         if (imagesPool.length) {
             el('#images').innerHTML = ''
             infiniteScrollerStop = infiniteScroll(imagesPool,
-                ({ sha, mimeType, fileName }) => `<a href='/sha/${sha}/content?type=${mimeType}'><img src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></a>`,
+                ({ sha, mimeType, fileName }, index) => `<img onclick='showPicture(${index})' src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/>`,
                 el('#images-container'),
                 el('#images'))
         }
         else {
             el('#images').innerHTML = '<i class="small">no picture in this folder</i>'
+            // <a href='/sha/${sha}/content?type=${mimeType}'></a>
         }
+    }
+
+    async function showPicture(index) {
+        let { sha, mimeType, fileName } = imagesPool[index]
+        el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;background-color: white;text-align: center;'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></div>`
+        el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button>&lt;</button><button>&gt;</button></div>`
     }
 
     async function showRef(ref) {
@@ -382,9 +404,10 @@
                 if (nextElementToInsert >= db.length)
                     break
 
-                let elem = db[nextElementToInsert++]
+                let index = nextElementToInsert++
+                let elem = db[index]
 
-                scrollContent.innerHTML += domCreator(elem)
+                scrollContent.innerHTML += domCreator(elem, index)
 
                 if (nextElementToInsert % poolSize == 0) {
                     await wait(150)
