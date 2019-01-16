@@ -663,6 +663,10 @@ export async function store(directory: string, port: number) {
 
     app.get('/sha/:sha/content', async (req, res) => {
         let sha = req.params.sha
+        if (sha == null || sha == 'null') {
+            res.send(`{"error":"input validation (sha is ${sha})"}`)
+            return
+        }
 
         try {
             if (req.query.type)
@@ -686,6 +690,10 @@ export async function store(directory: string, port: number) {
 
     app.get('/sha/:sha/plugins/image/thumbnail', async (req, res) => {
         let sha = req.params.sha
+        if (sha == null || sha == 'null') {
+            res.send(`{"error":"input validation (sha is ${sha})"}`)
+            return
+        }
 
         try {
             if (req.query.type)
@@ -725,6 +733,10 @@ export async function store(directory: string, port: number) {
 
     app.get('/sha/:sha/plugins/image/medium', async (req, res) => {
         let sha = req.params.sha
+        if (sha == null || sha == 'null') {
+            res.send(`{"error":"input validation (sha is ${sha})"}`)
+            return
+        }
 
         try {
             if (req.query.type)
