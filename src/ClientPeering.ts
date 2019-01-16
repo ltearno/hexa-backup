@@ -195,7 +195,7 @@ export class Peering {
 
             if (isSending) {
                 if (lastShaEntry.type == 'directory') {
-                    res = res.concat([``, `                      sending directory`, ``])
+                    res = res.concat([``, `                      sending directory`])
                 }
                 else {
                     let transferred = (f2q ? f2q.transferred : 0)
@@ -204,16 +204,15 @@ export class Peering {
                     let eta = transferred > 0 ? (txTime * leftBytes) / transferred : 0
                     res = res.concat([
                         ` sending:             ${lastShaToSend.sha.substr(0, 7)} ${lastShaEntry.fullPath}`,
-                        ` offset @ size:       ${Tools.prettySize(lastShaToSend.offset)} @ ${Tools.prettySize(lastShaEntry.size)}`,
-                        ` progress:            ${Tools.prettySize(transferred)} ${Tools.prettySpeed(transferred, txTime)} ${(100 * (lastShaToSend.offset + transferred) / lastShaEntry.size).toFixed(2)} % (${Tools.prettySize(leftBytes)} left, ETA ${Tools.prettyTime(eta)})`
+                        ` progress:            ${Tools.prettySize(lastShaToSend.offset+transferred)}/${Tools.prettySize(lastShaEntry.size)}${lastShaToSend.offset?`, started at ${Tools.prettySize(lastShaToSend.offset)}`:''} ${Tools.prettySpeed(transferred, txTime)} ${(100 * (lastShaToSend.offset + transferred) / lastShaEntry.size).toFixed(2)} % (${Tools.prettySize(leftBytes)} left, ETA ${Tools.prettyTime(eta)})`
                     ])
                 }
             }
             else if (isValidating) {
-                res = res.concat([``, `                      (remote validating ${Tools.prettySize(lastShaEntry.size)})`, ``])
+                res = res.concat([``, `                      (remote validating ${Tools.prettySize(lastShaEntry.size)})`])
             }
             else {
-                res = res.concat([``, `                      (not sending shaBytes)`, ``])
+                res = res.concat([``, `                      (not sending shaBytes)`])
             }
 
             return res
