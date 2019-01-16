@@ -9,7 +9,8 @@ log.conf('dbg', false)
 
 // i only care about people sniffing the local network, not people making man in the middle attacks...
 // but that's is bad, for sure
-process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
+let hacky: any = process.env
+hacky["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
 
 function parseArgs(args: string[], defaultParameters): { verbs: string[]; parameters: { [k: string]: any } } {
     let parameters = {}
