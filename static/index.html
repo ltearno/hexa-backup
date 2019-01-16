@@ -46,19 +46,6 @@
             padding:.5em;
         }
 
-        #extras {
-            overflow: auto;
-            flex-grow: 1;
-            min-width: 10em;
-        }
-
-        #extras:-webkit-full-screen {
-            display :block;
-            width :100vh;
-            height :100vw;
-            max-width :inherit;
-        }
-
         .small {
             font-size: .8em;
             color: #333;
@@ -66,8 +53,18 @@
 
         #images-container {
             overflow: auto;
+            flex-grow: 1;
+            min-width: 10em;
+
             height: 100vh;
             position: relative;
+        }
+
+        #images-container:-webkit-full-screen {
+            /*display :block;
+            width :100vh;*/
+            height :100vw;
+            max-width :inherit;
         }
 
         #image-full-container {
@@ -75,6 +72,10 @@
             height: 100vh;
             width: 100vw;
             position: relative;
+        }
+
+        #images>div{
+            display: inline-block;
         }
 
         .image-full{
@@ -89,7 +90,7 @@
                 flex-flow: column;
             }
 
-            #extras {
+            #images-container {
                 flex-shrink: 0;
             }
 
@@ -130,10 +131,8 @@
     </div>
     <div id="directories"></div>
     <div id="files"></div>
-    <div id="extras">
-        <div id="images-container">
-            <div id="images"></div>
-        </div>
+    <div id="images-container">
+        <div id="images"></div>
     </div>
     <div id="image-full-container"></div>
 </body>
@@ -355,7 +354,7 @@
         if (imagesPool.length) {
             el('#images').innerHTML = ''
             infiniteScrollerStop = infiniteScroll(imagesPool,
-                ({ sha, mimeType, fileName }, index) => `<img onclick='goPicture(${index})' src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/>`,
+                ({ sha, mimeType, fileName }, index) => `<div><img onclick='goPicture(${index})' src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></div>`,
                 el('#images-container'),
                 el('#images'))
         }
@@ -367,11 +366,9 @@
 
     async function showPicture(index) {
         if (index < 0) {
-            el('#image-full-container').style.display = 'none'
+            el('#image-full-container').innerHTML = ''
         }
         else {
-            el('#image-full-container').style.display = 'block'
-
             let { sha, mimeType, fileName } = imagesPool[index]
             el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;background-color: white;text-align: center;'><a href='/sha/${sha}/content?type=${mimeType}'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></a></div>`
             el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button onclick='goPreviousPicture()'>&lt;</button><button onclick='goNextPicture()'>&gt;</button><button onclick='goNoPicture()'>X</button></div>`
@@ -514,7 +511,7 @@
     })
 
     el('#fullScreen').addEventListener('click', () => {
-        el('#extras').webkitRequestFullScreen()
+        el('#images-container').webkitRequestFullScreen()
     })
 
     el('#extended').addEventListener('input', () => {
@@ -570,6 +567,15 @@
     }
 
     async function syncUi() {
+        if (currentPictureIndex < 0) {
+            el('#image-full-container').style.display = 'none'
+            el('#images-container').style.display = 'block'
+        }
+        else {
+            el('#image-full-container').style.display = 'block'
+            el('#images-container').style.display = 'none'
+        }
+
         if (currentDirectoryDescriptorSha != displayedDirectoryDescriptorSha)
             await showDirectory(currentDirectoryDescriptorSha)
         if (currentClientId != displayedClientId)
