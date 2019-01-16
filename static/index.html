@@ -466,7 +466,7 @@
         async function run() {
             if (!db || db.length)
                 return
-                
+
             const shouldAdd = () => scrollContent.lastChild.offsetTop - (scrollContainer.offsetHeight / 1) <= scrollContainer.scrollTop + scrollContainer.offsetHeight
 
             const scrollListener = event => {
@@ -525,7 +525,7 @@
             el('#image-full-container').webkitRequestFullScreen()
     })
 
-    el('#extended').addEventListener('input', () => {
+    el('#extended').addEventListener('change', () => {
         EXTENDED = !!el('#extended').checked
         localStorage.setItem('EXTENDED', `${EXTENDED}`)
 
