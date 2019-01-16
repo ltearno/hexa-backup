@@ -205,6 +205,9 @@ export class ObjectRepository {
     }
 
     readShaAsStream(sha: string) {
+        if (!sha)
+            return null
+            
         let contentFileName = this.contentFileName(sha)
 
         return fs.createReadStream(contentFileName, { autoClose: true })
