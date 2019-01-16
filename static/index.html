@@ -145,6 +145,7 @@
     <div id="directories"></div>
     <div id="files"></div>
     <div id="videos-container">
+        <h2>Videos</h2>
         <video id="video-player" controls preload="metadata"></video>
         <div id="video-list"></div>
     </div>
@@ -402,7 +403,7 @@
     }
 
     async function restartVideosPool() {
-        let html = `<h2>${videosPool.length} videos</h2>`
+        let html = `${videosPool.length} videos :`
         for (let i in videosPool) {
             html += `<a href='#' onclick='event.preventDefault() || showVideo(${i})'>${videosPool[i].fileName}</a><br>`
         }
