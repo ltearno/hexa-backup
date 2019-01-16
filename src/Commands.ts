@@ -671,10 +671,10 @@ export async function store(directory: string, port: number) {
             if (req.query.fileName)
                 res.set('Content-Disposition', `attachment; filename="${req.query.fileName}"`)
 
-            let out = await store.readShaBytes(sha, 0, -1)
             res.set('ETag', sha)
             res.set('Cache-Control', 'private, max-age=31536000')
-            res.send(out)
+
+            store.readShaAsStream(sha).pipe(res)
         }
         catch (err) {
             res.send(`{"error":"missing sha ${sha}, ${err}!"}`)

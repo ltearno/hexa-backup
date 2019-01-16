@@ -48,6 +48,10 @@ export class HexaBackupStore implements IHexaBackupStore {
         return this.objectRepository
     }
 
+    readShaAsStream(sha: string) {
+        return this.objectRepository.readShaAsStream(sha)
+    }
+
     /** Public remote interface */
 
     async getRefs() {

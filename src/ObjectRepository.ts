@@ -204,6 +204,12 @@ export class ObjectRepository {
         }
     }
 
+    readShaAsStream(sha: string) {
+        let contentFileName = this.contentFileName(sha)
+
+        return fs.createReadStream(contentFileName, { autoClose: true })
+    }
+
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
         return new Promise<Buffer>((resolve, reject) => {
             if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
