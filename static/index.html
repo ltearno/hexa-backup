@@ -143,6 +143,10 @@
         <div id="images"></div>
     </div>
     <div id="image-full-container"></div>
+    <div id="videos-container">
+        <video id="video-player" controls preload="auto"></video>
+        <div id="video-list"></div>
+    </div>
 </body>
 
 <script>
@@ -155,6 +159,7 @@
     let currentDirectoryDescriptorSha = null
     let currentPictureIndex = -1
     let imagesPool = []
+    let videosPool = []
 
     let displayedDirectoryDescriptorSha = null
     let displayedClientId = null
@@ -260,6 +265,7 @@
         el('#directories').innerHTML = ''
         el('#files').innerHTML = ''
         el('#images').innerHTML = ''
+        el('#video-list').innerHTML = ''
 
         if (!directoryDescriptorSha)
             return
@@ -302,6 +308,7 @@
         await wait(1)
 
         let images = []
+        let videos = []
 
         finishLoading = startLoading(`listing files`)
         let filesContent = files
@@ -334,7 +341,7 @@
                 })
 
                 mimeTypes.filter(t => t.startsWith('video/')).forEach(mimeType => {
-                    imageHtml += `<video controls><source src='/sha/${file.contentSha}/content?type=${mimeType}' type='${mimeType}'></video>`
+                    videos.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
                 })
 
                 return `<div>${imageHtml}</div>`
@@ -352,6 +359,9 @@
 
         imagesPool = images
         restartImagesPool()
+
+        videosPool = videos
+        restartVideosPool()
     }
 
     const maxImagesSeen = 100
@@ -376,6 +386,22 @@
             el('#images').innerHTML = '<br/><i class="small">no picture in this folder</i>'
             // <a href='/sha/${sha}/content?type=${mimeType}'></a>
         }
+    }
+
+    async function showVideo(index) {
+        let { sha, mimeType, fileName } = videosPool[index]
+        el('#video-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
+        el('#video-player').setAttribute('type', mimeType)
+
+        //el('#video-player').innerHTML += `<source id="video-source" src='/sha/${sha}/content?type=${mimeType}' type='${mimeType}'>`
+    }
+
+    async function restartVideosPool() {
+        let html = `<h2>${videosPool.length} videos</h2>`
+        for (let i in videosPool) {
+            html += `<a href='#' onclick='event.preventDefault() || showVideo(${i})'>${videosPool[i].fileName}</a><br>`
+        }
+        el('#video-list').innerHTML = html
     }
 
     async function showPicture(index) {
@@ -606,8 +632,18 @@
 
         if (extChange || currentDirectoryDescriptorSha != displayedDirectoryDescriptorSha)
             await showDirectory(currentDirectoryDescriptorSha)
+
         if (extChange || currentClientId != displayedClientId)
             await showRef(currentClientId)
+
+        if (videosPool.length)
+            el('#videos-container').style.display = 'block'
+        else
+            el('#videos-container').style.display = 'none'
+
+        if (!imagesPool.length)
+            el('#images-container').style.display = 'none'
+
         if (currentPictureIndex != displayedPictureIndex)
             await showPicture(currentPictureIndex)
 
