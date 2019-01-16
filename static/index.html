@@ -194,9 +194,8 @@
         currentClientId = ref
         if (currentClientId != oldClientId) {
             currentPictureIndex = -1
-            currentDirectoryDescriptorSha = await showRef(ref)
+            currentDirectoryDescriptorSha = await getClientDefaultDirectoryDescriptorSha(ref)
         }
-
         publishHistoryState()
 
         await syncUi()
@@ -206,7 +205,27 @@
         currentPictureIndex = index
         publishHistoryState()
 
-        syncUi()
+        await syncUi()
+    }
+
+    async function goPreviousPicture() {
+        if (currentPictureIndex <= 0)
+            return
+
+        currentPictureIndex--
+        publishHistoryState()
+
+        await syncUi()
+    }
+
+    async function goNextPicture() {
+        if (currentPictureIndex < 0 || !imagesPool || !imagesPool.length || currentPictureIndex == imagesPool.length - 1)
+            return
+
+        currentPictureIndex++
+        publishHistoryState()
+
+        await syncUi()
     }
 
     let loaders = []
@@ -347,7 +366,7 @@
 
             let { sha, mimeType, fileName } = imagesPool[index]
             el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;background-color: white;text-align: center;'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></div>`
-            el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button>&lt;</button><button>&gt;</button></div>`
+            el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button onclick='goPreviousPicture()'>&lt;</button><button onclick='goNextPicture()'>&gt;</button></div>`
         }
     }
 
