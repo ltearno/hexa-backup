@@ -681,8 +681,8 @@ export async function store(directory: string, port: number) {
         }
     });
 
-    // TODO should use a LRU cache
     let thumbnailCache = new Map<string, Buffer>()
+    let thumbnailCacheEntries = []
 
     app.get('/sha/:sha/plugins/image/thumbnail', async (req, res) => {
         let sha = req.params.sha
@@ -699,16 +699,21 @@ export async function store(directory: string, port: number) {
                 let input = await store.readShaBytes(sha, 0, -1)
 
                 const sharp = require('sharp')
+
                 out = await sharp(input).resize(150).toBuffer()
                 thumbnailCache.set(sha, out)
+                thumbnailCacheEntries.push(sha)
             }
 
             res.set('ETag', sha)
             res.set('Cache-Control', 'private, max-age=31536000')
             res.send(out)
 
-            if (thumbnailCache.size > 200)
-                thumbnailCache = new Map<string, Buffer>()
+            if (thumbnailCache.size > 200) {
+                while (thumbnailCacheEntries.length > 50) {
+                    thumbnailCache.delete(thumbnailCacheEntries.shift())
+                }
+            }
         }
         catch (err) {
             res.send(`{"error":"missing sha ${sha}!"}`)
