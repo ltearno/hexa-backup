@@ -190,7 +190,7 @@ export class Peering {
                 `queues:               files ${this.fileInfos.size()} / hasShaBytes ${this.hasShaBytes.size()} ${this.closedHasShaBytes ? '[CLOSED]' : ''} / shasToSend ${this.shasToSend.size()} / shaBytes ${this.shaBytes.size()}`,
                 `browsing:             ${directoryBrowser.stats.nbDirectoriesBrowsed} dirs, ${directoryBrowser.stats.nbFilesBrowsed} files, ${Tools.prettySize(directoryBrowser.stats.bytesBrowsed)} browsed ${isBrowsing ? '' : ' [FINISHED]'}`,
                 `hashing:              ${Tools.prettySize(shaStats.totalHashedBytes)} hashed, ${Tools.prettyTime(shaStats.totalTimeHashing)}, ${Tools.prettySpeed(shaStats.totalHashedBytes, shaStats.totalTimeHashing)}, ${Tools.prettySize(shaStats.totalBytesCacheHit)} cache hit`,
-                `tx:                   ${Tools.prettySize(sentBytes)}, ${Tools.prettyTime(sendingTime)}, ${Tools.prettySpeed(sentBytes, sendingTime)}/s, ${sentDirectories} directories, ${sentFiles} files`
+                `tx:                   ${Tools.prettySize(sentBytes)}, ${Tools.prettyTime(sendingTime)}, ${Tools.prettySpeed(sentBytes, sendingTime)}, ${sentDirectories} directories, ${sentFiles} files`
             ]
 
             if (isSending) {
