@@ -143,7 +143,12 @@
 
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
+    let currentPictureIndex = -1
     let imagesPool = []
+
+    let displayedDirectoryDescriptorSha = null
+    let displayedClientId = null
+    let displayedPictureIndex = null
 
     const wait = (ms) => {
         return new Promise(resolve => {
@@ -165,31 +170,43 @@
     const displayDate = date => (typeof date === 'number' ? new Date(date) : date).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
 
     let lastPushedHistoryState = null
-    const updateHistoryState = () => {
+    const publishHistoryState = () => {
         let footprint = `${currentDirectoryDescriptorSha}#${currentClientId}`
+        if (currentPictureIndex >= 0)
+            footprint += `-${currentPictureIndex}`
+
         if (footprint != lastPushedHistoryState) {
             lastPushedHistoryState = footprint
-            history.pushState({ currentDirectoryDescriptorSha, currentClientId }, `directory ${currentDirectoryDescriptorSha}`, `/public/#${currentDirectoryDescriptorSha}`)
+            history.pushState({ currentDirectoryDescriptorSha, currentClientId, currentPictureIndex }, `directory ${currentDirectoryDescriptorSha}`, `/public/#${currentDirectoryDescriptorSha}${currentPictureIndex >= 0 ? `-${currentPictureIndex}` : ''}`)
         }
     }
 
     async function goDirectory(directoryDescriptorSha) {
+        currentPictureIndex = -1
         currentDirectoryDescriptorSha = directoryDescriptorSha
-        updateHistoryState()
-        showDirectory(currentDirectoryDescriptorSha)
+        publishHistoryState()
+
+        await syncUi()
     }
 
     async function goRef(ref) {
         let oldClientId = currentClientId
         currentClientId = ref
         if (currentClientId != oldClientId) {
+            currentPictureIndex = -1
             currentDirectoryDescriptorSha = await showRef(ref)
-            showDirectory(currentDirectoryDescriptorSha)
         }
-        else {
-            await showRef(ref)
-        }
-        updateHistoryState()
+
+        publishHistoryState()
+
+        await syncUi()
+    }
+
+    async function goPicture(index) {
+        currentPictureIndex = index
+        publishHistoryState()
+
+        syncUi()
     }
 
     let loaders = []
@@ -311,20 +328,50 @@
         if (imagesPool.length) {
             el('#images').innerHTML = ''
             infiniteScrollerStop = infiniteScroll(imagesPool,
-                ({ sha, mimeType, fileName }, index) => `<img onclick='showPicture(${index})' src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/>`,
+                ({ sha, mimeType, fileName }, index) => `<img onclick='goPicture(${index})' src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/>`,
                 el('#images-container'),
                 el('#images'))
         }
         else {
-            el('#images').innerHTML = '<i class="small">no picture in this folder</i>'
+            el('#images').innerHTML = '<br/><i class="small">no picture in this folder</i>'
             // <a href='/sha/${sha}/content?type=${mimeType}'></a>
         }
     }
 
     async function showPicture(index) {
-        let { sha, mimeType, fileName } = imagesPool[index]
-        el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;background-color: white;text-align: center;'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></div>`
-        el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button>&lt;</button><button>&gt;</button></div>`
+        if (index < 0) {
+            el('#image-full-container').style.display = 'none'
+        }
+        else {
+            el('#image-full-container').style.display = 'block'
+
+            let { sha, mimeType, fileName } = imagesPool[index]
+            el('#image-full-container').innerHTML += `<div style='position:absolute;top:0;left:0;bottom:0;right:0;background-color: white;text-align: center;'><img class='image-full' src='/sha/${sha}/content?type=${mimeType}'/></div>`
+            el('#image-full-container').innerHTML += `<div style='position:absolute;bottom:0;'><button>&lt;</button><button>&gt;</button></div>`
+        }
+    }
+
+    async function getClientDefaultDirectoryDescriptorSha(ref) {
+        if (!ref)
+            return null
+
+        let clientState = await (await fetch(`/refs/${ref}`)).json()
+        if (!clientState)
+            return null
+
+        let commitSha = clientState.currentCommitSha
+        if (commitSha == null)
+            return null
+
+        let finishLoading = startLoading(`loading commit for default directory descriptor`)
+
+        let commit = await fetchCommit(commitSha)
+        if (!commit)
+            return null
+
+        return commit.directoryDescriptorSha
+
+        finishLoading()
     }
 
     async function showRef(ref) {
@@ -445,36 +492,67 @@
 
     el('#extended').addEventListener('input', () => {
         EXTENDED = !!el('#extended').checked
+        localStorage.setItem('EXTENDED', `${EXTENDED}`)
 
-        showDirectory(currentDirectoryDescriptorSha)
-        showRef(currentClientId)
+        syncUi()
     })
 
     window.onpopstate = function (event) {
-        currentDirectoryDescriptorSha = event.state.currentDirectoryDescriptorSha
-        currentClientId = event.state.currentClientId
+        if (event.state) {
+            currentDirectoryDescriptorSha = event.state.currentDirectoryDescriptorSha
+            currentClientId = event.state.currentClientId
+            currentPictureIndex = event.state.currentPictureIndex || 0
 
-        showDirectory(currentDirectoryDescriptorSha)
-        showRef(currentClientId)
+            syncUi()
+        }
+        else {
+            fromHash()
+
+            syncUi()
+        }
     }
 
     if (history.state) {
         currentDirectoryDescriptorSha = history.state.currentDirectoryDescriptorSha
         currentClientId = history.state.currentClientId
+        currentPictureIndex = history.state.currentPictureIndex || 0
 
-        showDirectory(currentDirectoryDescriptorSha)
-        showRef(currentClientId)
+        syncUi()
     }
-    else if (window.location.hash && window.location.hash.startsWith('#') && window.location.hash != '#null') {
-        currentDirectoryDescriptorSha = window.location.hash.substr(1)
-        currentClientId = null
+    else {
+        fromHash()
+
+        publishHistoryState()
 
         el('#optional').style.display = 'none'
+        syncUi()
+    }
 
-        showDirectory(currentDirectoryDescriptorSha)
-        showRef(currentClientId)
+    function fromHash() {
+        if (window.location.hash && window.location.hash.startsWith('#') && window.location.hash != '#null') {
+            currentDirectoryDescriptorSha = window.location.hash.substr(1)
+            currentClientId = null
 
-        updateHistoryState()
+            currentPictureIndex = -1
+            let dashIndex = currentDirectoryDescriptorSha.indexOf('-')
+            if (dashIndex >= 0) {
+                currentPictureIndex = parseInt(currentDirectoryDescriptorSha.substr(dashIndex + 1))
+                currentDirectoryDescriptorSha = currentDirectoryDescriptorSha.substr(0, dashIndex)
+            }
+        }
+    }
+
+    async function syncUi() {
+        if (currentDirectoryDescriptorSha != displayedDirectoryDescriptorSha)
+            await showDirectory(currentDirectoryDescriptorSha)
+        if (currentClientId != displayedClientId)
+            await showRef(currentClientId)
+        if (currentPictureIndex != displayedPictureIndex)
+            await showPicture(currentPictureIndex)
+
+        displayedDirectoryDescriptorSha = currentDirectoryDescriptorSha
+        displayedClientId = currentClientId
+        displayedPictureIndex = currentPictureIndex
     }
 </script>
 
