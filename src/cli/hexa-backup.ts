@@ -7,6 +7,8 @@ import * as Commands from '../Commands'
 const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)
 
+process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0
+
 function parseArgs(args: string[], defaultParameters): { verbs: string[]; parameters: { [k: string]: any } } {
     let parameters = {}
 
@@ -64,14 +66,16 @@ async function run() {
             options: {
                 storeIp: "localhost",
                 storePort: 5005,
-                verbose: false
+                verbose: false,
+                insecure: false
             },
             executor: async (options) => {
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const verbose = options['verbose']
+                const insecure = !!options['insecure']
 
-                await Commands.refs(storeIp, storePort, verbose)
+                await Commands.refs(storeIp, storePort, verbose, insecure)
 
                 process.exit(0)
             }
@@ -82,14 +86,16 @@ async function run() {
             options: {
                 storeIp: "localhost",
                 storePort: 5005,
-                verbose: false
+                verbose: false,
+                insecure: false
             },
             executor: async (options) => {
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const verbose = options['verbose']
+                const insecure = !!options['insecure']
 
-                await Commands.sources(storeIp, storePort, verbose)
+                await Commands.sources(storeIp, storePort, verbose, insecure)
 
                 process.exit(0)
             }
@@ -100,14 +106,16 @@ async function run() {
             options: {
                 storeIp: "localhost",
                 storePort: 5005,
-                verbose: false
+                verbose: false,
+                insecure: false
             },
             executor: async (options) => {
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const verbose = options['verbose']
+                const insecure = !!options['insecure']
 
-                await Commands.stats(storeIp, storePort, verbose)
+                await Commands.stats(storeIp, storePort, verbose, insecure)
 
                 process.exit(0)
             }
@@ -135,15 +143,17 @@ async function run() {
                 sourceId: defaultSourceId,
                 storeIp: "localhost",
                 storePort: 5005,
-                verbose: false
+                verbose: false,
+                insecure: false
             },
             executor: async (options) => {
                 const sourceId = options['sourceId']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const verbose = options['verbose']
+                const insecure = !!options['insecure']
 
-                await Commands.history(sourceId, storeIp, storePort, verbose)
+                await Commands.history(sourceId, storeIp, storePort, verbose, insecure)
 
                 process.exit(0)
             }
@@ -154,15 +164,17 @@ async function run() {
             options: {
                 storeIp: "localhost",
                 storePort: 5005,
-                recursive: false
+                recursive: false,
+                insecure: false
             },
             executor: async (options) => {
                 const directoryDescriptorSha = options['directoryDescriptorSha']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
-                const recursive = options['recursive'] || false;
+                const recursive = options['recursive'] || false
+                const insecure = !!options['insecure']
 
-                await Commands.lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, recursive)
+                await Commands.lsDirectoryStructure(storeIp, storePort, directoryDescriptorSha, recursive, insecure)
 
                 process.exit(0)
             }
@@ -173,14 +185,16 @@ async function run() {
             options: {
                 sourceId: defaultSourceId,
                 storeIp: "localhost",
-                storePort: 5005
+                storePort: 5005,
+                insecure: false
             },
             executor: async (options) => {
                 const sourceId = options['sourceId']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
+                const insecure = !!options['insecure']
 
-                await Commands.normalize(sourceId, storeIp, storePort, false)
+                await Commands.normalize(sourceId, storeIp, storePort, false, insecure)
 
                 process.exit(0)
             }
@@ -191,7 +205,8 @@ async function run() {
             options: {
                 storeIp: "localhost",
                 storePort: 5005,
-                destinationDirectory: '.'
+                destinationDirectory: '.',
+                insecure: false
             },
             executor: async (options) => {
                 const directoryDescriptorSha = options['directoryDescriptorSha']
@@ -199,8 +214,9 @@ async function run() {
                 const storePort = options['storePort']
                 const destinationDirectory = options['destinationDirectory']
                 const prefix = options['prefix'] || null
+                const insecure = !!options['insecure']
 
-                await Commands.extract(storeIp, storePort, directoryDescriptorSha, prefix, destinationDirectory)
+                await Commands.extract(storeIp, storePort, directoryDescriptorSha, prefix, destinationDirectory, insecure)
 
                 process.exit(0)
             }
@@ -211,15 +227,17 @@ async function run() {
             options: {
                 storeIp: "localhost",
                 storePort: 5005,
-                file: 'h.out'
+                file: 'h.out',
+                insecure: false
             },
             executor: async (options) => {
                 const sha = options['sha']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const file = options['file']
+                const insecure = !!options['insecure']
 
-                await Commands.extractSha(storeIp, storePort, sha, file)
+                await Commands.extractSha(storeIp, storePort, sha, file, insecure)
 
                 process.exit(0)
             }
@@ -232,7 +250,8 @@ async function run() {
                 storeIp: "localhost",
                 storePort: 5005,
                 pushedDirectory: '.',
-                estimateSize: false
+                estimateSize: false,
+                insecure: false
             },
             executor: async (options) => {
                 const sourceId = options['sourceId']
@@ -240,8 +259,9 @@ async function run() {
                 const storePort = options['storePort']
                 const pushedDirectory = fsPath.resolve(options['pushedDirectory'])
                 const estimateSize = options['estimateSize']
+                const insecure = !!options['insecure']
 
-                await Commands.push(sourceId, pushedDirectory, storeIp, storePort, estimateSize)
+                await Commands.push(sourceId, pushedDirectory, storeIp, storePort, estimateSize, insecure)
 
                 process.exit(0)
             }
@@ -253,15 +273,17 @@ async function run() {
                 storeIp: "localhost",
                 storePort: 5005,
                 estimateSize: false,
-                storeDirectory: '.'
+                storeDirectory: '.',
+                insecure: false
             },
             executor: async (options) => {
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const estimateSize = options['estimateSize']
                 const directory = fsPath.resolve(options['storeDirectory'])
+                const insecure = !!options['insecure']
 
-                await Commands.pushStore(directory, storeIp, storePort, estimateSize)
+                await Commands.pushStore(directory, storeIp, storePort, estimateSize, insecure)
 
                 process.exit(0)
             }
