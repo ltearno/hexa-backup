@@ -146,7 +146,10 @@
 </body>
 
 <script>
+    const el = document.querySelector.bind(document)
+
     let EXTENDED = localStorage.getItem('EXTENDED') == 'true'
+    el('#extended').checked = EXTENDED
 
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
@@ -156,6 +159,7 @@
     let displayedDirectoryDescriptorSha = null
     let displayedClientId = null
     let displayedPictureIndex = null
+    let displayedExtended = EXTENDED
 
     const wait = (ms) => {
         return new Promise(resolve => {
@@ -164,8 +168,6 @@
             }, ms)
         })
     }
-
-    let el = (id) => document.querySelector(id)
 
     const DATE_DISPLAY_OPTIONS = {
         year: 'numeric',
@@ -462,6 +464,9 @@
         let waitContinueResolver = null
 
         async function run() {
+            if (!db || db.length)
+                return
+                
             const shouldAdd = () => scrollContent.lastChild.offsetTop - (scrollContainer.offsetHeight / 1) <= scrollContainer.scrollTop + scrollContainer.offsetHeight
 
             const scrollListener = event => {
@@ -592,9 +597,12 @@
             el('#images-container').style.display = 'none'
         }
 
-        if (currentDirectoryDescriptorSha != displayedDirectoryDescriptorSha)
+        const extChange = displayedExtended != EXTENDED
+        displayedExtended = EXTENDED
+
+        if (extChange || currentDirectoryDescriptorSha != displayedDirectoryDescriptorSha)
             await showDirectory(currentDirectoryDescriptorSha)
-        if (currentClientId != displayedClientId)
+        if (extChange || currentClientId != displayedClientId)
             await showRef(currentClientId)
         if (currentPictureIndex != displayedPictureIndex)
             await showPicture(currentPictureIndex)
