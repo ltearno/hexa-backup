@@ -499,7 +499,7 @@
         let waitContinueResolver = null
 
         async function run() {
-            if (!db || db.length)
+            if (!db || !db.length)
                 return
 
             const shouldAdd = () => scrollContent.lastChild.offsetTop - (scrollContainer.offsetHeight / 1) <= scrollContainer.scrollTop + scrollContainer.offsetHeight
