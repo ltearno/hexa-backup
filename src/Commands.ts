@@ -17,6 +17,7 @@ import {
 import * as ClientPeering from './ClientPeering'
 import * as Tools from './Tools'
 import { resolve } from 'url';
+import { stringify } from '@ltearno/hexa-js/dist/ordered-json';
 
 const log = LoggerBuilder.buildLogger('Commands')
 
@@ -851,40 +852,79 @@ export async function store(directory: string, port: number, insecure: boolean) 
         })
     }
 
+    const videoCacheDir = '.hb-videocache'
+    const videoConversions = new Map<string, any>()
+
     const createSmallVideo = (sha: string): Promise<string> => {
         return new Promise(resolve => {
-            let destFile = `/tmp/svhb-${sha}.mp4`
-            if (fs.existsSync(destFile))
+            if (videoConversions.has(sha)) {
+                console.log(`waiting on progressing conversion ${sha}`)
+                let info = videoConversions.get(sha)
+
+                info.waiters.push(resolve)
+                return
+            }
+
+
+            let destFile = path.join(videoCacheDir, `svhb-${sha}.mp4`)
+            if (fs.existsSync(destFile)) {
                 resolve(destFile)
+                return
+            }
 
-            let inputFile = store.getShaFileName(sha)
-            //let rawStream = store.readShaAsStream(sha, 0, -1)
+            // mark conversion as beeing started
+            let info = {
+                waiters: [],
+                result: null
+            }
+            videoConversions.set(sha, info)
 
-            const { spawn } = require('child_process')
-            const child = spawn('ffmpeg', [
-                '-i',
-                inputFile,///tmp/svhb-636632f471fddfaafc410ad608ddda1b964780caccebed6d34eea8e41cec7fc9.mp4
-                '-vf',
-                'scale=w=320:h=240',
-                destFile
-            ])
+            try {
+                console.log(`start conv ${sha}`)
+                if (!fs.existsSync(videoCacheDir))
+                    fs.mkdirSync(videoCacheDir)
 
-            //rawStream.pipe(child.stdin)
+                let inputFile = store.getShaFileName(sha)
+                //let rawStream = store.readShaAsStream(sha, 0, -1)
 
-            child.stdout.on('data', (data) => {
-                console.log(`child stdout:\n${data}`);
-            });
+                const { spawn } = require('child_process')
+                const child = spawn('ffmpeg', [
+                    '-y',
+                    '-i',
+                    inputFile,
+                    '-vf',
+                    'scale=w=320:h=240',
+                    destFile
+                ])
 
-            child.stderr.on('data', (data) => {
-                console.error(`child stderr:\n${data}`);
-            });
+                child.stdout.on('data', (data) => {
+                    console.log(`child stdout:\n${data}`);
+                });
 
-            child.on('exit', (code, signal) => {
-                if (!code)
-                    resolve(destFile)
-                else
-                    resolve(null)
-            })
+                child.stderr.on('data', (data) => {
+                    console.error(`child stderr:\n${data}`);
+                });
+
+                child.on('exit', (code, signal) => {
+                    if (!code) {
+                        info.result = destFile
+                        resolve(destFile)
+                    }
+                    else {
+                        console.error(`ffmpeg error code ${code} (${signal})`)
+                        resolve(null)
+                    }
+                })
+                console.log(`end conv ${sha}`)
+            }
+            catch (err) {
+                console.error(`ffmpeg conversion error ${err}`)
+                resolve(null)
+            }
+            finally {
+                info.waiters.forEach(w => w(info.result))
+                videoConversions.delete(sha)
+            }
         })
     }
 

@@ -482,7 +482,8 @@
 
         currentVideoIndex = index
         let { sha, mimeType, fileName } = videosPool[index]
-        el('#video-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
+        // el('#video-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
+        el('#video-player').setAttribute('src', `/sha/${sha}/plugins/video/small?type=${mimeType}`)
         el('#video-player').setAttribute('type', mimeType)
         el('#video-player').play()
 

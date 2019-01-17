@@ -3,6 +3,7 @@ target/
 .hb-object/
 .hb-refs/
 .hb-cache/
+.hb-videocache/
 *.log
 server.key
 server.crt
