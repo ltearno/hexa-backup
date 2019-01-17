@@ -16,6 +16,7 @@ import {
 } from './RPC'
 import * as ClientPeering from './ClientPeering'
 import * as Tools from './Tools'
+import { resolve } from 'url';
 
 const log = LoggerBuilder.buildLogger('Commands')
 
@@ -818,6 +819,126 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 while (mediumCacheEntries.length > 5) {
                     mediumCache.delete(mediumCacheEntries.shift())
                 }
+            }
+        }
+        catch (err) {
+            res.send(`{"error":"missing sha ${sha}!"}`)
+        }
+    });
+
+    const createSmallVideoNotReady = (sha: string): Promise<string> => {
+        return new Promise(resolve => {
+            const ffmpeg = require('fluent-ffmpeg')
+
+            let destFile = `/tmp/svhb-${sha}.mp4`
+            if (fs.existsSync(destFile))
+                return destFile
+
+            let rawStream = store.readShaAsStream(sha, 0, -1)
+            ffmpeg(rawStream)
+                .videoCodec('libx264')
+                .audioCodec('libmp3lame')
+                .size('320x240')
+                .on('error', err => {
+                    console.error('ffmpeg error occurred: ' + err.message)
+                    resolve(null)
+                })
+                .on('end', () => {
+                    console.log(`finished video conversion to ${destFile}`)
+                    resolve(destFile)
+                })
+                .save(destFile)
+        })
+    }
+
+    const createSmallVideo = (sha: string): Promise<string> => {
+        return new Promise(resolve => {
+            let destFile = `/tmp/svhb-${sha}.mp4`
+            if (fs.existsSync(destFile))
+                resolve(destFile)
+
+            let inputFile = store.getShaFileName(sha)
+            //let rawStream = store.readShaAsStream(sha, 0, -1)
+
+            const { spawn } = require('child_process')
+            const child = spawn('ffmpeg', [
+                '-i',
+                inputFile,///tmp/svhb-636632f471fddfaafc410ad608ddda1b964780caccebed6d34eea8e41cec7fc9.mp4
+                '-vf',
+                'scale=w=320:h=240',
+                destFile
+            ])
+
+            //rawStream.pipe(child.stdin)
+
+            child.stdout.on('data', (data) => {
+                console.log(`child stdout:\n${data}`);
+            });
+
+            child.stderr.on('data', (data) => {
+                console.error(`child stderr:\n${data}`);
+            });
+
+            child.on('exit', (code, signal) => {
+                if (!code)
+                    resolve(destFile)
+                else
+                    resolve(null)
+            })
+        })
+    }
+
+    app.get('/sha/:sha/plugins/video/small', async (req, res) => {
+        let sha = req.params.sha
+        if (sha == null || sha == 'null') {
+            res.send(`{"error":"input validation (sha is ${sha})"}`)
+            return
+        }
+
+        try {
+            res.set('Content-Type', 'video/mp4')
+
+            let fileName = await createSmallVideo(sha)
+            if (!fileName) {
+                res.send(`{"error":"converting video content (sha is ${sha})"}`)
+                return
+            }
+
+            // ffmpeg -i /home/arnaud/repos/persos/hexa-backup/.hb-object/63/636632f471fddfaafc410ad608ddda1b964780caccebed6d34eea8e41cec7fc9 -vf scale=w=320:h=240 test.mp4
+            const range = req.headers.range
+
+            let stat = fs.statSync(fileName)
+            const fileSize = stat.size
+
+            if (range) {
+                const parts = range.replace(/bytes=/, "").split("-")
+                const start = parseInt(parts[0])
+                const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+                const chunksize = (end - start) + 1
+                const head = {
+                    'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+                    'Accept-Ranges': 'bytes',
+                    'Content-Length': chunksize,
+                    'Content-Type': 'video/mp4',
+                }
+
+                if (req.query.fileName)
+                    head['Content-Disposition'] = `attachment; filename="${req.query.fileName}"`
+
+                res.writeHead(206, head)
+                fs.createReadStream(fileName, { start, end }).pipe(res)
+            }
+            else {
+                if (req.query.type)
+                    res.set('Content-Type', 'video/mp4')
+
+                if (req.query.fileName)
+                    res.set('Content-Disposition', `attachment; filename="${req.query.fileName}"`)
+
+                res.set('Cache-Control', 'private, max-age=31536000')
+                res.set('Content-Length', fileSize)
+
+                fs.createReadStream(fileName).pipe(res)
             }
         }
         catch (err) {

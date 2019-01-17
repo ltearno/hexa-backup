@@ -204,6 +204,13 @@ export class ObjectRepository {
         }
     }
 
+    getShaFileName(sha: string) {
+        if (!sha)
+            return null
+
+        return this.contentFileName(sha)
+    }
+
     readShaAsStream(sha: string, start: number, end: number) {
         if (!sha)
             return null
