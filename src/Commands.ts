@@ -16,8 +16,6 @@ import {
 } from './RPC'
 import * as ClientPeering from './ClientPeering'
 import * as Tools from './Tools'
-import { resolve } from 'url';
-import { stringify } from '@ltearno/hexa-js/dist/ordered-json';
 
 const log = LoggerBuilder.buildLogger('Commands')
 
