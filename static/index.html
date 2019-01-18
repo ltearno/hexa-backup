@@ -193,6 +193,7 @@
 
         <div id="optional">
             <h2>Sources</h2>
+            <a href='#' onclick='event.preventDefault() || viewLikes()'>show ❤ items</a>
             <div id="refs-list"></div>
 
             <h2>Current</h2>
@@ -217,7 +218,6 @@
     </div>
     <div id="audio-container">
         <h2>Audio files</h2>
-        <a href='#' onclick='event.preventDefault() || listenToLiked()'>listen to ❤ audios</a>
         <audio id="audio-player" controls preload="metadata"></audio>
         <div id="audio-list"></div>
     </div>
@@ -523,13 +523,8 @@
         el(`#audio-${index}`).style.fontWeight = 'bold'
     }
 
-    async function toggleLikeAudio(index) {
-        if (index < 0 || index >= audioPool.length)
-            return
-
-        let { sha, mimeType, fileName } = audioPool[index]
-        let metadata = await (await fetch(`/metadata/likes-audio/${sha}`)).json()
-        console.log(`metadata : ${JSON.stringify(metadata)}`)
+    async function toggleShaLike(sha, mimeType, fileName) {
+        let metadata = await (await fetch(`/metadata/likes-sha/${sha}`)).json()
         if (!metadata) {
             metadata = {
                 status: false,
@@ -541,13 +536,23 @@
 
         const headers = new Headers()
         headers.set('Content-Type', 'application/json')
-        await fetch(`/metadata/likes-audio/${sha}`, {
+        await fetch(`/metadata/likes-sha/${sha}`, {
             headers,
             method: 'post',
             body: JSON.stringify(metadata)
         })
 
-        if (metadata.status)
+        return metadata.status
+    }
+
+    async function toggleLikeAudio(index) {
+        if (index < 0 || index >= audioPool.length)
+            return
+
+        let { sha, mimeType, fileName } = audioPool[index]
+        let status = await toggleShaLike(sha, mimeType, fileName)
+
+        if (status)
             el('#audio-list').children.item(index).classList.add('liked')
         else
             el('#audio-list').children.item(index).classList.remove('liked')
@@ -557,8 +562,7 @@
         listenAudio(currentAudioIndex + 1)
     }
 
-    async function listenToLiked() {
-        let likes = await (await fetch(`/metadata/likes-audio`)).json()
+    async function listenToLiked(likes) {
         if (!likes)
             return
 
@@ -586,7 +590,7 @@
     async function loadLikesAudio() {
         let i = 0
         while (i < audioPool.length) {
-            let metadata = await (await fetch(`/metadata/likes-audio/${audioPool[i].sha}`)).json()
+            let metadata = await (await fetch(`/metadata/likes-sha/${audioPool[i].sha}`)).json()
             if (metadata && metadata.status)
                 el('#audio-list').children.item(i).classList.add('liked')
             i++
@@ -809,6 +813,18 @@
                 currentDirectoryDescriptorSha = currentDirectoryDescriptorSha.substr(0, dashIndex)
             }
         }
+    }
+
+    async function viewLikes() {
+        let likes = await (await fetch(`/metadata/likes-sha`)).json()
+        if (!likes)
+            return
+
+        el('#videos-container').classList.remove('is-hidden')
+        el('#audio-container').classList.remove('is-hidden')
+        el('#images-container').classList.remove('is-hidden')
+
+        listenToLiked(likes.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
     }
 
     async function syncUi() {
