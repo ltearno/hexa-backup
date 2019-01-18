@@ -137,6 +137,7 @@
         }
 
         .like {
+            font-weight: bold;
             color: lightgray;
         }
         .liked .like {
@@ -146,6 +147,11 @@
         @media screen and (max-width: 1215px) {
             body {
                 flex-flow: column;
+            }
+
+            .like {
+                font-size: 1.6em;
+                padding-left: .5em;
             }
 
             #images-container {
@@ -479,7 +485,7 @@
 
             let imageHtml = EXTENDED ?
                 `<span class='small'>${displayDate(file.lastWrite)} ${file.sha ? file.sha.substr(0, 7) : '-'}</span> ${file.fileName} <span class='small'>${file.size} ${links}</span>` :
-                `${file.fileName} <span class='small'>${links} <a href='#' class='like' onclick='event.preventDefault() || toggleLikeFile(${index})'>♡</a></span>`
+                `${file.fileName} <span class='small'>${links} <a class='like' onclick='event.preventDefault() || toggleLikeFile(${index})'>♡</a></span>`
 
             return `<div>${imageHtml}</div>`
         })
@@ -596,7 +602,7 @@
     async function restartVideosPool() {
         let html = ''
         for (let i in videosPool) {
-            html += `<div><a id='video-${i}' href='#' onclick='event.preventDefault(), showVideo(${i})'>${videosPool[i].fileName}</a> <a href='#' class='like' onclick='event.preventDefault() || toggleLikeVideo(${i})'>❤</a></div></div>`
+            html += `<div><a id='video-${i}' href='#' onclick='event.preventDefault(), showVideo(${i})'>${videosPool[i].fileName}</a> <a class='like' onclick='event.preventDefault() || toggleLikeVideo(${i})'>♡</a></div></div>`
         }
         el('#video-list').innerHTML = html
 
@@ -704,7 +710,7 @@
     async function restartAudioPool() {
         let html = ''
         for (let i in audioPool) {
-            html += `<div><a id='audio-${i}' href='#' onclick='event.preventDefault() || listenAudio(${i})'>${audioPool[i].fileName}</a> <a href='#' class='like' onclick='event.preventDefault() || toggleLikeAudio(${i})'>❤</a></div>`
+            html += `<div><a id='audio-${i}' href='#' onclick='event.preventDefault() || listenAudio(${i})'>${audioPool[i].fileName}</a> <a class='like' onclick='event.preventDefault() || toggleLikeAudio(${i})'>♡</a></div>`
         }
         el('#audio-list').innerHTML = html
 
