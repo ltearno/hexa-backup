@@ -286,12 +286,8 @@
     }
 
     async function goRef(ref) {
-        let oldClientId = currentClientId
         currentClientId = ref
-        if (currentClientId != oldClientId) {
-            currentPictureIndex = -1
-            currentDirectoryDescriptorSha = await getClientDefaultDirectoryDescriptorSha(ref)
-        }
+        currentDirectoryDescriptorSha = await getClientDefaultDirectoryDescriptorSha(ref)
         publishHistoryState()
 
         await syncUi()
@@ -554,12 +550,13 @@
         let finishLoading = startLoading(`loading commit ${commitSha.substr(0, 7)} for default directory descriptor`)
 
         let commit = await fetchCommit(commitSha)
+        
+        finishLoading()
+        
         if (!commit)
             return null
 
         return commit.directoryDescriptorSha
-
-        finishLoading()
     }
 
     async function showRef(ref) {
