@@ -202,8 +202,9 @@
             <div id="commitHistory"></div>
 
             <h2>Settings</h2>
-            <label><input type="checkbox" id="extended"> extended</label><br />
-            <label><input type="checkbox" id="stream-raw-video"> stream raw video</label>
+            <label><input type="checkbox" id="show-full-commit-history"> show full commit history</label><br />
+            <label><input type="checkbox" id="extended"> extended display</label><br />
+            <label><input type="checkbox" id="stream-raw-video"> stream raw video</label><br />
 
             <h2>Status</h2>
             <span id="status"></span>
@@ -241,6 +242,9 @@
     let STREAM_RAW_VIDEO = localStorage.getItem('STREAM_RAW_VIDEO') == 'true'
     el('#stream-raw-video').checked = STREAM_RAW_VIDEO
 
+    let SHOW_FULL_COMMIT_HISTORY = localStorage.getItem('SHOW_FULL_COMMIT_HISTORY') == 'true'
+    el('#show-full-commit-history').checked = SHOW_FULL_COMMIT_HISTORY
+
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
     let currentPictureIndex = -1
@@ -256,6 +260,7 @@
     let displayedPictureIndex = null
     let displayedExtended = EXTENDED
     let displayedStreamRawVideo = STREAM_RAW_VIDEO
+    let displayedShowFullCommitHistory = SHOW_FULL_COMMIT_HISTORY
 
     const wait = (ms) => {
         return new Promise(resolve => {
@@ -386,7 +391,7 @@
                 `<div><a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>`)
         if (directoriesContent.length) {
             el('#directories').classList.remove('is-hidden')
-            el('#directories').innerHTML = `<h2>${directoriesContent.length} Directories</h2>` + directoriesContent.join('')
+            el('#directories').innerHTML = `<h2>${directoriesContent.length} Directories</h2><div id='directories-container'>${directoriesContent.join('')}</div>`
         }
         else {
             el('#directories').classList.add('is-hidden')
@@ -409,28 +414,26 @@
                     return -1
                 return 0
             })
+            .map((file, index) => {
+                return {
+                    sha: file.contentSha,
+                    mimeType: getMimeType(file.name),
+                    fileName: file.name,
+
+                    lastWrite: file.lastWrite,
+                    size: file.size
+                }
+            })
 
         filesPool.forEach(file => {
-            let mimeTypes = []
-            let pos = file.name.lastIndexOf('.')
-            if (pos >= 0) {
-                let extension = file.name.substr(pos + 1).toLocaleLowerCase()
-                if (extension in MimeTypes) {
-                    mimeTypes.push(MimeTypes[extension])
-                }
-            }
+            if (file.mimeType.startsWith('image/'))
+                images.push(file)
 
-            mimeTypes.filter(t => t.startsWith('image/')).forEach(mimeType => {
-                images.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
-            })
+            if (file.mimeType.startsWith('video/'))
+                videos.push(file)
 
-            mimeTypes.filter(t => t.startsWith('video/')).forEach(mimeType => {
-                videos.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
-            })
-
-            mimeTypes.filter(t => t.startsWith('audio/')).forEach(mimeType => {
-                audios.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
-            })
+            if (file.mimeType.startsWith('audio/'))
+                audios.push(file)
         })
 
         restartFilePool()
@@ -455,25 +458,32 @@
 
     let infiniteScrollerStop = null
 
+    function getMimeType(fileName) {
+        let pos = fileName.lastIndexOf('.')
+        if (pos >= 0) {
+            let extension = fileName.substr(pos + 1).toLocaleLowerCase()
+            if (extension in MimeTypes)
+                return MimeTypes[extension]
+        }
+
+        return 'application/octet-stream'
+    }
+
     async function restartFilePool() {
         let filesContent = filesPool.map((file, index) => {
             let mimeTypes = ['application/octet-stream']
-            let pos = file.name.lastIndexOf('.')
-            if (pos >= 0) {
-                let extension = file.name.substr(pos + 1).toLocaleLowerCase()
-                if (extension in MimeTypes) {
-                    mimeTypes.push(MimeTypes[extension])
-                }
-            }
+            if (file.mimeType != 'application/octet-stream')
+                mimeTypes.push(file.mimeType)
 
-            let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.name}` : ''}' >${EXTENDED ? mimeType : (index == 0 ? 'dl' : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType))}</a>]`).join(' ')
+            let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.sha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.fileName}` : ''}' >${EXTENDED ? mimeType : (index == 0 ? 'dl' : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType))}</a>]`).join(' ')
 
             let imageHtml = EXTENDED ?
-                `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> ${file.name} <span class='small'>${file.size} ${links}</span>` :
-                `${file.name} <span class='small'>${links} <a href='#' class='like' onclick='event.preventDefault() || toggleLikeFile(${index})'>❤</a></span>`
+                `<span class='small'>${displayDate(file.lastWrite)} ${file.sha ? file.sha.substr(0, 7) : '-'}</span> ${file.fileName} <span class='small'>${file.size} ${links}</span>` :
+                `${file.fileName} <span class='small'>${links} <a href='#' class='like' onclick='event.preventDefault() || toggleLikeFile(${index})'>❤</a></span>`
 
             return `<div>${imageHtml}</div>`
         })
+
         if (filesContent.length) {
             el('#files').classList.remove('is-hidden')
             el('#files').innerHTML = `<h2>${filesContent.length} Files</h2><div id='files-list'>${filesContent.join('')}</div>`
@@ -481,6 +491,23 @@
         else {
             el('#files').classList.add('is-hidden')
         }
+    }
+
+    async function viewLikedFiles(likes) {
+        if (!likes)
+            return
+
+        filesPool = likes.map(like => {
+            return {
+                sha: like.sha,
+                fileName: like.value.knownAs.fileName,
+                mimeType: like.value.knownAs.mimeType,
+
+                size: 0,
+            }
+        })
+
+        restartFilePool()
     }
 
 
@@ -492,15 +519,15 @@
         let file = filesPool[index]
 
         let mimeTypes = ['application/octet-stream']
-        let pos = file.name.lastIndexOf('.')
+        let pos = file.fileName.lastIndexOf('.')
         if (pos >= 0) {
-            let extension = file.name.substr(pos + 1).toLocaleLowerCase()
+            let extension = file.fileName.substr(pos + 1).toLocaleLowerCase()
             if (extension in MimeTypes) {
                 mimeTypes.push(MimeTypes[extension])
             }
         }
 
-        let status = await toggleShaLike(file.contentSha, mimeTypes[mimeTypes.length - 1], file.name)
+        let status = await toggleShaLike(file.contentSha, mimeTypes[mimeTypes.length - 1], file.fileName)
 
         if (status)
             el('#files-list').children.item(index).classList.add('liked')
@@ -843,6 +870,11 @@
         syncUi()
     })
 
+    el('#show-full-commit-history').addEventListener('change', () => {
+        SHOW_FULL_COMMIT_HISTORY = !!el('#show-full-commit-history').checked
+        localStorage.setItem('SHOW_FULL_COMMIT_HISTORY', `${SHOW_FULL_COMMIT_HISTORY}`)
+    })
+
     el('#audio-player').addEventListener('ended', () => {
         listenNext()
     })
@@ -903,10 +935,14 @@
         if (!likes)
             return
 
+        // TODO manage liked directories
+        el('#directories').classList.add('is-hidden')
         el('#videos-container').classList.remove('is-hidden')
         el('#audio-container').classList.remove('is-hidden')
-        el('#images-container').classList.remove('is-hidden')
+        // TODO manage liked images
+        el('#images-container').classList.add('is-hidden')
 
+        viewLikedFiles(likes)
         listenToLiked(likes.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
         viewLikedVideos(likes.filter(like => like.value.knownAs.mimeType.startsWith('video/')))
     }
@@ -927,10 +963,13 @@
         const streamRawVideoChange = displayedStreamRawVideo != STREAM_RAW_VIDEO
         displayedStreamRawVideo = STREAM_RAW_VIDEO
 
+        const fullHistoryChange = displayedShowFullCommitHistory != SHOW_FULL_COMMIT_HISTORY
+        displayedShowFullCommitHistory = SHOW_FULL_COMMIT_HISTORY
+
         if (streamRawVideoChange || extChange || currentDirectoryDescriptorSha != displayedDirectoryDescriptorSha)
             await showDirectory(currentDirectoryDescriptorSha)
 
-        if (extChange || currentClientId != displayedClientId)
+        if (extChange || fullHistoryChange || currentClientId != displayedClientId)
             await showRef(currentClientId)
 
         if (videosPool.length)

@@ -782,6 +782,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
             }
         }
         catch (err) {
+            res.set('Content-Type', 'application/json')
             res.send(`{"error":"missing sha ${sha}!"}`)
         }
     });
