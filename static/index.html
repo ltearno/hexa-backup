@@ -502,12 +502,53 @@
         showVideo(currentVideoIndex + 1)
     }
 
+    async function toggleLikeVideo(index) {
+        if (index < 0 || index >= videosPool.length)
+            return
+
+        let { sha, mimeType, fileName } = videosPool[index]
+        let status = await toggleShaLike(sha, mimeType, fileName)
+
+        if (status)
+            el('#video-list').children.item(index).classList.add('liked')
+        else
+            el('#video-list').children.item(index).classList.remove('liked')
+    }
+
     async function restartVideosPool() {
         let html = ''
         for (let i in videosPool) {
-            html += `<a id='video-${i}' href='#' onclick='event.preventDefault(), showVideo(${i})'>${videosPool[i].fileName}</a><br>`
+            html += `<div><a id='video-${i}' href='#' onclick='event.preventDefault(), showVideo(${i})'>${videosPool[i].fileName}</a> <a href='#' class='like' onclick='event.preventDefault() || toggleLikeVideo(${i})'>❤</a></div></div>`
         }
         el('#video-list').innerHTML = html
+
+        loadLikesVideo()
+    }
+
+    async function loadLikesVideo() {
+        let i = 0
+        while (i < videosPool.length) {
+            let metadata = await (await fetch(`/metadata/likes-sha/${videosPool[i].sha}`)).json()
+            if (metadata && metadata.status)
+                el('#video-list').children.item(i).classList.add('liked')
+            i++
+            await wait(100)
+        }
+    }
+
+    async function viewLikedVideos(likes) {
+        if (!likes)
+            return
+
+        videosPool = likes.map(like => {
+            return {
+                sha: like.sha,
+                fileName: like.value.knownAs.fileName,
+                mimeType: like.value.knownAs.mimeType
+            }
+        })
+
+        restartVideosPool()
     }
 
     async function listenAudio(index) {
@@ -594,7 +635,7 @@
             if (metadata && metadata.status)
                 el('#audio-list').children.item(i).classList.add('liked')
             i++
-            await wait(10)
+            await wait(100)
         }
     }
 
@@ -825,6 +866,7 @@
         el('#images-container').classList.remove('is-hidden')
 
         listenToLiked(likes.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
+        viewLikedVideos(likes.filter(like => like.value.knownAs.mimeType.startsWith('video/')))
     }
 
     async function syncUi() {
