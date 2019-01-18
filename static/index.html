@@ -771,6 +771,9 @@
                 el('#commitHistory').innerHTML += `<div>${commitSha.substr(0, 7)} no directory descriptor in commit !</div>`
             }
 
+            if (!SHOW_FULL_COMMIT_HISTORY)
+                break
+
             commitSha = commit.parentSha
         }
 
