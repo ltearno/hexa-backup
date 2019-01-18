@@ -217,6 +217,9 @@ export class ObjectRepository {
 
         let contentFileName = this.contentFileName(sha)
 
+        if (!fs.existsSync(contentFileName))
+            return null
+
         let options: any = {
             autoClose: true
         }

@@ -682,16 +682,26 @@ export async function store(directory: string, port: number, insecure: boolean) 
     metadataServer.init(app)
 
     app.get('/refs', async (req, res) => {
-        let refs = await store.getRefs()
-        res.send(JSON.stringify(refs))
+        try {
+            let refs = await store.getRefs()
+            res.send(JSON.stringify(refs))
+        }
+        catch (err) {
+            res.send(`{"error":"${err}"}`)
+        }
     });
 
     app.get('/refs/:id', async (req, res) => {
-        let id = req.params.id
+        try {
+            let id = req.params.id
 
-        let result = await store.getSourceState(id)
+            let result = await store.getSourceState(id)
 
-        res.send(JSON.stringify(result))
+            res.send(JSON.stringify(result))
+        }
+        catch (err) {
+            res.send(`{"error":"${err}"}`)
+        }
     });
 
     app.get('/sha/:sha/content', async (req, res) => {
@@ -828,32 +838,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
         catch (err) {
             res.send(`{"error":"missing sha ${sha}!"}`)
         }
-    });
-
-    const createSmallVideoNotReady = (sha: string): Promise<string> => {
-        return new Promise(resolve => {
-            const ffmpeg = require('fluent-ffmpeg')
-
-            let destFile = `/tmp/svhb-${sha}.mp4`
-            if (fs.existsSync(destFile))
-                return destFile
-
-            let rawStream = store.readShaAsStream(sha, 0, -1)
-            ffmpeg(rawStream)
-                .videoCodec('libx264')
-                .audioCodec('libmp3lame')
-                .size('320x240')
-                .on('error', err => {
-                    console.error('ffmpeg error occurred: ' + err.message)
-                    resolve(null)
-                })
-                .on('end', () => {
-                    console.log(`finished video conversion to ${destFile}`)
-                    resolve(destFile)
-                })
-                .save(destFile)
-        })
-    }
+    })
 
     const videoCacheDir = '.hb-videocache'
     const videoConversions = new Map<string, any>()
