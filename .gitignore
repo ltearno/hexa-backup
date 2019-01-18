@@ -4,6 +4,7 @@ target/
 .hb-refs/
 .hb-cache/
 .hb-videocache/
+.hb-metadata/
 *.log
 server.key
 server.crt

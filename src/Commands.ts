@@ -16,6 +16,7 @@ import {
 } from './RPC'
 import * as ClientPeering from './ClientPeering'
 import * as Tools from './Tools'
+import * as Metadata from './Metadata'
 
 const log = LoggerBuilder.buildLogger('Commands')
 
@@ -644,6 +645,7 @@ export async function pushStore(directory: string, storeIp: string, storePort: n
 export async function store(directory: string, port: number, insecure: boolean) {
     console.log(`preparing store in ${directory}`)
     let store = new HexaBackupStore(directory)
+    let metadataServer = new Metadata.Server(directory)
 
     console.log('server initialisation')
 
@@ -676,6 +678,8 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
     console.log(`base dir: ${path.dirname(__dirname)}`)
     app.use('/public', express.static(path.join(path.dirname(__dirname), 'static')))
+
+    metadataServer.init(app)
 
     app.get('/refs', async (req, res) => {
         let refs = await store.getRefs()

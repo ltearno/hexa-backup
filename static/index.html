@@ -106,16 +106,16 @@
             min-width: 30em;
             display: flex;
             flex-flow: column;
-            overflow-y: auto;
         }
 
         #audio-list {
             flex-shrink: 1;
+            overflow: auto;
         }
 
         #audio-player {
             width: 100%;
-            flex-shrink: 1;
+            flex-shrink: 0;
         }
 
         #videos-container {
@@ -134,6 +134,13 @@
 
         #video-list {
             flex-shrink: 1;
+        }
+
+        .like {
+            color: lightgray;
+        }
+        .liked > .like {
+            color: red;
         }
 
         @media screen and (max-width: 1215px) {
@@ -194,7 +201,7 @@
             <div id="commitHistory"></div>
 
             <h2>Settings</h2>
-            <label><input type="checkbox" id="extended"> extended</label><br/>
+            <label><input type="checkbox" id="extended"> extended</label><br />
             <label><input type="checkbox" id="stream-raw-video"> stream raw video</label>
 
             <h2>Status</h2>
@@ -210,6 +217,7 @@
     </div>
     <div id="audio-container">
         <h2>Audio files</h2>
+        <a href='#' onclick='event.preventDefault() || listenToLiked()'>listen to ❤ audios</a>
         <audio id="audio-player" controls preload="metadata"></audio>
         <div id="audio-list"></div>
     </div>
@@ -515,16 +523,75 @@
         el(`#audio-${index}`).style.fontWeight = 'bold'
     }
 
+    async function toggleLikeAudio(index) {
+        if (index < 0 || index >= audioPool.length)
+            return
+
+        let { sha, mimeType, fileName } = audioPool[index]
+        let metadata = await (await fetch(`/metadata/likes-audio/${sha}`)).json()
+        console.log(`metadata : ${JSON.stringify(metadata)}`)
+        if (!metadata) {
+            metadata = {
+                status: false,
+                knownAs: { mimeType, fileName, currentClientId, currentDirectoryDescriptorSha }
+            }
+        }
+
+        metadata.status = !metadata.status
+
+        const headers = new Headers()
+        headers.set('Content-Type', 'application/json')
+        await fetch(`/metadata/likes-audio/${sha}`, {
+            headers,
+            method: 'post',
+            body: JSON.stringify(metadata)
+        })
+
+        if (metadata.status)
+            el('#audio-list').children.item(index).classList.add('liked')
+        else
+            el('#audio-list').children.item(index).classList.remove('liked')
+    }
+
     async function listenNext() {
         listenAudio(currentAudioIndex + 1)
+    }
+
+    async function listenToLiked() {
+        let likes = await (await fetch(`/metadata/likes-audio`)).json()
+        if (!likes)
+            return
+
+        audioPool = likes.map(like => {
+            return {
+                sha: like.sha,
+                fileName: like.value.knownAs.fileName,
+                mimeType: like.value.knownAs.mimeType
+            }
+        })
+
+        restartAudioPool()
     }
 
     async function restartAudioPool() {
         let html = ''
         for (let i in audioPool) {
-            html += `<a id='audio-${i}' href='#' onclick='event.preventDefault() || listenAudio(${i})'>${audioPool[i].fileName}</a><br>`
+            html += `<div><a id='audio-${i}' href='#' onclick='event.preventDefault() || listenAudio(${i})'>${audioPool[i].fileName}</a> <a href='#' class='like' onclick='event.preventDefault() || toggleLikeAudio(${i})'>❤</a></div>`
         }
         el('#audio-list').innerHTML = html
+
+        loadLikesAudio()
+    }
+
+    async function loadLikesAudio() {
+        let i = 0
+        while (i < audioPool.length) {
+            let metadata = await (await fetch(`/metadata/likes-audio/${audioPool[i].sha}`)).json()
+            if (metadata && metadata.status)
+                el('#audio-list').children.item(i).classList.add('liked')
+            i++
+            await wait(10)
+        }
     }
 
     async function showPicture(index) {
@@ -550,9 +617,9 @@
         let finishLoading = startLoading(`loading commit ${commitSha.substr(0, 7)} for default directory descriptor`)
 
         let commit = await fetchCommit(commitSha)
-        
+
         finishLoading()
-        
+
         if (!commit)
             return null
 
