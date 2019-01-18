@@ -876,6 +876,8 @@
     el('#show-full-commit-history').addEventListener('change', () => {
         SHOW_FULL_COMMIT_HISTORY = !!el('#show-full-commit-history').checked
         localStorage.setItem('SHOW_FULL_COMMIT_HISTORY', `${SHOW_FULL_COMMIT_HISTORY}`)
+
+        syncUi()
     })
 
     el('#audio-player').addEventListener('ended', () => {
