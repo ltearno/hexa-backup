@@ -21,19 +21,6 @@ export class Server {
         catch (error) {
             this.db = null
         }
-
-        // await db.put(posted.timestamp, JSON.stringify(posted))
-
-        /*
-        options = {
-            gte: dateToTimestamp(startDate)
-        }
-        
-        db.createReadStream(options)
-            .on('data', d => data.push(JSON.parse(d.value)))
-            .on('error', e => res.send(JSON.stringify({ error: `error fetching data ${e}` })))
-            .on('end', () => res.send(JSON.stringify(data)))
-        */
     }
 
     init(app) {

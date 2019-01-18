@@ -479,7 +479,7 @@
 
             let imageHtml = EXTENDED ?
                 `<span class='small'>${displayDate(file.lastWrite)} ${file.sha ? file.sha.substr(0, 7) : '-'}</span> ${file.fileName} <span class='small'>${file.size} ${links}</span>` :
-                `${file.fileName} <span class='small'>${links} <a href='#' class='like' onclick='event.preventDefault() || toggleLikeFile(${index})'>❤</a></span>`
+                `${file.fileName} <span class='small'>${links} <a href='#' class='like' onclick='event.preventDefault() || toggleLikeFile(${index})'>♡</a></span>`
 
             return `<div>${imageHtml}</div>`
         })
@@ -490,6 +490,21 @@
         }
         else {
             el('#files').classList.add('is-hidden')
+        }
+
+        loadLikesFiles()
+    }
+
+
+
+    async function loadLikesFiles() {
+        let i = 0
+        while (i < filesPool.length) {
+            let metadata = await (await fetch(`/metadata/likes-sha/${filesPool[i].sha}`)).json()
+            if (metadata && metadata.status)
+                el('#files-list').children.item(i).classList.add('liked')
+            i++
+            await wait(100)
         }
     }
 
@@ -518,22 +533,16 @@
 
         let file = filesPool[index]
 
-        let mimeTypes = ['application/octet-stream']
-        let pos = file.fileName.lastIndexOf('.')
-        if (pos >= 0) {
-            let extension = file.fileName.substr(pos + 1).toLocaleLowerCase()
-            if (extension in MimeTypes) {
-                mimeTypes.push(MimeTypes[extension])
-            }
-        }
-
-        let status = await toggleShaLike(file.contentSha, mimeTypes[mimeTypes.length - 1], file.fileName)
+        let status = await toggleShaLike(file.sha, file.mimeType, file.fileName)
 
         if (status)
             el('#files-list').children.item(index).classList.add('liked')
         else
             el('#files-list').children.item(index).classList.remove('liked')
     }
+
+
+
 
     async function restartImagesPool() {
         if (infiniteScrollerStop) {
@@ -591,6 +600,11 @@
         }
         el('#video-list').innerHTML = html
 
+        if (videosPool.length)
+            el('#videos-container').classList.remove('is-hidden')
+        else
+            el('#videos-container').classList.add('is-hidden')
+
         loadLikesVideo()
     }
 
@@ -607,7 +621,7 @@
 
     async function viewLikedVideos(likes) {
         if (!likes)
-            return
+            likes = []
 
         videosPool = likes.map(like => {
             return {
@@ -674,7 +688,7 @@
 
     async function listenToLiked(likes) {
         if (!likes)
-            return
+            likes = []
 
         audioPool = likes.map(like => {
             return {
@@ -693,6 +707,11 @@
             html += `<div><a id='audio-${i}' href='#' onclick='event.preventDefault() || listenAudio(${i})'>${audioPool[i].fileName}</a> <a href='#' class='like' onclick='event.preventDefault() || toggleLikeAudio(${i})'>❤</a></div>`
         }
         el('#audio-list').innerHTML = html
+
+        if (audioPool.length)
+            el('#audio-container').classList.remove('is-hidden')
+        else
+            el('#videos-container').classList.add('is-hidden')
 
         loadLikesAudio()
     }
@@ -938,7 +957,7 @@
     async function viewLikes() {
         let likes = await (await fetch(`/metadata/likes-sha`)).json()
         if (!likes)
-            return
+            likes = []
 
         // TODO manage liked directories
         el('#directories').classList.add('is-hidden')
