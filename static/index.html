@@ -139,7 +139,7 @@
         .like {
             color: lightgray;
         }
-        .liked > .like {
+        .liked .like {
             color: red;
         }
 
@@ -246,6 +246,7 @@
     let currentPictureIndex = -1
     let currentAudioIndex = -1
     let currentVideoIndex = -1
+    let filesPool = []
     let imagesPool = []
     let videosPool = []
     let audioPool = []
@@ -399,7 +400,7 @@
         let audios = []
 
         finishLoading = startLoading(`listing files`)
-        let filesContent = files
+        filesPool = files
             .filter(file => !file.isDirectory)
             .sort((a, b) => {
                 if (a.name > b.name)
@@ -408,43 +409,31 @@
                     return -1
                 return 0
             })
-            .map(file => {
-                let mimeTypes = ['application/octet-stream']
-                let pos = file.name.lastIndexOf('.')
-                if (pos >= 0) {
-                    let extension = file.name.substr(pos + 1).toLocaleLowerCase()
-                    if (extension in MimeTypes) {
-                        mimeTypes.push(MimeTypes[extension])
-                    }
+
+        filesPool.forEach(file => {
+            let mimeTypes = []
+            let pos = file.name.lastIndexOf('.')
+            if (pos >= 0) {
+                let extension = file.name.substr(pos + 1).toLocaleLowerCase()
+                if (extension in MimeTypes) {
+                    mimeTypes.push(MimeTypes[extension])
                 }
+            }
 
-                let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.name}` : ''}' >${EXTENDED ? mimeType : (index == 0 ? 'dl' : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType))}</a>]`).join(' ')
-
-                let imageHtml = EXTENDED ?
-                    `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> ${file.name} <span class='small'>${file.size} ${links}</span>` :
-                    `${file.name} <span class='small'>${links}</span>`
-
-                mimeTypes.filter(t => t.startsWith('image/')).forEach(mimeType => {
-                    images.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
-                })
-
-                mimeTypes.filter(t => t.startsWith('video/')).forEach(mimeType => {
-                    videos.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
-                })
-
-                mimeTypes.filter(t => t.startsWith('audio/')).forEach(mimeType => {
-                    audios.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
-                })
-
-                return `<div>${imageHtml}</div>`
+            mimeTypes.filter(t => t.startsWith('image/')).forEach(mimeType => {
+                images.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
             })
-        if (filesContent.length) {
-            el('#files').classList.remove('is-hidden')
-            el('#files').innerHTML = `<h2>${filesContent.length} Files</h2>` + filesContent.join('')
-        }
-        else {
-            el('#files').classList.add('is-hidden')
-        }
+
+            mimeTypes.filter(t => t.startsWith('video/')).forEach(mimeType => {
+                videos.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
+            })
+
+            mimeTypes.filter(t => t.startsWith('audio/')).forEach(mimeType => {
+                audios.push({ sha: file.contentSha, mimeType: mimeType, fileName: file.name })
+            })
+        })
+
+        restartFilePool()
         finishLoading()
 
         await wait(1)
@@ -465,6 +454,59 @@
     const imagesStep = 100
 
     let infiniteScrollerStop = null
+
+    async function restartFilePool() {
+        let filesContent = filesPool.map((file, index) => {
+            let mimeTypes = ['application/octet-stream']
+            let pos = file.name.lastIndexOf('.')
+            if (pos >= 0) {
+                let extension = file.name.substr(pos + 1).toLocaleLowerCase()
+                if (extension in MimeTypes) {
+                    mimeTypes.push(MimeTypes[extension])
+                }
+            }
+
+            let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.contentSha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.name}` : ''}' >${EXTENDED ? mimeType : (index == 0 ? 'dl' : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType))}</a>]`).join(' ')
+
+            let imageHtml = EXTENDED ?
+                `<span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> ${file.name} <span class='small'>${file.size} ${links}</span>` :
+                `${file.name} <span class='small'>${links} <a href='#' class='like' onclick='event.preventDefault() || toggleLikeFile(${index})'>❤</a></span>`
+
+            return `<div>${imageHtml}</div>`
+        })
+        if (filesContent.length) {
+            el('#files').classList.remove('is-hidden')
+            el('#files').innerHTML = `<h2>${filesContent.length} Files</h2><div id='files-list'>${filesContent.join('')}</div>`
+        }
+        else {
+            el('#files').classList.add('is-hidden')
+        }
+    }
+
+
+
+    async function toggleLikeFile(index) {
+        if (index < 0 || index >= filesPool.length)
+            return
+
+        let file = filesPool[index]
+
+        let mimeTypes = ['application/octet-stream']
+        let pos = file.name.lastIndexOf('.')
+        if (pos >= 0) {
+            let extension = file.name.substr(pos + 1).toLocaleLowerCase()
+            if (extension in MimeTypes) {
+                mimeTypes.push(MimeTypes[extension])
+            }
+        }
+
+        let status = await toggleShaLike(file.contentSha, mimeTypes[mimeTypes.length - 1], file.name)
+
+        if (status)
+            el('#files-list').children.item(index).classList.add('liked')
+        else
+            el('#files-list').children.item(index).classList.remove('liked')
+    }
 
     async function restartImagesPool() {
         if (infiniteScrollerStop) {
