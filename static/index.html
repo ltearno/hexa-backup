@@ -442,15 +442,15 @@
         await wait(1)
 
         imagesPool = images
-        restartImagesPool()
+        await restartImagesPool()
 
         currentVideoIndex = -1
         videosPool = videos
-        restartVideosPool()
+        await restartVideosPool()
 
         currentAudioIndex = -1
         audioPool = audios
-        restartAudioPool()
+        await restartAudioPool()
     }
 
     const maxImagesSeen = 100
@@ -651,12 +651,17 @@
         let metadata = await (await fetch(`/metadata/likes-sha/${sha}`)).json()
         if (!metadata) {
             metadata = {
+                dates: [Date.now()],
                 status: false,
                 knownAs: { mimeType, fileName, currentClientId, currentDirectoryDescriptorSha }
             }
         }
 
         metadata.status = !metadata.status
+        if (!metadata.dates)
+            metadata.dates = [Date.now()]
+        else
+            metadata.dates.push(Date.now())
 
         const headers = new Headers()
         headers.set('Content-Type', 'application/json')
