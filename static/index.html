@@ -723,8 +723,11 @@
 
     async function loadLikesAudio() {
         let i = 0
+        // TODO fetch by batch
+        // TODO fetch only once (files, videos, audios and images)
         while (i < audioPool.length) {
             let metadata = await (await fetch(`/metadata/likes-sha/${audioPool[i].sha}`)).json()
+            // TODO since we only use 'status', maybe an option to only fetch that
             if (metadata && metadata.status)
                 el('#audio-list').children.item(i).classList.add('liked')
             i++
