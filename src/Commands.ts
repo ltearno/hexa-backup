@@ -17,6 +17,7 @@ import {
 import * as ClientPeering from './ClientPeering'
 import * as Tools from './Tools'
 import * as Metadata from './Metadata'
+const { spawn } = require('child_process')
 
 const log = LoggerBuilder.buildLogger('Commands')
 
@@ -681,6 +682,24 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
     metadataServer.init(app)
 
+    let thumbnailCache = new Map<string, Buffer>()
+    let thumbnailCacheEntries = []
+
+    let mediumCache = new Map<string, Buffer>()
+    let mediumCacheEntries = []
+
+    interface VideoConversion {
+        sha: string,
+        waiters: ((convertedFilePath: string) => void)[],
+        result: string
+    }
+
+    const videoCacheDir = '.hb-videocache'
+    const videoConversions = new Map<string, VideoConversion>()
+    const videoConversionQueue = new Queue.Queue<VideoConversion>('video-conversions')
+
+    videoConversionLoop()
+
     app.get('/refs', async (req, res) => {
         try {
             let refs = await store.getRefs()
@@ -753,9 +772,6 @@ export async function store(directory: string, port: number, insecure: boolean) 
         }
     });
 
-    let thumbnailCache = new Map<string, Buffer>()
-    let thumbnailCacheEntries = []
-
     app.get('/sha/:sha/plugins/image/thumbnail', async (req, res) => {
         let sha = req.params.sha
         if (sha == null || sha == 'null') {
@@ -797,9 +813,6 @@ export async function store(directory: string, port: number, insecure: boolean) 
         }
     });
 
-    let mediumCache = new Map<string, Buffer>()
-    let mediumCacheEntries = []
-
     app.get('/sha/:sha/plugins/image/medium', async (req, res) => {
         let sha = req.params.sha
         if (sha == null || sha == 'null') {
@@ -840,42 +853,24 @@ export async function store(directory: string, port: number, insecure: boolean) 
         }
     })
 
-    const videoCacheDir = '.hb-videocache'
-    const videoConversions = new Map<string, any>()
-
-    const createSmallVideo = (sha: string): Promise<string> => {
+    function convertVideo(sha: string): Promise<string> {
         return new Promise(resolve => {
-            if (videoConversions.has(sha)) {
-                console.log(`waiting on progressing conversion ${sha}`)
-                let info = videoConversions.get(sha)
-
-                info.waiters.push(resolve)
-                return
-            }
-
-
-            let destFile = path.join(videoCacheDir, `svhb-${sha}.mp4`)
-            if (fs.existsSync(destFile)) {
-                resolve(destFile)
-                return
-            }
-
-            // mark conversion as beeing started
-            let info = {
-                waiters: [],
-                result: null
-            }
-            videoConversions.set(sha, info)
-
             try {
-                console.log(`start conv ${sha}`)
                 if (!fs.existsSync(videoCacheDir))
                     fs.mkdirSync(videoCacheDir)
 
-                let inputFile = store.getShaFileName(sha)
-                //let rawStream = store.readShaAsStream(sha, 0, -1)
+                let destFile = path.join(videoCacheDir, `svhb-${sha}.mp4`)
+                if (fs.existsSync(destFile)) {
+                    resolve(destFile)
+                    return
+                }
 
-                const { spawn } = require('child_process')
+                let inputFile = store.getShaFileName(sha)
+                if (!fs.existsSync(inputFile)) {
+                    resolve(null)
+                    return
+                }
+
                 const child = spawn('ffmpeg', [
                     '-y',
                     '-i',
@@ -886,33 +881,76 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 ])
 
                 child.stdout.on('data', (data) => {
-                    console.log(`child stdout:\n${data}`);
-                });
+                    console.log(`${data}`)
+                })
 
                 child.stderr.on('data', (data) => {
-                    console.error(`child stderr:\n${data}`);
-                });
+                    console.error(`${data}`)
+                })
 
                 child.on('exit', (code, signal) => {
                     if (!code) {
-                        info.result = destFile
                         resolve(destFile)
                     }
                     else {
-                        console.error(`ffmpeg error code ${code} (${signal})`)
+                        log.err(`ffmpeg error code ${code} (${signal})`)
                         resolve(null)
                     }
                 })
-                console.log(`end conv ${sha}`)
             }
             catch (err) {
-                console.error(`ffmpeg conversion error ${err}`)
+                log.err(`ffmpeg conversion error ${err}`)
                 resolve(null)
             }
-            finally {
-                info.waiters.forEach(w => w(info.result))
-                videoConversions.delete(sha)
+        })
+    }
+
+    async function videoConversionLoop() {
+        const waiter = Queue.waitPopper(videoConversionQueue)
+
+        while (true) {
+            const info = await waiter()
+            if (!info) {
+                log(`finished video conversion loop`)
+                break
             }
+
+            log(`starting video conversion ${info.sha}, still ${videoConversionQueue.size()} in queue`)
+            info.result = await convertVideo(info.sha)
+            log(`finished video conversion ${info.sha}, still ${videoConversionQueue.size()} in queue`)
+            info.waiters.forEach(w => w(info.result))
+            videoConversions.delete(info.sha)
+        }
+    }
+
+    const createSmallVideo = (sha: string): Promise<string> => {
+        return new Promise(resolve => {
+            if (videoConversions.has(sha)) {
+                console.log(`waiting for existing conversion ${sha}, ${videoConversionQueue.size()} in queue`)
+                let info = videoConversions.get(sha)
+
+                info.waiters.push(resolve)
+                return
+            }
+
+            let destFile = path.join(videoCacheDir, `svhb-${sha}.mp4`)
+            if (fs.existsSync(destFile)) {
+                resolve(destFile)
+                return
+            }
+
+            let info = {
+                sha,
+                waiters: [resolve],
+                result: null
+            }
+
+            console.log(`waiting for conversion ${sha}, ${videoConversionQueue.size()} in queue`)
+
+            videoConversions.set(sha, info)
+            videoConversionQueue.push(info)
+
+            return
         })
     }
 
@@ -932,7 +970,6 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 return
             }
 
-            // ffmpeg -i /home/arnaud/repos/persos/hexa-backup/.hb-object/63/636632f471fddfaafc410ad608ddda1b964780caccebed6d34eea8e41cec7fc9 -vf scale=w=320:h=240 test.mp4
             const range = req.headers.range
 
             let stat = fs.statSync(fileName)
