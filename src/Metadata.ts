@@ -40,7 +40,7 @@ export class Server {
                     let result = {}
                     for (let sha of query.shaList) {
                         try {
-                            result[sha] = await this.db.get(`/metadata/${name}/${sha}`)
+                            result[sha] = JSON.parse(await this.db.get(`/metadata/${name}/${sha}`))
                         } catch (err) {
                         }
                     }
