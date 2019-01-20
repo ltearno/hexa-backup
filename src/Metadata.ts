@@ -33,15 +33,29 @@ export class Server {
                 return
             }
 
-            let data = []
+            let queryRaw = req.query.q
+            if (queryRaw && queryRaw.trim().length) {
+                let query = JSON.parse(queryRaw)
+                if (query && query.shaList) {
+                    let result = {}
+                    for (let sha of query.shaList)
+                        result[sha] = await this.db.get(`/metadata/${name}/${sha}`)
+
+                    res.send(JSON.stringify(result))
+                    return
+                }
+            }
 
             const options = {
                 gte: `/metadata/${name}/`,
                 lt: `/metadata/${name}0`,
                 limit: 1000
             }
+
+            let data = {}
+
             this.db.createReadStream(options)
-                .on('data', d => data.push({ sha: d.key.substr(d.key.lastIndexOf('/') + 1), value: JSON.parse(d.value) }))
+                .on('data', d => data[d.key.substr(d.key.lastIndexOf('/') + 1)] = JSON.parse(d.value))
                 .on('error', e => res.send(JSON.stringify({ error: `error fetching data ${e}` })))
                 .on('end', () => res.send(JSON.stringify(data)))
         })

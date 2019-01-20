@@ -496,13 +496,18 @@
 
 
     async function loadLikesFiles() {
-        let i = 0
-        while (i < filesPool.length) {
-            let metadata = await (await fetch(`/metadata/likes-sha/${filesPool[i].sha}`)).json()
+        let all = await (await fetch(`/metadata/likes-sha?q=${JSON.stringify({
+            shaList: [...new Set(filesPool.map(f => f.sha))]
+        })}`)).json()
+
+        if (!all)
+            return
+
+        for (let i in filesPool) {
+            let file = filesPool[i]
+            let metadata = all[file.sha]
             if (metadata && metadata.status)
                 el('#files-list').children.item(i).classList.add('liked')
-            i++
-            await wait(100)
         }
     }
 
@@ -963,7 +968,7 @@
     async function viewLikes() {
         let likes = await (await fetch(`/metadata/likes-sha`)).json()
         if (!likes)
-            likes = []
+            likes = {}
 
         // TODO manage liked directories
         el('#directories').classList.add('is-hidden')
@@ -972,9 +977,11 @@
         // TODO manage liked images
         el('#images-container').classList.add('is-hidden')
 
-        viewLikedFiles(likes)
-        listenToLiked(likes.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
-        viewLikedVideos(likes.filter(like => like.value.knownAs.mimeType.startsWith('video/')))
+        let likesArray = Object.getOwnPropertyNames(likesArray).map(sha => ({ sha, value: likes[sha] }))
+
+        viewLikedFiles(likesArray)
+        listenToLiked(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
+        viewLikedVideos(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('video/')))
     }
 
     async function syncUi() {
