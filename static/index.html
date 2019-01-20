@@ -437,7 +437,7 @@
                 audios.push(file)
         })
 
-        restartFilePool()
+        await restartFilePool()
         finishLoading()
 
         await wait(1)
@@ -542,7 +542,7 @@
 
         await loadLikesFiles()
 
-        restartFilePool()
+        await restartFilePool()
     }
 
 
