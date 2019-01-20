@@ -490,7 +490,7 @@
             el('#files').classList.add('is-hidden')
         }
 
-        loadLikesFiles()
+        await loadLikesFiles()
     }
 
 
@@ -504,7 +504,7 @@
         while (startIndex < allShas.length) {
             let batchSize = Math.min(BATCH_SIZE, allShas.length - startIndex)
             let partResults = await (await fetch(`/metadata/likes-sha?q=${JSON.stringify({
-                shaList: allShas.slice(startIndex, batchSize)
+                shaList: allShas.slice(startIndex, startIndex + batchSize)
             })}`)).json()
 
             startIndex += batchSize
@@ -514,10 +514,6 @@
 
             Object.getOwnPropertyNames(partResults).forEach(sha => all[sha] = partResults[sha])
         }
-
-        //let all = await (await fetch(`/metadata/likes-sha?q=${JSON.stringify({
-        //    shaList: allShas
-        //})}`)).json()
 
         for (let i in filesPool) {
             let file = filesPool[i]
@@ -993,7 +989,7 @@
         // TODO manage liked images
         el('#images-container').classList.add('is-hidden')
 
-        let likesArray = Object.getOwnPropertyNames(likesArray).map(sha => ({ sha, value: likes[sha] }))
+        let likesArray = Object.getOwnPropertyNames(likes).map(sha => ({ sha, value: likes[sha] }))
 
         viewLikedFiles(likesArray)
         listenToLiked(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
