@@ -496,12 +496,28 @@
 
 
     async function loadLikesFiles() {
-        let all = await (await fetch(`/metadata/likes-sha?q=${JSON.stringify({
-            shaList: [...new Set(filesPool.map(f => f.sha))]
-        })}`)).json()
+        let allShas = [...new Set(filesPool.map(f => f.sha))]
 
-        if (!all)
-            return
+        let all = {}
+        const BATCH_SIZE = 10
+        let startIndex = 0
+        while (startIndex < allShas.length) {
+            let batchSize = Math.min(BATCH_SIZE, allShas.length - startIndex)
+            let partResults = await (await fetch(`/metadata/likes-sha?q=${JSON.stringify({
+                shaList: allShas.slice(startIndex, batchSize)
+            })}`)).json()
+
+            startIndex += batchSize
+
+            if (!partResults)
+                continue
+
+            Object.getOwnPropertyNames(partResults).forEach(sha => all[sha] = partResults[sha])
+        }
+
+        //let all = await (await fetch(`/metadata/likes-sha?q=${JSON.stringify({
+        //    shaList: allShas
+        //})}`)).json()
 
         for (let i in filesPool) {
             let file = filesPool[i]
