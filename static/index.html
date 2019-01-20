@@ -683,15 +683,16 @@
         else
             metadata.dates.push(Date.now())
 
+        filesShaLikeMetadata[sha] = metadata
+
+        // we are optimistic, we do not wait for server's response !
         const headers = new Headers()
         headers.set('Content-Type', 'application/json')
-        await fetch(`/metadata/likes-sha/${sha}`, {
+        fetch(`/metadata/likes-sha/${sha}`, {
             headers,
             method: 'post',
             body: JSON.stringify(metadata)
         })
-
-        filesShaLikeMetadata[sha] = metadata
 
         return metadata.status
     }
