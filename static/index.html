@@ -385,7 +385,7 @@
         let directoriesContent = files
             .filter(file => file.isDirectory)
             .sort((a, b) => {
-                return a.localeCompare(b)
+                return a.name.localeCompare(b.name)
             })
             .map(file => EXTENDED ?
                 `<div><span class='small'>${displayDate(file.lastWrite)} ${file.contentSha ? file.contentSha.substr(0, 7) : '-'}</span> <a href='#' onclick='event.preventDefault() || goDirectory("${file.contentSha}")'>${file.name}</a></div>` :
@@ -407,7 +407,7 @@
         filesPool = files
             .filter(file => !file.isDirectory)
             .sort((a, b) => {
-                return a.localeCompare(b)
+                return a.name.localeCompare(b.named)
             })
             .map((file, index) => {
                 return {
