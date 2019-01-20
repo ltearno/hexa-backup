@@ -38,8 +38,12 @@ export class Server {
                 let query = JSON.parse(queryRaw)
                 if (query && query.shaList) {
                     let result = {}
-                    for (let sha of query.shaList)
-                        result[sha] = await this.db.get(`/metadata/${name}/${sha}`)
+                    for (let sha of query.shaList) {
+                        try {
+                            result[sha] = await this.db.get(`/metadata/${name}/${sha}`)
+                        } catch (err) {
+                        }
+                    }
 
                     res.send(JSON.stringify(result))
                     return

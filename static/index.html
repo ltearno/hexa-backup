@@ -251,6 +251,7 @@
     let currentAudioIndex = -1
     let currentVideoIndex = -1
     let filesPool = []
+    let filesShaLikeMetadata = {}
     let imagesPool = []
     let videosPool = []
     let audioPool = []
@@ -423,6 +424,8 @@
                 }
             })
 
+        await loadLikesFiles()
+
         filesPool.forEach(file => {
             if (file.mimeType.startsWith('image/'))
                 images.push(file)
@@ -490,16 +493,14 @@
             el('#files').classList.add('is-hidden')
         }
 
-        await loadLikesFiles()
+        await viewLikesFiles()
     }
-
-
 
     async function loadLikesFiles() {
         let allShas = [...new Set(filesPool.map(f => f.sha))]
 
-        let all = {}
-        const BATCH_SIZE = 10
+        filesShaLikeMetadata = {}
+        const BATCH_SIZE = 20
         let startIndex = 0
         while (startIndex < allShas.length) {
             let batchSize = Math.min(BATCH_SIZE, allShas.length - startIndex)
@@ -512,12 +513,14 @@
             if (!partResults)
                 continue
 
-            Object.getOwnPropertyNames(partResults).forEach(sha => all[sha] = partResults[sha])
+            Object.getOwnPropertyNames(partResults).forEach(sha => filesShaLikeMetadata[sha] = partResults[sha])
         }
+    }
 
+    async function viewLikesFiles() {
         for (let i in filesPool) {
             let file = filesPool[i]
-            let metadata = all[file.sha]
+            let metadata = filesShaLikeMetadata[file.sha]
             if (metadata && metadata.status)
                 el('#files-list').children.item(i).classList.add('liked')
         }
@@ -536,6 +539,8 @@
                 size: 0,
             }
         })
+
+        await loadLikesFiles()
 
         restartFilePool()
     }
@@ -626,11 +631,10 @@
     async function loadLikesVideo() {
         let i = 0
         while (i < videosPool.length) {
-            let metadata = await (await fetch(`/metadata/likes-sha/${videosPool[i].sha}`)).json()
+            let metadata = filesShaLikeMetadata[videosPool[i].sha] //await (await fetch(`/metadata/likes-sha/${videosPool[i].sha}`)).json()
             if (metadata && metadata.status)
                 el('#video-list').children.item(i).classList.add('liked')
             i++
-            await wait(100)
         }
     }
 
@@ -663,7 +667,7 @@
     }
 
     async function toggleShaLike(sha, mimeType, fileName) {
-        let metadata = await (await fetch(`/metadata/likes-sha/${sha}`)).json()
+        let metadata = filesShaLikeMetadata[sha]
         if (!metadata) {
             metadata = {
                 dates: [Date.now()],
@@ -741,12 +745,11 @@
         // TODO fetch by batch
         // TODO fetch only once (files, videos, audios and images)
         while (i < audioPool.length) {
-            let metadata = await (await fetch(`/metadata/likes-sha/${audioPool[i].sha}`)).json()
+            let metadata = filesShaLikeMetadata[audioPool[i].sha]
             // TODO since we only use 'status', maybe an option to only fetch that
             if (metadata && metadata.status)
                 el('#audio-list').children.item(i).classList.add('liked')
             i++
-            await wait(100)
         }
     }
 
