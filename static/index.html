@@ -206,6 +206,7 @@
             <label><input type="checkbox" id="show-full-commit-history"> show full commit history</label><br />
             <label><input type="checkbox" id="extended"> extended display</label><br />
             <label><input type="checkbox" id="stream-raw-video"> stream raw video</label><br />
+            <label><input type="checkbox" id="show-unliked-items"> show unliked items</label><br />
 
             <h2>Status</h2>
             <span id="status"></span>
@@ -246,6 +247,9 @@
     let SHOW_FULL_COMMIT_HISTORY = localStorage.getItem('SHOW_FULL_COMMIT_HISTORY') == 'true'
     el('#show-full-commit-history').checked = SHOW_FULL_COMMIT_HISTORY
 
+    let SHOW_UNLIKED_ITEMS = localStorage.getItem('SHOW_UNLIKED_ITEMS') == 'true'
+    el('#show-unliked-items').checked = SHOW_UNLIKED_ITEMS
+
     let currentClientId = null
     let currentDirectoryDescriptorSha = null
     let currentPictureIndex = -1
@@ -263,6 +267,7 @@
     let displayedExtended = EXTENDED
     let displayedStreamRawVideo = STREAM_RAW_VIDEO
     let displayedShowFullCommitHistory = SHOW_FULL_COMMIT_HISTORY
+    let displayedShowUnlikedItems = SHOW_UNLIKED_ITEMS
 
     const wait = (ms) => {
         return new Promise(resolve => {
@@ -922,6 +927,13 @@
         syncUi()
     })
 
+    el('#show-unliked-items').addEventListener('change', () => {
+        SHOW_UNLIKED_ITEMS = !!el('#show-unliked-items').checked
+        localStorage.setItem('SHOW_UNLIKED_ITEMS', `${SHOW_UNLIKED_ITEMS}`)
+
+        syncUi()
+    })
+
     el('#show-full-commit-history').addEventListener('change', () => {
         SHOW_FULL_COMMIT_HISTORY = !!el('#show-full-commit-history').checked
         localStorage.setItem('SHOW_FULL_COMMIT_HISTORY', `${SHOW_FULL_COMMIT_HISTORY}`)
@@ -998,6 +1010,9 @@
 
         let likesArray = Object.getOwnPropertyNames(likes).map(sha => ({ sha, value: likes[sha] }))
 
+        if (!SHOW_UNLIKED_ITEMS)
+            likesArray = likesArray.filter(like => like.value.status)
+
         await viewLikedFiles(likesArray)
         await listenToLiked(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
         await viewLikedVideos(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('video/')))
@@ -1022,10 +1037,13 @@
         const fullHistoryChange = displayedShowFullCommitHistory != SHOW_FULL_COMMIT_HISTORY
         displayedShowFullCommitHistory = SHOW_FULL_COMMIT_HISTORY
 
-        if (streamRawVideoChange || extChange || currentDirectoryDescriptorSha != displayedDirectoryDescriptorSha)
+        const showUnlikedItemsChange = displayedShowUnlikedItems != SHOW_UNLIKED_ITEMS
+        displayedShowUnlikedItems = SHOW_UNLIKED_ITEMS
+
+        if (showUnlikedItemsChange || streamRawVideoChange || extChange || currentDirectoryDescriptorSha != displayedDirectoryDescriptorSha)
             await showDirectory(currentDirectoryDescriptorSha)
 
-        if (extChange || fullHistoryChange || currentClientId != displayedClientId)
+        if (showUnlikedItemsChange || extChange || fullHistoryChange || currentClientId != displayedClientId)
             await showRef(currentClientId)
 
         if (videosPool.length)
