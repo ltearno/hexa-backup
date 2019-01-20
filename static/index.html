@@ -691,6 +691,8 @@
             body: JSON.stringify(metadata)
         })
 
+        filesShaLikeMetadata[sha] = metadata
+
         return metadata.status
     }
 
