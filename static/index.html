@@ -994,9 +994,9 @@
 
         let likesArray = Object.getOwnPropertyNames(likes).map(sha => ({ sha, value: likes[sha] }))
 
-        viewLikedFiles(likesArray)
-        listenToLiked(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
-        viewLikedVideos(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('video/')))
+        await viewLikedFiles(likesArray)
+        await listenToLiked(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('audio/')))
+        await viewLikedVideos(likesArray.filter(like => like.value.knownAs.mimeType.startsWith('video/')))
     }
 
     async function syncUi() {
