@@ -92,7 +92,7 @@ export class ShaCache {
             return null
 
         await FsTools.closeFile(this.temporaryFiles[fileId].fd)
-        delete this.temporaryFiles[fileId]
+        this.temporaryFiles[fileId] = null
 
         let stream = fs.createReadStream(fsPath.join(this.cacheDirectory, fileId), { encoding: 'utf8' })
         stream.on('end', () => {
