@@ -128,7 +128,7 @@ export class ObjectRepository {
                 result[sha] = 0
             }
             else {
-                let contentFileName = this.contentFileNameSync(sha)
+                let contentFileName = await this.contentFileName(sha)
                 try {
                     let stat = await FsTools.lstat(contentFileName)
                     if (stat == null)
