@@ -72,7 +72,7 @@ export class ObjectRepository {
 
                     let sha = await HashTools.hashFile(contentFileName)
 
-                    fs.renameSync(contentFileName, this.contentFileName(sha))
+                    fs.renameSync(contentFileName, await this.contentFileName(sha))
 
                     resolve(sha)
                 }
@@ -94,7 +94,7 @@ export class ObjectRepository {
                 return;
             }
 
-            let contentFileName = this.contentFileName(sha);
+            let contentFileName = this.contentFileNameSync(sha);
             if (!fs.existsSync(contentFileName)) {
                 resolve(null);
                 return;
@@ -128,7 +128,7 @@ export class ObjectRepository {
                 result[sha] = 0
             }
             else {
-                let contentFileName = this.contentFileName(sha)
+                let contentFileName = this.contentFileNameSync(sha)
                 try {
                     let stat = await FsTools.lstat(contentFileName)
                     if (stat == null)
@@ -161,7 +161,7 @@ export class ObjectRepository {
             log.dbg(`closed sha file ${sha}, still ${this.openedShaFiles.size} entries`)
         }
 
-        let contentFileName = this.contentFileName(sha)
+        let contentFileName = await this.contentFileName(sha)
 
         try {
             let storedContentSha = this.shaCache ? await this.shaCache.hashFile(contentFileName) : await HashTools.hashFile(contentFileName)
@@ -186,7 +186,7 @@ export class ObjectRepository {
         try {
             log.dbg(`put bytes for ${sha} @${offset}, size=${data.byteLength}`)
 
-            let contentFileName = this.contentFileName(sha)
+            let contentFileName = await this.contentFileName(sha)
 
             let fd = this.openedShaFiles.get(sha)
             if (!fd) {
@@ -208,14 +208,14 @@ export class ObjectRepository {
         if (!sha)
             return null
 
-        return this.contentFileName(sha)
+        return this.contentFileNameSync(sha)
     }
 
     readShaAsStream(sha: string, start: number, end: number) {
         if (!sha)
             return null
 
-        let contentFileName = this.contentFileName(sha)
+        let contentFileName = this.contentFileNameSync(sha)
 
         if (!fs.existsSync(contentFileName))
             return null
@@ -239,7 +239,7 @@ export class ObjectRepository {
                 return
             }
 
-            let contentFileName = this.contentFileName(sha)
+            let contentFileName = this.contentFileNameSync(sha)
 
             if (length <= 0) {
                 if (!fs.existsSync(contentFileName)) {
@@ -283,7 +283,7 @@ export class ObjectRepository {
 
         return new Promise<boolean>(async (resolve, reject) => {
             try {
-                let contentFileName = this.contentFileName(contentSha)
+                let contentFileName = await this.contentFileName(contentSha)
                 let storedContentSha: string
                 if (this.shaCache)
                     storedContentSha = await this.shaCache.hashFile(contentFileName)
@@ -328,12 +328,20 @@ export class ObjectRepository {
         return null
     }
 
-    private contentFileName(sha: string) {
+    private contentFileNameSync(sha: string) {
         let prefix = sha.substring(0, 2);
         let directory = fsPath.join(this.rootPath, prefix)
         if (!fs.existsSync(directory))
             fs.mkdirSync(directory);
         return fsPath.join(this.rootPath, prefix, `${sha}`);
+    }
+
+    private async contentFileName(sha: string) {
+        let prefix = sha.substring(0, 2)
+        let directory = fsPath.join(this.rootPath, prefix)
+        if (!await FsTools.fileExists(directory))
+            await FsTools.mkdir(directory)
+        return fsPath.join(this.rootPath, prefix, `${sha}`)
     }
 
     private tempFileName() {
