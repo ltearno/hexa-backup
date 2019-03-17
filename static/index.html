@@ -12,7 +12,7 @@
         html {
             background-color: white;
         }
-        
+
         body {
             position: absolute;
             top: 0px;
@@ -33,15 +33,15 @@
             display: flex;
         }
 
-        #menu{
+        #menu {
             overflow: auto;
             flex-grow: 0;
             flex-shrink: 0;
-            padding:.5em;
+            padding: .5em;
         }
 
-        #menu.hide-optional > #optional {
-            display:none;
+        #menu.hide-optional>#optional {
+            display: none;
         }
 
         #directories,
@@ -50,7 +50,7 @@
             overflow: auto;
             flex-grow: 0;
             flex-shrink: 0;
-            padding:.5em;
+            padding: .5em;
         }
 
         .small {
@@ -68,8 +68,8 @@
         }
 
         body:-webkit-full-screen #images-container {
-            height :100vw;
-            max-width :inherit;
+            height: 100vw;
+            max-width: inherit;
         }
 
         #image-full-container {
@@ -79,18 +79,18 @@
             position: relative;
         }
 
-        #images{
+        #images {
             display: flex;
             flex-flow: row wrap;
             align-items: center;
             justify-content: space-evenly;
         }
 
-        #images>div{
+        #images>div {
             display: inline-block;
         }
 
-        .image-full{
+        .image-full {
             width: auto;
             height: auto;
             max-width: 100%;
@@ -140,6 +140,7 @@
             color: lightgray;
             cursor: pointer;
         }
+
         .liked .like {
             color: red;
         }
@@ -181,7 +182,12 @@
             }
         }
 
-        .is-hidden, body:-webkit-full-screen #directories, body:-webkit-full-screen #files, body:-webkit-full-screen #menu, body:-webkit-full-screen #videos-container, body:-webkit-full-screen #audio-container {
+        .is-hidden,
+        body:-webkit-full-screen #directories,
+        body:-webkit-full-screen #files,
+        body:-webkit-full-screen #menu,
+        body:-webkit-full-screen #videos-container,
+        body:-webkit-full-screen #audio-container {
             display: none !important;
         }
     </style>
@@ -229,9 +235,10 @@
     </div>
     <div id="image-full-container">
         <div id='image-full-aligner' style='position:absolute;top:0;left:0;bottom:0;right:0;'></div>
-        <div style='position:absolute;bottom:0;left:0;right:0;padding:.5em;display:flex;justify-content:space-between;'><button
-                style='font-size: 2em;' onclick='goPreviousPicture()'>&lt;</button><button style='font-size: 2em;'
-                onclick='goNoPicture()'>X</button><button style='font-size: 2em;' onclick='goNextPicture()'>&gt;</button></div>
+        <div style='position:absolute;bottom:0;left:0;right:0;padding:.5em;display:flex;justify-content:space-between;'>
+            <button style='font-size: 2em;' onclick='goPreviousPicture()'>&lt;</button><button style='font-size: 2em;'
+                onclick='goNoPicture()'>X</button><button style='font-size: 2em;'
+                onclick='goNextPicture()'>&gt;</button></div>
     </div>
 </body>
 
@@ -953,7 +960,7 @@
             currentClientId = event.state.currentClientId
             currentPictureIndex = event.state.currentPictureIndex || 0
 
-            if(!currentClientId)
+            if (!currentClientId)
                 el("#menu").classList.remove("hide-optional")
 
             syncUi()
@@ -970,7 +977,7 @@
         currentClientId = history.state.currentClientId
         currentPictureIndex = history.state.currentPictureIndex || 0
 
-        if(currentClientId)
+        if (currentClientId)
             el("#menu").classList.add("hide-optional")
 
         syncUi()
