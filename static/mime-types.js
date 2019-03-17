@@ -26,6 +26,7 @@ const MimeTypes = {
     "air": "application/vnd.adobe.air-application-installer-package+zip",
     "ait": "application/vnd.dvb.ait",
     "ami": "application/vnd.amiga.ami",
+    "ape": "audio/ape",
     "apk": "application/vnd.android.package-archive",
     "appcache": "text/cache-manifest",
     "application": "application/x-ms-application",
