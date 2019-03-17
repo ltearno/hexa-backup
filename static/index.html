@@ -299,6 +299,8 @@
     }
 
     async function goDirectory(directoryDescriptorSha) {
+        el("#menu").classList.add("hide-optional")
+
         currentPictureIndex = -1
         currentDirectoryDescriptorSha = directoryDescriptorSha
         publishHistoryState()
@@ -307,6 +309,8 @@
     }
 
     async function goRef(ref) {
+        el("#menu").classList.add("hide-optional")
+
         currentClientId = ref
         currentDirectoryDescriptorSha = await getClientDefaultDirectoryDescriptorSha(ref)
         publishHistoryState()
@@ -949,6 +953,9 @@
             currentClientId = event.state.currentClientId
             currentPictureIndex = event.state.currentPictureIndex || 0
 
+            if(!currentClientId)
+                el("#menu").classList.remove("hide-optional")
+
             syncUi()
         }
         else {
@@ -962,6 +969,9 @@
         currentDirectoryDescriptorSha = history.state.currentDirectoryDescriptorSha
         currentClientId = history.state.currentClientId
         currentPictureIndex = history.state.currentPictureIndex || 0
+
+        if(currentClientId)
+            el("#menu").classList.add("hide-optional")
 
         syncUi()
     }
@@ -977,7 +987,7 @@
     }
 
     function fromHash() {
-        if (window.location.hash && window.location.hash.startsWith('#') && window.location.hash != '#null') {
+        if (window.location.hash && window.location.hash.startsWith('#') && window.location.hash != '#null' && window.location.hash != '#undefined') {
             currentDirectoryDescriptorSha = window.location.hash.substr(1)
             currentClientId = null
 
@@ -987,10 +997,14 @@
                 currentPictureIndex = parseInt(currentDirectoryDescriptorSha.substr(dashIndex + 1))
                 currentDirectoryDescriptorSha = currentDirectoryDescriptorSha.substr(0, dashIndex)
             }
+
+            el("#menu").classList.add("hide-optional")
         }
     }
 
     async function viewLikes() {
+        el("#menu").classList.remove("hide-optional")
+
         let likes = await (await fetch(`/metadata/likes-sha`)).json()
         if (!likes)
             likes = {}
