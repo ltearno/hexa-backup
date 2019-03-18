@@ -1,0 +1,166 @@
+html {
+    background-color: white;
+}
+
+body {
+    position: absolute;
+    top: 0px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    overflow-x: auto;
+    background-color: white;
+    font-family: monospace;
+}
+
+#directoryContent {
+    display: flex;
+}
+
+#menu {
+    overflow: auto;
+    flex-grow: 0;
+    flex-shrink: 0;
+    padding: .5em;
+}
+
+#menu.hide-optional>#optional {
+    display: none;
+}
+
+#directories, #files {
+    font-family: monospace;
+    overflow: auto;
+    flex-grow: 0;
+    flex-shrink: 0;
+    padding: .5em;
+}
+
+.small {
+    font-size: .8em;
+    color: #333;
+}
+
+#images-container {
+    overflow: auto;
+    flex-grow: 1;
+    min-width: 10em;
+    height: 100vh;
+    position: relative;
+}
+
+body:-webkit-full-screen #images-container {
+    height: 100vw;
+    max-width: inherit;
+}
+
+#image-full-container {
+    overflow: auto;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+}
+
+#images {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    justify-content: space-evenly;
+}
+
+#images>div {
+    display: inline-block;
+}
+
+.image-full {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+img {
+    image-orientation: from-image;
+}
+
+#audio-container {
+    max-height: 100vh;
+    min-width: 30em;
+    display: flex;
+    flex-flow: column;
+}
+
+#audio-list {
+    flex-shrink: 1;
+    overflow: auto;
+}
+
+#audio-player {
+    width: 100%;
+    flex-shrink: 0;
+}
+
+#videos-container {
+    max-height: 100vh;
+    min-width: 30em;
+    display: flex;
+    flex-flow: column;
+    overflow-y: auto;
+}
+
+#video-player {
+    max-width: 100%;
+    max-height: 80%;
+    flex-shrink: 0;
+}
+
+#video-list {
+    flex-shrink: 1;
+}
+
+.like {
+    color: lightgray;
+    cursor: pointer;
+}
+
+.liked .like {
+    color: red;
+}
+
+@media screen and (max-width: 1215px) {
+    body {
+        flex-flow: column;
+    }
+    #images-container {
+        flex-shrink: 0;
+    }
+    #image-full-container {
+        flex-shrink: 0;
+    }
+    #videos-container {
+        width: 100%;
+        flex-shrink: 0;
+        max-height: initial;
+    }
+    #audio-container {
+        width: 100%;
+        flex-shrink: 0;
+        max-height: initial;
+    }
+    img {
+        width: 50vw;
+    }
+    #images {
+        display: flex;
+        flex-flow: row;
+        flex-wrap: wrap;
+        justify-content: space-around;
+    }
+}
+
+.is-hidden, body:-webkit-full-screen #directories, body:-webkit-full-screen #files, body:-webkit-full-screen #menu, body:-webkit-full-screen #videos-container, body:-webkit-full-screen #audio-container {
+    display: none !important;
+}
