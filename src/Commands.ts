@@ -656,7 +656,6 @@ export async function store(directory: string, port: number, insecure: boolean) 
     let server: any = null
 
     if (insecure) {
-        //app = ExpressTools.createExpressApp(port)
         server = http.createServer(app)
     }
     else {
