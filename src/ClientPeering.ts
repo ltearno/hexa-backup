@@ -204,7 +204,7 @@ export class Peering {
                     let eta = transferred > 0 ? (txTime * leftBytes) / transferred : 0
                     res = res.concat([
                         ` sending:             ${lastShaToSend.sha.substr(0, 7)} ${lastShaEntry.fullPath}`,
-                        ` progress:            ${Tools.prettySize(lastShaToSend.offset+transferred)}/${Tools.prettySize(lastShaEntry.size)}${lastShaToSend.offset?`, started at ${Tools.prettySize(lastShaToSend.offset)}`:''} ${Tools.prettySpeed(transferred, txTime)} ${(100 * (lastShaToSend.offset + transferred) / lastShaEntry.size).toFixed(2)} % (${Tools.prettySize(leftBytes)} left, ETA ${Tools.prettyTime(eta)})`
+                        ` progress:            ${Tools.prettySize(lastShaToSend.offset + transferred)}/${Tools.prettySize(lastShaEntry.size)}${lastShaToSend.offset ? `, started at ${Tools.prettySize(lastShaToSend.offset)}` : ''} ${Tools.prettySpeed(transferred, txTime)} ${(100 * (lastShaToSend.offset + transferred) / lastShaEntry.size).toFixed(2)} % (${Tools.prettySize(leftBytes)} left, ETA ${Tools.prettyTime(eta)})`
                     ])
                 }
             }
@@ -268,6 +268,9 @@ export class Peering {
                     log.dbg(`sha already sent ${shaToSend.sha.substr(0, 7)}`)
                     continue
                 }
+                // clear cache when too big
+                if (sentShas.size > 1000)
+                    sentShas.clear()
                 sentShas.add(shaToSend.sha)
 
                 if (!shaEntry) {

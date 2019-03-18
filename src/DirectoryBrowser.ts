@@ -73,7 +73,7 @@ export class DirectoryBrowser {
             }
 
             let files = (await FsTools.readDir(path))
-                .sort()
+                //.sort()
                 .map(fileName => fsPath.join(path, fileName))
                 .filter(fileName => {
                     let relative = fsPath.basename(fileName)
