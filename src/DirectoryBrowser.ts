@@ -72,97 +72,94 @@ export class DirectoryBrowser {
                 })
             }
 
-            let files = (await FsTools.readDir(path))
-                //.sort()
-                .map(fileName => fsPath.join(path, fileName))
-                .filter(fileName => {
-                    let relative = fsPath.basename(fileName)
-                    let ignores = ignoreExpressions.some(expression => expression.test(relative))
-                    log.dbg(`test ${relative} => ${ignores}`)
-                    if (ignores)
-                        log.dbg(`ignored path ${fileName}`)
-                    return !ignores
-                })
-                .map(fileName => {
-                    try {
-                        let stat = fs.lstatSync(fileName)
-                        if (!stat)
-                            return null
-
-                        if (stat.isSymbolicLink()) {
-                            log.wrn(`skipped symbolic link ${fileName}`)
-                            return null
-                        }
-
-                        if (!(stat.isDirectory() || stat.isFile())) {
-                            log.wrn(`skipped ${fileName}`)
-                            return null
-                        }
-
-                        let element = {
-                            name: fileName,
-                            isDirectory: stat.isDirectory(),
-                            lastWrite: stat.mtime.getTime(),
-                            size: stat.isDirectory() ? 0 : stat.size
-                        }
-
-                        this.stats.bytesBrowsed += element.size
-                        if (element.isDirectory)
-                            this.stats.nbDirectoriesBrowsed++
-                        else
-                            this.stats.nbFilesBrowsed++
-
-                        return element
-                    }
-                    catch (error) {
-                        log.wrn(`cannot stat ${fileName}`)
-                        return null
-                    }
-                })
-                .filter(desc => desc != null)
-
             let directoryDescriptor: Model.DirectoryDescriptor = {
                 files: []
             }
 
-            for (let desc of files) {
+            let rawFiles = (await FsTools.readDir(path))
+                .sort()
+
+            for (let fileName of rawFiles) {
+                fileName = fsPath.join(path, fileName)
+
+                let relative = fsPath.basename(fileName)
+                let ignores = ignoreExpressions.some(expression => expression.test(relative))
+                log.dbg(`test ${relative} => ${ignores}`)
+                if (ignores) {
+                    log.dbg(`ignored path ${fileName}`)
+                    continue
+                }
+
                 try {
-                    if (desc.isDirectory) {
-                        let subDirectoryDescriptor = await this.walkDir(desc.name, ignoreExpressions)
-                        if (subDirectoryDescriptor) {
-                            directoryDescriptor.files.push({
-                                name: fsPath.basename(desc.name),
-                                isDirectory: true,
-                                lastWrite: desc.lastWrite,
-                                contentSha: subDirectoryDescriptor.sha,
-                                size: subDirectoryDescriptor.size
-                            })
+                    let stat = fs.lstatSync(fileName)
+                    if (!stat)
+                        return null
+
+                    if (stat.isSymbolicLink()) {
+                        log.wrn(`skipped symbolic link ${fileName}`)
+                        return null
+                    }
+
+                    if (!(stat.isDirectory() || stat.isFile())) {
+                        log.wrn(`skipped ${fileName}`)
+                        return null
+                    }
+
+                    let element = {
+                        name: fileName,
+                        isDirectory: stat.isDirectory(),
+                        lastWrite: stat.mtime.getTime(),
+                        size: stat.isDirectory() ? 0 : stat.size
+                    }
+
+                    this.stats.bytesBrowsed += element.size
+                    if (element.isDirectory)
+                        this.stats.nbDirectoriesBrowsed++
+                    else
+                        this.stats.nbFilesBrowsed++
+
+                    // process element
+                    try {
+                        if (element.isDirectory) {
+                            let subDirectoryDescriptor = await this.walkDir(element.name, ignoreExpressions)
+                            if (subDirectoryDescriptor) {
+                                directoryDescriptor.files.push({
+                                    name: fsPath.basename(element.name),
+                                    isDirectory: true,
+                                    lastWrite: element.lastWrite,
+                                    contentSha: subDirectoryDescriptor.sha,
+                                    size: subDirectoryDescriptor.size
+                                })
+                            }
+                        }
+                        else {
+                            let startTime = Date.now()
+
+                            const fullPath = element.name
+                            let fileSha = await this.shaCache.hashFile(fullPath)
+                            let entry = {
+                                name: fsPath.basename(element.name),
+                                isDirectory: false,
+                                lastWrite: element.lastWrite,
+                                contentSha: fileSha,
+                                size: element.size
+                            }
+
+                            this.stats.timeHashing += Date.now() - startTime
+                            this.stats.bytesHashed += element.size
+
+                            directoryDescriptor.files.push(entry)
+
+                            this.openedEntries.set(fileSha, { type: 'file', fullPath, size: element.size })
+                            await this.pusher(entry)
                         }
                     }
-                    else {
-                        let startTime = Date.now()
-
-                        const fullPath = desc.name
-                        let fileSha = await this.shaCache.hashFile(fullPath)
-                        let entry = {
-                            name: fsPath.basename(desc.name),
-                            isDirectory: false,
-                            lastWrite: desc.lastWrite,
-                            contentSha: fileSha,
-                            size: desc.size
-                        }
-
-                        this.stats.timeHashing += Date.now() - startTime
-                        this.stats.bytesHashed += desc.size
-
-                        directoryDescriptor.files.push(entry)
-
-                        this.openedEntries.set(fileSha, { type: 'file', fullPath, size: desc.size })
-                        await this.pusher(entry)
+                    catch (error) {
+                        log.err(`error browsing ${JSON.stringify(element)} : ${error}`)
                     }
                 }
                 catch (error) {
-                    log.err(`error browsing ${JSON.stringify(desc)} : ${error}`)
+                    log.wrn(`cannot stat ${fileName}`)
                 }
             }
 
