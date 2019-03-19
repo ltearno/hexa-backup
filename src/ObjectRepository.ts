@@ -90,21 +90,21 @@ export class ObjectRepository {
     async readPayload(sha: string) {
         return new Promise<string>((resolve, reject) => {
             if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
-                resolve('');
-                return;
+                resolve('')
+                return
             }
 
-            let contentFileName = this.contentFileNameSync(sha);
+            let contentFileName = this.contentFileNameSync(sha)
             if (!fs.existsSync(contentFileName)) {
-                resolve(null);
-                return;
+                resolve(null)
+                return
             }
 
             try {
-                let content = fs.readFileSync(contentFileName, 'utf8');
-                resolve(content);
+                let content = fs.readFileSync(contentFileName, 'utf8')
+                resolve(content)
             } catch (error) {
-                reject(error);
+                reject(error)
             }
         });
     }
@@ -332,8 +332,25 @@ export class ObjectRepository {
         let prefix = sha.substring(0, 2);
         let directory = fsPath.join(this.rootPath, prefix)
         if (!fs.existsSync(directory))
-            fs.mkdirSync(directory);
-        return fsPath.join(this.rootPath, prefix, `${sha}`);
+            fs.mkdirSync(directory)
+
+        // in ancient times, object were stored here.
+        // but that led to many files in the same folders.
+        // so we try if possible to insert new files in a deeper hierarchy
+        let oldFilePath = fsPath.join(this.rootPath, prefix, sha)
+        if (fs.existsSync(oldFilePath)) {
+            console.log(`sha ${sha} is at ${oldFilePath}`)
+            return oldFilePath
+        }
+
+        let prefix2 = sha.substring(0, 4)
+        let directory2 = fsPath.join(this.rootPath, prefix, prefix2)
+        if (!fs.existsSync(directory2))
+            fs.mkdirSync(directory2)
+
+        let filePath = fsPath.join(this.rootPath, prefix, prefix2, sha)
+        console.log(`sha ${sha} is at ${filePath}`)
+        return filePath
     }
 
     private async contentFileName(sha: string) {
@@ -341,7 +358,24 @@ export class ObjectRepository {
         let directory = fsPath.join(this.rootPath, prefix)
         if (!await FsTools.fileExists(directory))
             await FsTools.mkdir(directory)
-        return fsPath.join(this.rootPath, prefix, `${sha}`)
+
+        // in ancient times, object were stored here.
+        // but that led to many files in the same folders.
+        // so we try if possible to insert new files in a deeper hierarchy
+        let oldFilePath = fsPath.join(this.rootPath, prefix, sha)
+        if (await FsTools.fileExists(oldFilePath)) {
+            console.log(`sha ${sha} is at ${oldFilePath}`)
+            return oldFilePath
+        }
+
+        let prefix2 = sha.substring(0, 4)
+        let directory2 = fsPath.join(this.rootPath, prefix, prefix2)
+        if (!await FsTools.fileExists(directory2))
+            await FsTools.mkdir(directory2)
+
+        let filePath = fsPath.join(this.rootPath, prefix, prefix2, sha)
+        console.log(`sha ${sha} is at ${filePath}`)
+        return filePath
     }
 
     private tempFileName() {
