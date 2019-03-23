@@ -1,0 +1,17 @@
+{
+  "name": "hexa-backup-ui",
+  "version": "1.0.0",
+  "description": "An UI for hexa-backup",
+  "main": "target/hexa-backup-ui.js",
+  "scripts": {
+    "build": "./node_modules/.bin/tsc"
+  },
+  "author": "Arnaud Tournier",
+  "dependencies": {
+    "express": "4.16.4"
+  },
+  "devDependencies": {
+    "typescript": "3.3.4000",
+    "@types/express": "4.16.1"
+  }
+}

@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "module": "umd",
+        "target": "es2018",
+        "rootDir": "src",
+        "outDir": ".",
+        "sourceMap": true,
+        "declaration": false,
+        "listFiles": false,
+        "emitBOM": true,
+        "diagnostics": true,
+        "moduleResolution": "classic"
+    },
+    "exclude": [
+        "node_modules",
+        "target"
+    ]
+}
