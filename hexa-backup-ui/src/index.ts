@@ -1,3 +1,7 @@
+const BASE_URL = "/"
+//const HEXA_BACKUP_BASE_URL = "https://home.lteconsulting.fr"
+const HEXA_BACKUP_BASE_URL = "https://192.168.0.2:5005"
+
 const el = document.querySelector.bind(document)
 
 let EXTENDED = localStorage.getItem('EXTENDED') === 'true'
@@ -56,7 +60,9 @@ const publishHistoryState = () => {
 
     if (footprint != lastPushedHistoryState) {
         lastPushedHistoryState = footprint
-        history.pushState({ currentDirectoryDescriptorSha, currentClientId, currentPictureIndex }, `directory ${currentDirectoryDescriptorSha}`, `/public/#${currentDirectoryDescriptorSha}${currentPictureIndex >= 0 ? `-${currentPictureIndex}` : ''}`)
+        history.pushState({ currentDirectoryDescriptorSha, currentClientId, currentPictureIndex },
+            `directory ${currentDirectoryDescriptorSha}`,
+            `${BASE_URL}#${currentDirectoryDescriptorSha}${currentPictureIndex >= 0 ? `-${currentPictureIndex}` : ''}`)
     }
 }
 
@@ -242,7 +248,7 @@ async function restartFilePool() {
         if (file.mimeType != 'application/octet-stream')
             mimeTypes.push(file.mimeType)
 
-        let links = mimeTypes.map((mimeType, index) => `[<a href='/sha/${file.sha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.fileName}` : ''}' >${EXTENDED ? mimeType : (index == 0 ? 'dl' : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType))}</a>]`).join(' ')
+        let links = mimeTypes.map((mimeType, index) => `[<a href='${HEXA_BACKUP_BASE_URL}/sha/${file.sha}/content?type=${mimeType}${index == 0 ? `&fileName=${file.fileName}` : ''}' >${EXTENDED ? mimeType : (index == 0 ? 'dl' : (mimeType.indexOf('/') ? mimeType.substr(mimeType.indexOf('/') + 1) : mimeType))}</a>]`).join(' ')
 
         let imageHtml = EXTENDED ?
             `<span class='small'>${displayDate(file.lastWrite)} ${file.sha ? file.sha.substr(0, 7) : '-'}</span> ${file.fileName} <span class='small'>${file.size} ${links}</span>` :
@@ -339,7 +345,7 @@ async function restartImagesPool() {
     if (imagesPool.length) {
         el('#images').innerHTML = ''
         infiniteScrollerStop = infiniteScroll(imagesPool,
-            ({ sha, mimeType, fileName }, index) => `<div><img onclick='goPicture(${index})' src="/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></div>`,
+            ({ sha, mimeType, fileName }, index) => `<div><img onclick='goPicture(${index})' src="${HEXA_BACKUP_BASE_URL}/sha/${sha}/plugins/image/thumbnail?type=${mimeType}"/></div>`,
             el('#images-container'),
             el('#images'))
     }
@@ -355,7 +361,7 @@ async function showVideo(index) {
 
     currentVideoIndex = index
     let { sha, mimeType, fileName } = videosPool[index]
-    el('#video-player').setAttribute('src', STREAM_RAW_VIDEO ? `/sha/${sha}/content?type=${mimeType}` : `/sha/${sha}/plugins/video/small?type=${mimeType}`)
+    el('#video-player').setAttribute('src', STREAM_RAW_VIDEO ? `${HEXA_BACKUP_BASE_URL}/sha/${sha}/content?type=${mimeType}` : `${HEXA_BACKUP_BASE_URL}/sha/${sha}/plugins/video/small?type=${mimeType}`)
     el('#video-player').setAttribute('type', mimeType)
     el('#video-player').play()
 
@@ -425,7 +431,7 @@ async function listenAudio(index) {
 
     currentAudioIndex = index
     let { sha, mimeType, fileName } = audioPool[index]
-    el('#audio-player').setAttribute('src', `/sha/${sha}/content?type=${mimeType}`)
+    el('#audio-player').setAttribute('src', `${HEXA_BACKUP_BASE_URL}/sha/${sha}/content?type=${mimeType}`)
     el('#audio-player').setAttribute('type', mimeType)
     el('#audio-player').play()
 
@@ -527,14 +533,14 @@ async function showPicture(index) {
     if (index < 0)
         return
     let { sha, mimeType, fileName } = imagesPool[index]
-    el('#image-full-aligner').innerHTML += `<a style='width:100%;height:100%;display:flex;align-items:center;justify-content: center;' href='/sha/${sha}/content?type=${mimeType}'><img class='image-full' src='/sha/${sha}/plugins/image/medium?type=${mimeType}'/></a>`
+    el('#image-full-aligner').innerHTML += `<a style='width:100%;height:100%;display:flex;align-items:center;justify-content: center;' href='${HEXA_BACKUP_BASE_URL}/sha/${sha}/content?type=${mimeType}'><img class='image-full' src='/sha/${sha}/plugins/image/medium?type=${mimeType}'/></a>`
 }
 
 async function getClientDefaultDirectoryDescriptorSha(ref) {
     if (!ref)
         return null
 
-    let clientState = await (await fetch(`/refs/${ref}`)).json()
+    let clientState = await (await fetch(`${HEXA_BACKUP_BASE_URL}/refs/${ref}`)).json()
     if (!clientState)
         return null
 
@@ -561,7 +567,7 @@ async function showRef(ref) {
     if (!ref)
         return null
 
-    let clientState = await (await fetch(`/refs/${ref}`)).json()
+    let clientState = await (await fetch(`${HEXA_BACKUP_BASE_URL}/refs/${ref}`)).json()
     if (!clientState)
         return null
 
@@ -598,13 +604,13 @@ async function showRef(ref) {
 
 async function fetchCommit(sha) {
     let mimeType = 'text/json'
-    let content = await fetch(`/sha/${sha}/content?type=${mimeType}`)
+    let content = await fetch(`${HEXA_BACKUP_BASE_URL}/sha/${sha}/content?type=${mimeType}`)
     return await content.json()
 }
 
 async function fetchDirectoryDescriptor(sha) {
     let mimeType = 'text/json'
-    let content = await fetch(`/sha/${sha}/content?type=${mimeType}`)
+    let content = await fetch(`${HEXA_BACKUP_BASE_URL}/sha/${sha}/content?type=${mimeType}`)
     return await content.json()
 }
 
@@ -664,7 +670,7 @@ function infiniteScroll(db, domCreator, scrollContainer, scrollContent) {
 }
 
 window.addEventListener('load', async () => {
-    let resp = await fetch('/refs')
+    let resp = await fetch(`${HEXA_BACKUP_BASE_URL}/refs`)
     let refs = (await resp.json()).filter(e => e.startsWith('CLIENT_')).map(e => e.substr(7))
     el('#refs-list').innerHTML = refs.map(ref => `<a href='#' onclick='event.preventDefault() || goRef("${ref}")'>${ref}</a>`).join('<br/>')
 })
