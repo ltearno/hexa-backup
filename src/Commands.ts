@@ -55,7 +55,7 @@ function connectToRemoteSocket(host: string, port: number, insecure: boolean): P
 
 
 
-export async function refs(storeIp, storePort, verbose, insecure: boolean) {
+export async function refs(storeIp, storePort, _verbose, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
@@ -152,7 +152,7 @@ export async function sources(storeIp, storePort, verbose, insecure: boolean) {
     }
 }
 
-export async function stats(storeIp, storePort, verbose, insecure: boolean) {
+export async function stats(storeIp, storePort, _verbose, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
@@ -229,7 +229,7 @@ export async function history(sourceId: string, storeIp: string, storePort: numb
     }
 }
 
-async function loadTreeDirectoryInfoFromDirectoryDescriptor(store: IHexaBackupStore, directoryDescriptor: Model.DirectoryDescriptor): Promise<TreeDirectoryInfo> {
+async function loadTreeDirectoryInfoFromDirectoryDescriptor(_store: IHexaBackupStore, directoryDescriptor: Model.DirectoryDescriptor): Promise<TreeDirectoryInfo> {
     let rootDirectory: TreeDirectoryInfo = {
         name: '',
         lastWrite: 0,
@@ -299,7 +299,7 @@ async function loadTreeDirectoryInfoFromDirectoryDescriptor(store: IHexaBackupSt
     return rootDirectory
 }
 
-export async function normalize(sourceId: string, storeIp: string, storePort: number, verbose: boolean, insecure: boolean) {
+export async function normalize(sourceId: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
@@ -651,7 +651,14 @@ export async function store(directory: string, port: number, insecure: boolean) 
     console.log('server initialisation')
 
     let app: any = express()
+
     app.use(bodyParser.json())
+
+    app.use((_req, res, next) => {
+        res.header("Access-Control-Allow-Origin", "*")
+        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+        next()
+    })
 
     let server: any = null
 
@@ -699,7 +706,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
     videoConversionLoop()
 
-    app.get('/refs', async (req, res) => {
+    app.get('/refs', async (_req, res) => {
         try {
             let refs = await store.getRefs()
             res.send(JSON.stringify(refs))
@@ -1010,7 +1017,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
         }
     });
 
-    app.ws('/hexa-backup', async (ws: NetworkApi.WebSocket, req: any) => {
+    app.ws('/hexa-backup', async (ws: NetworkApi.WebSocket, _req: any) => {
         console.log(`serving new client ws`)
 
         let rpcTxIn = new Queue.Queue<RpcQuery>('rpc-tx-in')
