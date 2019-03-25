@@ -33,7 +33,7 @@ async function loadDirectoryDescriptor(sha: string, store: IHexaBackupStore) {
     return createInMemoryDirectoryDescriptor(await store.getDirectoryDescriptor(sha))
 }
 
-function createInMemoryDirectoryDescriptor(desc: Model.DirectoryDescriptor): InMemoryDirectoryDescriptor {
+export function createInMemoryDirectoryDescriptor(desc: Model.DirectoryDescriptor): InMemoryDirectoryDescriptor {
     return {
         files: !desc.files ? null : desc.files.map(item => {
             return {
@@ -47,7 +47,7 @@ function createInMemoryDirectoryDescriptor(desc: Model.DirectoryDescriptor): InM
     }
 }
 
-async function resolve(item: InMemoryFileDescriptor, store: IHexaBackupStore) {
+export async function resolve(item: InMemoryFileDescriptor, store: IHexaBackupStore) {
     if (typeof item.content === 'string') {
         item.content = createInMemoryDirectoryDescriptor(await store.getDirectoryDescriptor(item.content))
     }

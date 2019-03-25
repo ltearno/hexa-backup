@@ -475,6 +475,36 @@ async function parseSourceSpec(s: string, store: IHexaBackupStore) {
     }
 }
 
+function parseTargetSpec(s: string) {
+    if (!s || !s.trim().length) {
+        log.err(`empty target`)
+        return null
+    }
+
+    if (!s.includes(':')) {
+        log.err(`target should be in the form 'sourceId:path'`)
+        return null
+    }
+
+    let parts = s.split(':')
+    if (parts.length != 2) {
+        log.err(`syntax error for target : '${s}'`)
+        return null
+    }
+
+    let sourceId = parts[0]
+
+    let path = parts[1].trim()
+    if (path.startsWith('/'))
+        path = path.substring(1)
+    let pathParts = path.length ? path.split('/') : []
+
+    return {
+        sourceId,
+        pathParts
+    }
+}
+
 export async function merge(sourceSpec: string, destination: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
@@ -487,7 +517,69 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
     let store = peering.remoteStore
 
     let source = await parseSourceSpec(sourceSpec, store)
-    log(`source : ${JSON.stringify(source, null, 2)}`)
+    if (!source) {
+        log.err(`source not specified`)
+        return
+    }
+
+    let parsedDestination = parseTargetSpec(destination)
+    if (!parsedDestination) {
+        log.err(`destination not specified`)
+        return
+    }
+
+    log(`source : ${source}`)
+    log(`destination : ${JSON.stringify(parsedDestination, null, 2)}`)
+
+    let destinationSourceState = await store.getSourceState(parsedDestination.sourceId)
+    if (!destinationSourceState) {
+        log.err(`destination source state not found`)
+        return
+    }
+
+    if (!destinationSourceState.currentCommitSha) {
+        log.err(`destination has no commit specified`)
+        return
+    }
+
+    let commit = await store.getCommit(destinationSourceState.currentCommitSha)
+    if (!commit) {
+        log.err(`destination's current commit ${destinationSourceState.currentCommitSha} not found`)
+        return
+    }
+
+    if (!commit.directoryDescriptorSha) {
+        log.err(`current commit has no root directory descriptor`)
+        return
+    }
+
+    let currentRootDirectoryDescriptor = await store.getDirectoryDescriptor(commit.directoryDescriptorSha)
+    if (!currentRootDirectoryDescriptor) {
+        log.err(`cannot fetch root directory descriptor ${commit.directoryDescriptorSha}`)
+        return
+    }
+
+    let rootInMemoryDirectoryDescriptor = Operations.createInMemoryDirectoryDescriptor(currentRootDirectoryDescriptor)
+
+    let targetInMemoryDirectoryDescriptor = rootInMemoryDirectoryDescriptor
+    for (let subDirName of parsedDestination.pathParts) {
+        let subDirItem = targetInMemoryDirectoryDescriptor.files.find(item => item.name == subDirName)
+        if (!subDirItem) {
+            log.err(`in destination sub directory ${subDirName} not found`)
+            return
+        }
+
+        await Operations.resolve(subDirItem, store)
+        if (typeof subDirItem.content == 'string') {
+            log.err(`cannot resolve in memory directory descriptor with content ${subDirItem.content}`)
+            return
+        }
+
+        targetInMemoryDirectoryDescriptor = subDirItem.content
+    }
+
+    log(`root : ${JSON.stringify(rootInMemoryDirectoryDescriptor, null, 4)}`)
+    log(`target : ${JSON.stringify(targetInMemoryDirectoryDescriptor, null, 4)}`)
 
     return
 
