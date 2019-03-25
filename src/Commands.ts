@@ -394,6 +394,29 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
     log(`finished normalization: ${result}`)
 }
 
+async function pushDirectoryDescriptor(descriptor: Model.DirectoryDescriptor, store: IHexaBackupStore): Promise<string> {
+    let stringified = OrderedJson.stringify(descriptor)
+
+    let content = Buffer.from(stringified, 'utf8')
+    let sha = HashTools.hashStringSync(stringified)
+
+    let len = await store.hasOneShaBytes(sha)
+    if (len != content.length) {
+        log(`send directory ${sha}`)
+        await store.putShaBytes(sha, 0, content)
+        let ok = await store.validateShaBytes(sha)
+        if (!ok) {
+            log.err(`sha not validated ${sha}`)
+            return null
+        }
+    }
+    else {
+        log(`directory already in store ${sha}`)
+    }
+
+    return sha
+}
+
 export async function merge(descriptorSha: string, mergedDescriptorSha: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
@@ -424,7 +447,46 @@ export async function merge(descriptorSha: string, mergedDescriptorSha: string, 
 
     let newDescriptor = await Operations.mergeDirectoryDescriptors(descriptor, mergedDescriptor)
 
-    log(`new descriptor : ${JSON.stringify(newDescriptor, null, 2)}`)
+    let pushedDescriptorSha = await pushDirectoryDescriptor(newDescriptor, store)
+
+    log(`pushed new descriptor : ${pushedDescriptorSha}`)
+}
+
+export async function mergeIn(descriptorSha: string, mergedDescriptorSha: string, mergedName: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
+    log(`connecting to remote store ${storeIp}:${storePort}...`)
+
+    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    log('connected')
+
+    let peering = new ClientPeering.Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    log(`merge ${mergedDescriptorSha} into ${descriptorSha}`)
+
+    let descriptor = await store.getDirectoryDescriptor(descriptorSha)
+    if (!descriptor) {
+        log.err(`cannot get source descriptor`)
+        return
+    }
+
+    let mergedDescriptor: Model.FileDescriptor = {
+        contentSha: mergedDescriptorSha,
+        name: mergedName,
+        size: 0,
+        isDirectory: true,
+        lastWrite: Date.now()
+    }
+
+    log(`source descriptor: ${descriptorSha} ${descriptor.files.length} files`)
+    log(`merged descriptor: ${mergedDescriptorSha} ${mergedName}`)
+
+    let newDescriptor = await Operations.mergeDirectoryDescriptors(descriptor, { files: [mergedDescriptor] })
+
+    let pushedDescriptorSha = await pushDirectoryDescriptor(newDescriptor, store)
+
+    log(`pushed new descriptor : ${pushedDescriptorSha}`)
 }
 
 export async function lsDirectoryStructure(storeIp: string, storePort: number, directoryDescriptorSha: string, recursive: boolean, insecure: boolean) {

@@ -327,6 +327,28 @@ async function run() {
 
                 process.exit(0)
             }
+        },
+        {
+            id: "mergeIn",
+            verbs: ["mergeIn", "!descriptor", "!mergedDirectoryDescriptor", "!mergedName"],
+            options: {
+                sourceId: defaultSourceId,
+                storeIp: "localhost",
+                storePort: 5005,
+                insecure: false
+            },
+            executor: async (options) => {
+                const descriptor = options['descriptor']
+                const mergedDirectoryDescriptor = options['mergedDirectoryDescriptor']
+                const mergedName = options['mergedName']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const insecure = !!options['insecure']
+
+                await Commands.mergeIn(descriptor, mergedDirectoryDescriptor, mergedName, storeIp, storePort, false, insecure)
+
+                process.exit(0)
+            }
         }
     ])
 
