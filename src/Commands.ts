@@ -629,13 +629,7 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
     mergedDescriptor.files.forEach(item => namesInMerged.add(item.name))
 
     targetInMemoryDirectoryDescriptor.files = targetInMemoryDirectoryDescriptor.files.filter(item => !namesInMerged.has(item.name))
-    mergedDescriptor.files.forEach(item => targetInMemoryDirectoryDescriptor.files.push({
-        name: item.name,
-        isDirectory: item.isDirectory,
-        lastWrite: item.lastWrite,
-        size: item.size,
-        content: item.contentSha
-    }))
+    mergedDescriptor.files.forEach(item => targetInMemoryDirectoryDescriptor.files.push(Operations.createInMemoryFileDescriptor(item)))
 
     log.dbg(`updated target : ${JSON.stringify(targetInMemoryDirectoryDescriptor, null, 4)}`)
 

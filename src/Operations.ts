@@ -31,15 +31,17 @@ export async function mergeDirectoryDescriptors(source: Model.DirectoryDescripto
 
 export function createInMemoryDirectoryDescriptor(desc: Model.DirectoryDescriptor): InMemoryDirectoryDescriptor {
     return {
-        files: !desc.files ? null : desc.files.map(item => {
-            return {
-                name: item.name,
-                size: item.size,
-                lastWrite: item.lastWrite,
-                isDirectory: item.isDirectory,
-                content: item.contentSha
-            }
-        })
+        files: !desc.files ? null : desc.files.map(item => createInMemoryFileDescriptor(item))
+    }
+}
+
+export function createInMemoryFileDescriptor(descriptor: Model.FileDescriptor): InMemoryFileDescriptor {
+    return {
+        name: descriptor.name,
+        size: descriptor.size,
+        lastWrite: descriptor.lastWrite,
+        isDirectory: descriptor.isDirectory,
+        content: descriptor.contentSha
     }
 }
 
