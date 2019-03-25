@@ -616,9 +616,6 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
         return
     }
 
-    //log(`root : ${JSON.stringify(rootInMemoryDirectoryDescriptor, null, 4)}`)
-    log(`target : ${JSON.stringify(targetInMemoryDirectoryDescriptor, null, 4)}`)
-
     let mergedDescriptor = await store.getDirectoryDescriptor(source)
     if (!mergedDescriptor) {
         log.err(`cannot load source descriptor ${source}`)
@@ -630,8 +627,6 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
 
     targetInMemoryDirectoryDescriptor.files = targetInMemoryDirectoryDescriptor.files.filter(item => !namesInMerged.has(item.name))
     mergedDescriptor.files.forEach(item => targetInMemoryDirectoryDescriptor.files.push(Operations.createInMemoryFileDescriptor(item)))
-
-    log.dbg(`updated target : ${JSON.stringify(targetInMemoryDirectoryDescriptor, null, 4)}`)
 
     let newRootDescriptorSha = await saveInMemoryDirectoryDescriptor(rootInMemoryDirectoryDescriptor, store)
     if (!newRootDescriptorSha) {
@@ -645,32 +640,7 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
 
     log(`just pushed commit ${commitSha} on source ${parsedDestination.sourceId}`)
 
-    // TODO commit tree
-
     return
-
-    /*log(`merge ${mergedDescriptorSha} into ${descriptorSha}`)
-
-    let descriptor = await store.getDirectoryDescriptor(descriptorSha)
-    if (!descriptor) {
-        log.err(`cannot get source descriptor`)
-        return
-    }
-
-    let mergedDescriptor = await store.getDirectoryDescriptor(mergedDescriptorSha)
-    if (!mergedDescriptor) {
-        log.err(`cannot get merged descriptor`)
-        return
-    }
-
-    log(`source descriptor: ${descriptorSha} ${descriptor.files.length} files`)
-    log(`merged descriptor: ${mergedDescriptorSha} ${mergedDescriptor.files.length} files`)
-
-    let newDescriptor = await Operations.mergeDirectoryDescriptors(descriptor, mergedDescriptor)
-
-    let pushedDescriptorSha = await pushDirectoryDescriptor(newDescriptor, store)
-
-    log(`pushed new descriptor : ${pushedDescriptorSha}`)*/
 }
 
 export async function mergeIn(descriptorSha: string, mergedDescriptorSha: string, mergedName: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
