@@ -417,7 +417,73 @@ async function pushDirectoryDescriptor(descriptor: Model.DirectoryDescriptor, st
     return sha
 }
 
-export async function merge(descriptorSha: string, mergedDescriptorSha: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
+async function parseTarget(s: string, store: IHexaBackupStore) {
+    let sourceId = null
+    let directoryDescriptorSha = null
+
+    if (!s || !s.trim().length) {
+        log.err(`no source`)
+        return null
+    }
+
+    if (!s.includes(':')) {
+        // assume a sha
+        directoryDescriptorSha = s
+    }
+    else {
+        let parts = s.split(':')
+        if (parts.length != 2) {
+            log.err(`syntax error for target : '${s}'`)
+            return null
+        }
+
+        sourceId = parts[0]
+
+        let path = parts[1].trim()
+        if (path.startsWith('/'))
+            path = path.substring(1)
+        let pathParts = path.length ? path.split('/') : []
+
+        let sourceState = await store.getSourceState(sourceId)
+        if (!sourceState) {
+            log.err(`cannot find ${sourceId} source state`)
+            return null
+        }
+
+        let commit = await store.getCommit(sourceState.currentCommitSha)
+        if (!commit || !commit.directoryDescriptorSha) {
+            log.err(`cannot find commit ${sourceState.currentCommitSha}, or commit has no descriptor`)
+            return null
+        }
+
+        let current = commit.directoryDescriptorSha
+
+        for (let subDirectoryName of pathParts) {
+            let currentDesc = await store.getDirectoryDescriptor(current)
+            if (!currentDesc) {
+                log.err(`cannot load descriptor ${current}`)
+                return null
+            }
+
+            let foundSubDirectory = currentDesc.files.find(item => item.name == subDirectoryName)
+            if (!foundSubDirectory) {
+                log.err(`cannot find sub path '${subDirectoryName}'`)
+                return null
+            }
+
+            current = foundSubDirectory.contentSha
+        }
+
+        directoryDescriptorSha = current
+    }
+
+    return {
+        sourceId,
+        directoryDescriptorSha
+    }
+}
+
+export async function merge(source: string, destination: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
@@ -428,7 +494,12 @@ export async function merge(descriptorSha: string, mergedDescriptorSha: string, 
 
     let store = peering.remoteStore
 
-    log(`merge ${mergedDescriptorSha} into ${descriptorSha}`)
+    let target = await parseTarget(source, store)
+    log(`source : ${JSON.stringify(target, null, 2)}`)
+
+    return
+
+    /*log(`merge ${mergedDescriptorSha} into ${descriptorSha}`)
 
     let descriptor = await store.getDirectoryDescriptor(descriptorSha)
     if (!descriptor) {
@@ -449,7 +520,7 @@ export async function merge(descriptorSha: string, mergedDescriptorSha: string, 
 
     let pushedDescriptorSha = await pushDirectoryDescriptor(newDescriptor, store)
 
-    log(`pushed new descriptor : ${pushedDescriptorSha}`)
+    log(`pushed new descriptor : ${pushedDescriptorSha}`)*/
 }
 
 export async function mergeIn(descriptorSha: string, mergedDescriptorSha: string, mergedName: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {

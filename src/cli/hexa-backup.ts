@@ -309,7 +309,7 @@ async function run() {
         },
         {
             id: "merge",
-            verbs: ["merge", "!descriptor", "!mergedDescriptor"],
+            verbs: ["merge", "!source", "!destination"],
             options: {
                 sourceId: defaultSourceId,
                 storeIp: "localhost",
@@ -317,13 +317,13 @@ async function run() {
                 insecure: false
             },
             executor: async (options) => {
-                const descriptor = options['descriptor']
-                const mergedDescriptor = options['mergedDescriptor']
+                const source = options['source']
+                const destination = options['destination']
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const insecure = !!options['insecure']
 
-                await Commands.merge(descriptor, mergedDescriptor, storeIp, storePort, false, insecure)
+                await Commands.merge(source, destination, storeIp, storePort, false, insecure)
 
                 process.exit(0)
             }
