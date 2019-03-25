@@ -19,10 +19,3 @@ export interface Commit {
     commitDate: number
     directoryDescriptorSha: string
 }
-
-export interface ShaPoolDescriptor {
-    fileName: string
-    sha: string
-    offset: number
-    size: number
-}
