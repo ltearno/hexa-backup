@@ -687,43 +687,6 @@ export async function merge(sourceSpec: string, destination: string, recursive: 
     log(`validated commit ${commitSha} on source ${parsedDestination.sourceId}`)
 }
 
-export async function mergeIn(descriptorSha: string, mergedDescriptorSha: string, mergedName: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
-    log(`connecting to remote store ${storeIp}:${storePort}...`)
-
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
-    log('connected')
-
-    let peering = new ClientPeering.Peering(ws, false)
-    peering.start().then(_ => log(`finished peering`))
-
-    let store = peering.remoteStore
-
-    log(`merge ${mergedDescriptorSha} into ${descriptorSha}`)
-
-    let descriptor = await store.getDirectoryDescriptor(descriptorSha)
-    if (!descriptor) {
-        log.err(`cannot get source descriptor`)
-        return
-    }
-
-    let mergedDescriptor: Model.FileDescriptor = {
-        contentSha: mergedDescriptorSha,
-        name: mergedName,
-        size: 0,
-        isDirectory: true,
-        lastWrite: Date.now()
-    }
-
-    log(`source descriptor: ${descriptorSha} ${descriptor.files.length} files`)
-    log(`merged descriptor: ${mergedDescriptorSha} ${mergedName}`)
-
-    let newDescriptor = await Operations.mergeDirectoryDescriptors(descriptor, { files: [mergedDescriptor] })
-
-    let pushedDescriptorSha = await pushDirectoryDescriptor(newDescriptor, store)
-
-    log(`pushed new descriptor : ${pushedDescriptorSha}`)
-}
-
 export async function lsDirectoryStructure(storeIp: string, storePort: number, directoryDescriptorSha: string, recursive: boolean, insecure: boolean) {
     log('connecting to remote store...')
 
