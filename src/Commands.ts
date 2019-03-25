@@ -411,7 +411,7 @@ async function pushDirectoryDescriptor(descriptor: Model.DirectoryDescriptor, st
         }
     }
     else {
-        log(`directory already in store ${sha}`)
+        log.dbg(`directory already in store ${sha}`)
     }
 
     return sha
@@ -529,7 +529,55 @@ async function saveInMemoryDirectoryDescriptor(inMemoryDescriptor: Operations.In
     return await pushDirectoryDescriptor(converted, store)
 }
 
-export async function merge(sourceSpec: string, destination: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
+async function recMerge(src: Operations.InMemoryDirectoryDescriptor, dst: Operations.InMemoryDirectoryDescriptor, recursive: boolean, store: IHexaBackupStore) {
+    let namesIndex = new Map<string, number>()
+    dst.files.forEach((item, index) => namesIndex.set(item.name, index))
+
+    for (let item of src.files) {
+        if (item.isDirectory && !recursive) {
+            log(`skipped dir ${item.name} (non recursive)`)
+            continue
+        }
+
+        if (namesIndex.has(item.name)) {
+            log(`existing file/dir ${item.name}`)
+            let existing = dst.files[namesIndex.get(item.name)]
+
+            if (item.content == existing.content) {
+                log(`same content, skipping`)
+                continue
+            }
+
+            if (item.isDirectory != existing.isDirectory) {
+                log.err(`not same types, skipping ! src:${item.isDirectory} dst:${item.isDirectory}`)
+                continue
+            }
+
+            if (item.name != existing.name) {
+                log.err(`BIG ERROR 938763987692 not same name, skipping ! src:${item.name} dst:${item.name}`)
+                return
+            }
+
+            if (item.isDirectory) {
+                await Operations.resolve(item, store)
+                await Operations.resolve(existing, store)
+                await recMerge(item.content as Operations.InMemoryDirectoryDescriptor, existing.content as Operations.InMemoryDirectoryDescriptor, recursive, store)
+            }
+            else {
+                log(`replacing file ${item.name} with sha ${existing.content} by sha ${item.content}`)
+                existing.content = item.content
+                existing.lastWrite = item.lastWrite
+                existing.size = item.size
+            }
+        }
+        else {
+            log(`added ${item.name}`)
+            dst.files.push(item)
+        }
+    }
+}
+
+export async function merge(sourceSpec: string, destination: string, recursive: boolean, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
@@ -553,7 +601,7 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
     }
 
     log(`source : ${source}`)
-    log(`destination : ${JSON.stringify(parsedDestination, null, 2)}`)
+    log(`destination : ${parsedDestination.sourceId} @ ${parsedDestination.pathParts.join('/')}`)
 
     let destinationSourceState = await store.getSourceState(parsedDestination.sourceId)
     if (!destinationSourceState) {
@@ -622,11 +670,9 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
         return
     }
 
-    let namesInMerged = new Set<string>()
-    mergedDescriptor.files.forEach(item => namesInMerged.add(item.name))
+    let sourceInMemoryDirectoryDescriptor = Operations.createInMemoryDirectoryDescriptor(mergedDescriptor)
 
-    targetInMemoryDirectoryDescriptor.files = targetInMemoryDirectoryDescriptor.files.filter(item => !namesInMerged.has(item.name))
-    mergedDescriptor.files.forEach(item => targetInMemoryDirectoryDescriptor.files.push(Operations.createInMemoryFileDescriptor(item)))
+    await recMerge(sourceInMemoryDirectoryDescriptor, targetInMemoryDirectoryDescriptor, recursive, store)
 
     let newRootDescriptorSha = await saveInMemoryDirectoryDescriptor(rootInMemoryDirectoryDescriptor, store)
     if (!newRootDescriptorSha) {
@@ -638,9 +684,7 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
 
     let commitSha = await store.registerNewCommit(parsedDestination.sourceId, newRootDescriptorSha)
 
-    log(`just pushed commit ${commitSha} on source ${parsedDestination.sourceId}`)
-
-    return
+    log(`validated commit ${commitSha} on source ${parsedDestination.sourceId}`)
 }
 
 export async function mergeIn(descriptorSha: string, mergedDescriptorSha: string, mergedName: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {

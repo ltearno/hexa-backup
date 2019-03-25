@@ -314,7 +314,8 @@ async function run() {
                 sourceId: defaultSourceId,
                 storeIp: "localhost",
                 storePort: 5005,
-                insecure: false
+                insecure: false,
+                recursive: false
             },
             executor: async (options) => {
                 const source = options['source']
@@ -322,8 +323,9 @@ async function run() {
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const insecure = !!options['insecure']
+                const recursive = !!options['recursive']
 
-                await Commands.merge(source, destination, storeIp, storePort, false, insecure)
+                await Commands.merge(source, destination, recursive, storeIp, storePort, false, insecure)
 
                 process.exit(0)
             }
