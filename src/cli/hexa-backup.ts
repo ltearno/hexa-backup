@@ -306,6 +306,27 @@ async function run() {
 
                 await Commands.store(directory, port, insecure)
             }
+        },
+        {
+            id: "merge",
+            verbs: ["merge", "!descriptor", "!mergedDescriptor"],
+            options: {
+                sourceId: defaultSourceId,
+                storeIp: "localhost",
+                storePort: 5005,
+                insecure: false
+            },
+            executor: async (options) => {
+                const descriptor = options['descriptor']
+                const mergedDescriptor = options['mergedDescriptor']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const insecure = !!options['insecure']
+
+                await Commands.merge(descriptor, mergedDescriptor, storeIp, storePort, false, insecure)
+
+                process.exit(0)
+            }
         }
     ])
 
