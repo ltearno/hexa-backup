@@ -483,7 +483,7 @@ async function parseTarget(s: string, store: IHexaBackupStore) {
     }
 }
 
-export async function merge(source: string, destination: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
+export async function merge(sourceSpec: string, destination: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
@@ -494,8 +494,8 @@ export async function merge(source: string, destination: string, storeIp: string
 
     let store = peering.remoteStore
 
-    let target = await parseTarget(source, store)
-    log(`source : ${JSON.stringify(target, null, 2)}`)
+    let source = await parseTarget(sourceSpec, store)
+    log(`source : ${JSON.stringify(source, null, 2)}`)
 
     return
 
