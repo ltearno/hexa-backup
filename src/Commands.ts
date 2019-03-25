@@ -417,10 +417,7 @@ async function pushDirectoryDescriptor(descriptor: Model.DirectoryDescriptor, st
     return sha
 }
 
-async function parseTarget(s: string, store: IHexaBackupStore) {
-    let sourceId = null
-    let directoryDescriptorSha = null
-
+async function parseSourceSpec(s: string, store: IHexaBackupStore) {
     if (!s || !s.trim().length) {
         log.err(`no source`)
         return null
@@ -428,7 +425,7 @@ async function parseTarget(s: string, store: IHexaBackupStore) {
 
     if (!s.includes(':')) {
         // assume a sha
-        directoryDescriptorSha = s
+        return s
     }
     else {
         let parts = s.split(':')
@@ -437,7 +434,7 @@ async function parseTarget(s: string, store: IHexaBackupStore) {
             return null
         }
 
-        sourceId = parts[0]
+        let sourceId = parts[0]
 
         let path = parts[1].trim()
         if (path.startsWith('/'))
@@ -474,12 +471,7 @@ async function parseTarget(s: string, store: IHexaBackupStore) {
             current = foundSubDirectory.contentSha
         }
 
-        directoryDescriptorSha = current
-    }
-
-    return {
-        sourceId,
-        directoryDescriptorSha
+        return current
     }
 }
 
@@ -494,7 +486,7 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
 
     let store = peering.remoteStore
 
-    let source = await parseTarget(sourceSpec, store)
+    let source = await parseSourceSpec(sourceSpec, store)
     log(`source : ${JSON.stringify(source, null, 2)}`)
 
     return

@@ -1,4 +1,16 @@
 import * as Model from './Model'
+import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
+export interface InMemoryDirectoryDescriptor {
+    files: InMemoryFileDescriptor[]
+}
+
+export interface InMemoryFileDescriptor {
+    name: string
+    isDirectory: boolean
+    size: number
+    lastWrite: number
+    content: string | InMemoryDirectoryDescriptor
+}
 
 export async function mergeDirectoryDescriptors(source: Model.DirectoryDescriptor, merged: Model.DirectoryDescriptor): Promise<Model.DirectoryDescriptor> {
     let names = new Set<string>()
@@ -17,8 +29,26 @@ export async function mergeDirectoryDescriptors(source: Model.DirectoryDescripto
     return JSON.parse(JSON.stringify(result))
 }
 
-export async function addOrUpdateDescriptor(directoryDescriptor: Model.DirectoryDescriptor, itemDescriptor: Model.FileDescriptor) {
-    directoryDescriptor = JSON.parse(JSON.stringify(directoryDescriptor))
-    directoryDescriptor.files = directoryDescriptor.files.filter(item => item.name != itemDescriptor.name)
-    directoryDescriptor.files.push(itemDescriptor)
+async function loadDirectoryDescriptor(sha: string, store: IHexaBackupStore) {
+    return createInMemoryDirectoryDescriptor(await store.getDirectoryDescriptor(sha))
+}
+
+function createInMemoryDirectoryDescriptor(desc: Model.DirectoryDescriptor): InMemoryDirectoryDescriptor {
+    return {
+        files: !desc.files ? null : desc.files.map(item => {
+            return {
+                name: item.name,
+                size: item.size,
+                lastWrite: item.lastWrite,
+                isDirectory: item.isDirectory,
+                content: item.contentSha
+            }
+        })
+    }
+}
+
+async function resolve(item: InMemoryFileDescriptor, store: IHexaBackupStore) {
+    if (typeof item.content === 'string') {
+        item.content = createInMemoryDirectoryDescriptor(await store.getDirectoryDescriptor(item.content))
+    }
 }
