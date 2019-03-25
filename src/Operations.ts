@@ -29,10 +29,6 @@ export async function mergeDirectoryDescriptors(source: Model.DirectoryDescripto
     return JSON.parse(JSON.stringify(result))
 }
 
-async function loadDirectoryDescriptor(sha: string, store: IHexaBackupStore) {
-    return createInMemoryDirectoryDescriptor(await store.getDirectoryDescriptor(sha))
-}
-
 export function createInMemoryDirectoryDescriptor(desc: Model.DirectoryDescriptor): InMemoryDirectoryDescriptor {
     return {
         files: !desc.files ? null : desc.files.map(item => {

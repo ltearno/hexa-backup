@@ -505,6 +505,30 @@ function parseTargetSpec(s: string) {
     }
 }
 
+// returns the saved directory descriptr's sha
+async function saveInMemoryDirectoryDescriptor(inMemoryDescriptor: Operations.InMemoryDirectoryDescriptor, store: IHexaBackupStore): Promise<string> {
+    for (let item of inMemoryDescriptor.files) {
+        if (typeof item.content != 'string') {
+            item.content = await saveInMemoryDirectoryDescriptor(item.content, store)
+        }
+    }
+
+    // now all sub items have sha, it's time to convert and push descriptor
+    let converted: Model.DirectoryDescriptor = {
+        files: inMemoryDescriptor.files.map(item => {
+            return {
+                name: item.name,
+                isDirectory: item.isDirectory,
+                lastWrite: item.lastWrite,
+                size: item.size,
+                contentSha: item.content as string
+            }
+        })
+    }
+
+    return await pushDirectoryDescriptor(converted, store)
+}
+
 export async function merge(sourceSpec: string, destination: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
@@ -565,11 +589,20 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
     for (let subDirName of parsedDestination.pathParts) {
         let subDirItem = targetInMemoryDirectoryDescriptor.files.find(item => item.name == subDirName)
         if (!subDirItem) {
-            log.err(`in destination sub directory ${subDirName} not found`)
-            return
+            log.wrn(`creating sub directory '${subDirName}' in destination path`)
+            subDirItem = {
+                name: subDirName,
+                content: { files: [] },
+                isDirectory: true,
+                size: 0,
+                lastWrite: Date.now()
+            }
+            targetInMemoryDirectoryDescriptor.files.push(subDirItem)
+        }
+        else {
+            await Operations.resolve(subDirItem, store)
         }
 
-        await Operations.resolve(subDirItem, store)
         if (typeof subDirItem.content == 'string') {
             log.err(`cannot resolve in memory directory descriptor with content ${subDirItem.content}`)
             return
@@ -578,8 +611,47 @@ export async function merge(sourceSpec: string, destination: string, storeIp: st
         targetInMemoryDirectoryDescriptor = subDirItem.content
     }
 
-    log(`root : ${JSON.stringify(rootInMemoryDirectoryDescriptor, null, 4)}`)
+    if (!targetInMemoryDirectoryDescriptor) {
+        log.err(`big error h36@Sg2887, bye`)
+        return
+    }
+
+    //log(`root : ${JSON.stringify(rootInMemoryDirectoryDescriptor, null, 4)}`)
     log(`target : ${JSON.stringify(targetInMemoryDirectoryDescriptor, null, 4)}`)
+
+    let mergedDescriptor = await store.getDirectoryDescriptor(source)
+    if (!mergedDescriptor) {
+        log.err(`cannot load source descriptor ${source}`)
+        return
+    }
+
+    let namesInMerged = new Set<string>()
+    mergedDescriptor.files.forEach(item => namesInMerged.add(item.name))
+
+    targetInMemoryDirectoryDescriptor.files = targetInMemoryDirectoryDescriptor.files.filter(item => !namesInMerged.has(item.name))
+    mergedDescriptor.files.forEach(item => targetInMemoryDirectoryDescriptor.files.push({
+        name: item.name,
+        isDirectory: item.isDirectory,
+        lastWrite: item.lastWrite,
+        size: item.size,
+        content: item.contentSha
+    }))
+
+    log.dbg(`updated target : ${JSON.stringify(targetInMemoryDirectoryDescriptor, null, 4)}`)
+
+    let newRootDescriptorSha = await saveInMemoryDirectoryDescriptor(rootInMemoryDirectoryDescriptor, store)
+    if (!newRootDescriptorSha) {
+        log.err(`failed to save new root descriptor`)
+        return
+    }
+
+    log(`new root directory descriptor : ${newRootDescriptorSha}`)
+
+    let commitSha = await store.registerNewCommit(parsedDestination.sourceId, newRootDescriptorSha)
+
+    log(`just pushed commit ${commitSha} on source ${parsedDestination.sourceId}`)
+
+    // TODO commit tree
 
     return
 
