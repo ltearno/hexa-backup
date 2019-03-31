@@ -1120,12 +1120,12 @@ export async function store(directory: string, port: number, insecure: boolean) 
             })
             client.connect()
 
-            let resultDirectories: any = await dbQuery(client, `select o.sha, o.name from objects o where (o.name % '${name}' or o.name like '${name}%') and o.isDirectory group by sha, name order by similarity(o.name, '${name}') desc limit 500;`)
+            let resultDirectories: any = await dbQuery(client, `select o.sha, o.name from objects o where (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by sha, name order by similarity(o.name, '${name}') desc limit 500;`)
             resultDirectories = resultDirectories.rows.map(row => ({
                 sha: row.sha,
                 name: row.name
             }))
-            let resultFiles: any = await dbQuery(client, `select o.sha, o.name, o.parentSha, o.mimeType from objects o where (o.name % '${name}' or o.name like '${name}%') and o.mimeType like '${mimeType}' group by sha, parentSha, name, mimeType order by similarity(o.name, '${name}') desc limit 500;`)
+            let resultFiles: any = await dbQuery(client, `select o.sha, o.name, o.parentSha, o.mimeType from objects o where (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by sha, parentSha, name, mimeType order by similarity(o.name, '${name}') desc limit 500;`)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
                 parentSha: row.parentsha,
