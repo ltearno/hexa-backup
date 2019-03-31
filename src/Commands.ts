@@ -18,6 +18,7 @@ import * as ClientPeering from './ClientPeering'
 import * as Tools from './Tools'
 import * as Metadata from './Metadata'
 import * as Operations from './Operations'
+import * as MimeTypes from './mime-types'
 const { spawn } = require('child_process')
 
 const log = LoggerBuilder.buildLogger('Commands')
@@ -740,6 +741,108 @@ export async function extract(storeIp: string, storePort: number, directoryDescr
 
     console.log(`extracting ${directoryDescriptorSha} to ${destinationDirectory}, prefix='${prefix}'...`)
     await extractDirectoryDescriptor(store, shaCache, directoryDescriptorSha, prefix, destinationDirectory)
+}
+export async function dbPush(storeIp: string, storePort: number, insecure: boolean) {
+    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    log('connected')
+
+    let peering = new ClientPeering.Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    log(`store ready`)
+
+    const { Client } = require('pg')
+
+    const client = new Client({
+        user: 'postgres',
+        host: 'localhost',
+        database: 'postgres',
+        password: 'hexa-backup',
+        port: 5432,
+    })
+    client.connect()
+
+    let sources = await store.getSources()
+    for (let source of sources) {
+        try {
+            log(`source ${source}`)
+            let sourceState = await store.getSourceState(source)
+            if (!sourceState || !sourceState.currentCommitSha)
+                continue
+            log(`commit ${sourceState.currentCommitSha}`)
+            let commitSha = sourceState.currentCommitSha
+            while (commitSha != null) {
+                let commit = await store.getCommit(commitSha)
+                if (!commit)
+                    break
+
+                if (commit.directoryDescriptorSha) {
+                    await dbQuery(client, {
+                        text: 'INSERT INTO objects(isDirectory, sha, parentSha, sourceId, commit, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+                        values: [true, commit.directoryDescriptorSha, null, source, commitSha, 0, 0, '', 'application/directory'],
+                    })
+
+                    await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source, commitSha)
+                }
+
+                commitSha = commit.parentSha
+            }
+        }
+        catch (err) {
+            console.error(err)
+        }
+    }
+
+    client.end()
+}
+
+function getFileMimeType(fileName: string) {
+    let pos = fileName.lastIndexOf('.')
+    if (pos >= 0) {
+        let extension = fileName.substr(pos + 1).toLocaleLowerCase()
+        if (extension in MimeTypes.MimeTypes)
+            return MimeTypes.MimeTypes[extension]
+    }
+
+    return 'application/octet-stream'
+}
+
+async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string, commit: string) {
+    log(`pushing ${directoryDescriptorSha} ${basePath}`)
+
+    // TODO if exist in DB, skip
+
+    let dirDesc = await store.getDirectoryDescriptor(directoryDescriptorSha)
+    if (!dirDesc)
+        return
+
+    for (let file of dirDesc.files) {
+        let fileName = file.name.replace('\\', '/')
+        let mimeType = file.isDirectory ? 'application/directory' : getFileMimeType(fileName)
+
+        await dbQuery(client, {
+            text: 'INSERT INTO objects(isDirectory, sha, parentSha, sourceId, commit, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+            values: [file.isDirectory, file.contentSha, directoryDescriptorSha, sourceId, commit, file.size, file.lastWrite, fileName, mimeType],
+        })
+
+        if (file.isDirectory) {
+            let path = `${basePath}${fileName}/`
+            await recPushDir(client, store, path, file.contentSha, sourceId, commit)
+        }
+    }
+}
+
+async function dbQuery(client, query) {
+    return new Promise((resolve, reject) => {
+        client.query(query, (err, res) => {
+            if (err)
+                reject(err)
+            else
+                resolve(res)
+        })
+    })
 }
 
 export async function extractSha(storeIp: string, storePort: number, sha: string, destinationFile: string, insecure: boolean) {

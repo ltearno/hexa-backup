@@ -329,6 +329,25 @@ async function run() {
 
                 process.exit(0)
             }
+        },
+        {
+            id: "dbpush",
+            verbs: ["dbpush"],
+            options: {
+                sourceId: defaultSourceId,
+                storeIp: "localhost",
+                storePort: 5005,
+                insecure: false
+            },
+            executor: async (options) => {
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const insecure = !!options['insecure']
+
+                await Commands.dbPush(storeIp, storePort, insecure)
+
+                process.exit(0)
+            }
         }
     ])
 
