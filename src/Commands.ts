@@ -1125,6 +1125,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 sha: row.sha,
                 name: row.name
             }))
+
             let resultFiles: any = await dbQuery(client, `select o.sha, o.name, o.parentSha, o.mimeType from objects o where (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by sha, parentSha, name, mimeType order by similarity(o.name, '${name}') desc limit 500;`)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
@@ -1132,6 +1133,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 name: row.name,
                 mimeType: row.mimetype
             }))
+            
             res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles }))
         }
         catch (err) {
