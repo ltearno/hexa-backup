@@ -1113,7 +1113,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
             const client = new Client({
                 user: 'postgres',
-                host: '192.168.0.2',
+                host: 'localhost',
                 database: 'postgres',
                 password: 'hexa-backup',
                 port: 5432,
