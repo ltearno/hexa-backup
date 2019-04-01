@@ -1194,6 +1194,8 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
                 res.writeHead(206, head)
                 store.readShaAsStream(sha, start, end).pipe(res)
+
+                log(`range-rq ${sha} ${start}-${end}/${fileSize}`)
             }
             else {
                 if (req.query.type)
