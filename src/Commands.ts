@@ -1178,13 +1178,15 @@ export async function store(directory: string, port: number, insecure: boolean) 
             if (range) {
                 const parts = range.replace(/bytes=/, "").split("-")
                 const start = parseInt(parts[0])
-                const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+                const end = parts[1] ? parseInt(parts[1], 10) : Math.min(fileSize - 1, 500)
                 const chunksize = (end - start) + 1
                 const head = {
                     'Content-Range': `bytes ${start}-${end}/${fileSize}`,
                     'Accept-Ranges': 'bytes',
                     'Content-Length': chunksize,
                     'Content-Type': req.query.type,
+                    'Cache-Control': 'private, max-age=31536000',
+                    'ETag': `${sha}-${start}-${end}`
                 }
 
                 if (req.query.fileName)
