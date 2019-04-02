@@ -1456,7 +1456,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 })
 
                 child.on('error', (err) => {
-                    console.error(`${err}`, err)
+                    console.error(`error on spawned process : ${err}`, err)
                     resolve(null)
                 })
 
