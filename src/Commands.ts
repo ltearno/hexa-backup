@@ -1438,7 +1438,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                     return
                 }
 
-                const child = spawn('ffmpeg', [
+                const child = spawn('/snap/bin/ffmpeg', [
                     '-y',
                     '-i',
                     inputFile,
