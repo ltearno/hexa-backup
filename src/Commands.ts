@@ -1301,7 +1301,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
             if (range) {
                 const parts = range.replace(/bytes=/, "").split("-")
                 const start = parseInt(parts[0])
-                const end = parts[1] ? parseInt(parts[1], 10) : start == 0 ? Math.min(fileSize - 1, 100 * 1024) : fileSize - 1
+                const end = Math.max(start, parts[1] ? parseInt(parts[1], 10) : start == 0 ? Math.min(fileSize - 1, 100 * 1024) : fileSize - 1)
                 const chunksize = (end - start) + 1
                 const head = {
                     'Content-Range': `bytes ${start}-${end}/${fileSize}`,
@@ -1563,7 +1563,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
             if (range) {
                 const parts = range.replace(/bytes=/, "").split("-")
                 const start = parseInt(parts[0])
-                const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+                const end = Math.max(start, parts[1] ? parseInt(parts[1], 10) : fileSize - 1)
                 const chunksize = (end - start) + 1
                 const head = {
                     'Content-Range': `bytes ${start}-${end}/${fileSize}`,
