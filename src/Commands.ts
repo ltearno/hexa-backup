@@ -872,7 +872,7 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
 
     const Cursor = require('pg-cursor')
 
-    const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite from objects where size>50000 and mimeType ilike 'image/%' group by sha order by min(lastWrite);`
+    const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite, min(mimeType) as mimeType from objects where size>100000 and mimeType ilike 'image/%' group by sha order by min(lastWrite);`
 
     const cursor = client.query(new Cursor(query))
 
@@ -889,20 +889,60 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
         })
     }
 
+    let rootDirectoryDescriptor: Model.DirectoryDescriptor = { files: [] }
+    let currentDirectoryDescriptor: Model.DirectoryDescriptor = { files: [] }
     let nbRows = 0
+
+    const maybePurge = async (max: number) => {
+        if (!currentDirectoryDescriptor.files.length)
+            return
+
+        if (currentDirectoryDescriptor.files.length < max)
+            return
+
+        let pushedSha = await pushDirectoryDescriptor(currentDirectoryDescriptor, store)
+        let desc = {
+            contentSha: pushedSha,
+            isDirectory: true,
+            lastWrite: Date.now(),
+            name: `iter-${(rootDirectoryDescriptor.files.length + '').padStart(5, "0")}`,
+            size: 0
+        }
+        rootDirectoryDescriptor.files.push(desc)
+        log(`pushed ${desc.name}`)
+        currentDirectoryDescriptor = { files: [] }
+    }
 
     try {
         while (true) {
             let rows = await readFromCursor()
             if (!rows || !rows.length) {
                 log(`finished cursor`)
+                await maybePurge(0)
                 break
             }
             else {
                 nbRows += rows.length
                 log(`got ${nbRows} rows`)
+
+                for (let row of rows) {
+                    currentDirectoryDescriptor.files.push({
+                        contentSha: row['sha'],
+                        isDirectory: false,
+                        lastWrite: row['lastWrite'],
+                        name: row['name'],
+                        size: row['size']
+                    })
+
+                    await maybePurge(300)
+                }
             }
         }
+
+        let rootSha = await pushDirectoryDescriptor(rootDirectoryDescriptor, store)
+
+        let commitSha = await store.registerNewCommit('PHOTOS', rootSha)
+        log(`commited sha ${commitSha}, rootdesc ${rootSha}`)
     } catch (err) {
         log.err(`error parsing sql cursor : ${err}`)
     }
