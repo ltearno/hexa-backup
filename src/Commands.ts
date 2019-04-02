@@ -847,6 +847,11 @@ async function dbQuery(client, query): Promise<any> {
 }
 
 export async function dbImage(storeIp: string, storePort: number, insecure: boolean, databaseHost: string, databasePassword: string) {
+    /*const sourceId = 'PHOTOS'
+    const mimeType = 'image'*/
+    const sourceId = 'VIDEOS'
+    const mimeType = 'video'
+
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
     log('connected')
 
@@ -872,7 +877,7 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
 
     const Cursor = require('pg-cursor')
 
-    const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite, min(mimeType) as mimeType from objects where size>100000 and mimeType ilike 'image/%' group by sha order by min(lastWrite);`
+    const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite, min(mimeType) as mimeType from objects where size>100000 and mimeType ilike '${mimeType}/%' group by sha order by min(lastWrite);`
 
     const cursor = client.query(new Cursor(query))
 
@@ -893,6 +898,14 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
     let currentDirectoryDescriptor: Model.DirectoryDescriptor = { files: [] }
     let nbRows = 0
 
+    const DATE_DISPLAY_OPTIONS = {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    }
+
     const maybePurge = async (max: number) => {
         if (!currentDirectoryDescriptor.files.length)
             return
@@ -901,11 +914,12 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
             return
 
         let pushedSha = await pushDirectoryDescriptor(currentDirectoryDescriptor, store)
+        let date = new Date(currentDirectoryDescriptor.files[0].lastWrite * 1).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
         let desc = {
             contentSha: pushedSha,
             isDirectory: true,
             lastWrite: Date.now(),
-            name: `iter-${(rootDirectoryDescriptor.files.length + '').padStart(5, "0")}`,
+            name: `iter-${(rootDirectoryDescriptor.files.length + '').padStart(5, "0")}-${date}`,
             size: 0
         }
         rootDirectoryDescriptor.files.push(desc)
@@ -929,7 +943,7 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
                     currentDirectoryDescriptor.files.push({
                         contentSha: row['sha'],
                         isDirectory: false,
-                        lastWrite: row['lastWrite'],
+                        lastWrite: parseInt(row['lastwrite']),
                         name: row['name'],
                         size: row['size']
                     })
@@ -941,7 +955,7 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
 
         let rootSha = await pushDirectoryDescriptor(rootDirectoryDescriptor, store)
 
-        let commitSha = await store.registerNewCommit('PHOTOS', rootSha)
+        let commitSha = await store.registerNewCommit(sourceId, rootSha)
         log(`commited sha ${commitSha}, rootdesc ${rootSha}`)
     } catch (err) {
         log.err(`error parsing sql cursor : ${err}`)

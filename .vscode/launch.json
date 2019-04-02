@@ -20,13 +20,17 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Browse",
+            "name": "dbimage",
             "program": "${workspaceFolder}/target/cli/hexa-backup.js",
             "outFiles": [
                 "${workspaceFolder}/target/**/*.js"
             ],
             "args": [
-                "browse"
+                "dbimage",
+                "-storeIp",
+                "192.168.0.2",
+                "-databaseHost",
+                "192.168.0.2"
             ],
             "cwd": "/home/arnaud/repos/stacklabs/stack-labs.gitlab.io"
         },
