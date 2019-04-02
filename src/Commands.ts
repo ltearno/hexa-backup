@@ -1335,7 +1335,13 @@ export async function store(directory: string, port: number, insecure: boolean) 
             }
         }
         catch (err) {
-            res.send(`{"error":"missing sha ${sha}, ${err}!"}`)
+            try {
+                log.err(`error when sending byte range: ${err}`)
+                res.send(`{"error":"missing sha ${sha}!"}`)
+            }
+            catch (err2) {
+                log.err(`error when sending response: ${err2}`)
+            }
         }
     });
 
