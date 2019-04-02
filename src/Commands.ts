@@ -1481,11 +1481,18 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 log(`finished video conversion loop`)
                 break
             }
+            try {
+                log(`starting video conversion ${info.sha}, still ${videoConversionQueue.size()} in queue`)
+                info.result = await convertVideo(info.sha)
+                log(`finished video conversion ${info.sha}, still ${videoConversionQueue.size()} in queue`)
+                info.waiters.forEach(w => w(info.result))
+            }
+            catch (err) {
+                log.err(`sorry, failed video conversion !`)
+                console.error(err)
+                info.waiters.forEach(w => w(null))
+            }
 
-            log(`starting video conversion ${info.sha}, still ${videoConversionQueue.size()} in queue`)
-            info.result = await convertVideo(info.sha)
-            log(`finished video conversion ${info.sha}, still ${videoConversionQueue.size()} in queue`)
-            info.waiters.forEach(w => w(info.result))
             videoConversions.delete(info.sha)
         }
     }
