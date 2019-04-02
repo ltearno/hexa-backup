@@ -12,7 +12,7 @@ UMask=007
 WorkingDirectory=/media/bigone/hexa-backup
 ExecStart=/home/arnaud/.yarn/bin/hexa-backup store
  
-Restart=on-failure
+Restart=always
  
 # Configures the time to wait before service is stopped forcefully.
 TimeoutStopSec=300
