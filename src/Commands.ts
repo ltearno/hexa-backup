@@ -742,7 +742,8 @@ export async function extract(storeIp: string, storePort: number, directoryDescr
     console.log(`extracting ${directoryDescriptorSha} to ${destinationDirectory}, prefix='${prefix}'...`)
     await extractDirectoryDescriptor(store, shaCache, directoryDescriptorSha, prefix, destinationDirectory)
 }
-export async function dbPush(storeIp: string, storePort: number, insecure: boolean) {
+
+export async function dbPush(storeIp: string, storePort: number, insecure: boolean, databaseHost: string, databasePassword: string) {
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
     log('connected')
 
@@ -757,9 +758,9 @@ export async function dbPush(storeIp: string, storePort: number, insecure: boole
 
     const client = new Client({
         user: 'postgres',
-        host: 'localhost',
+        host: databaseHost,
         database: 'postgres',
-        password: 'hexa-backup',
+        password: databasePassword,
         port: 5432,
     })
     client.connect()
@@ -843,6 +844,74 @@ async function dbQuery(client, query): Promise<any> {
                 resolve(res)
         })
     })
+}
+
+export async function dbImage(storeIp: string, storePort: number, insecure: boolean, databaseHost: string, databasePassword: string) {
+    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    log('connected')
+
+    let peering = new ClientPeering.Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    log(`store ready`)
+
+    const { Client } = require('pg')
+
+    const client = new Client({
+        user: 'postgres',
+        host: databaseHost,
+        database: 'postgres',
+        password: databasePassword,
+        port: 5432,
+    })
+    client.connect()
+
+    log(`connected to database`)
+
+    const Cursor = require('pg-cursor')
+
+    const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite from objects where size>50000 and mimeType ilike 'image/%' group by sha order by min(lastWrite);`
+
+    const cursor = client.query(new Cursor(query))
+
+    const readFromCursor: () => Promise<any[]> = async () => {
+        return new Promise((resolve, reject) => {
+            cursor.read(100, function (err, rows) {
+                if (err) {
+                    reject(err)
+                    return
+                }
+
+                resolve(rows)
+            })
+        })
+    }
+
+    let nbRows = 0
+
+    try {
+        while (true) {
+            let rows = await readFromCursor()
+            if (!rows || !rows.length) {
+                log(`finished cursor`)
+                break
+            }
+            else {
+                nbRows += rows.length
+                log(`got ${nbRows} rows`)
+            }
+        }
+    } catch (err) {
+        log.err(`error parsing sql cursor : ${err}`)
+    }
+
+    await new Promise(resolve => {
+        cursor.close(resolve)
+    })
+
+    client.end()
 }
 
 export async function extractSha(storeIp: string, storePort: number, sha: string, destinationFile: string, insecure: boolean) {

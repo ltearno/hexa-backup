@@ -337,14 +337,41 @@ async function run() {
                 sourceId: defaultSourceId,
                 storeIp: "localhost",
                 storePort: 5005,
-                insecure: false
+                insecure: false,
+                databaseHost: "localhost",
+                databasePassword: "hexa-backup"
             },
             executor: async (options) => {
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
                 const insecure = !!options['insecure']
+                const databaseHost = options['databaseHost']
+                const databasePassword = options['databasePassword']
 
-                await Commands.dbPush(storeIp, storePort, insecure)
+                await Commands.dbPush(storeIp, storePort, insecure, databaseHost, databasePassword)
+
+                process.exit(0)
+            }
+        },
+        {
+            id: "dbimage",
+            verbs: ["dbimage"],
+            options: {
+                sourceId: defaultSourceId,
+                storeIp: "localhost",
+                storePort: 5005,
+                insecure: false,
+                databaseHost: "localhost",
+                databasePassword: "hexa-backup"
+            },
+            executor: async (options) => {
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const insecure = !!options['insecure']
+                const databaseHost = options['databaseHost']
+                const databasePassword = options['databasePassword']
+
+                await Commands.dbImage(storeIp, storePort, insecure, databaseHost, databasePassword)
 
                 process.exit(0)
             }
