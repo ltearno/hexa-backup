@@ -1457,6 +1457,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
                 child.on('error', (err) => {
                     console.error(`${err}`, err)
+                    resolve(null)
                 })
 
                 child.on('exit', (code, signal) => {
