@@ -1449,7 +1449,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                     '-i',
                     inputFile,
                     '-vf',
-                    'scale=w=320:h=240',
+                    'scale=w=320',
                     destFile
                 ])
 
