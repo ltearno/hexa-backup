@@ -847,10 +847,10 @@ async function dbQuery(client, query): Promise<any> {
 }
 
 export async function dbImage(storeIp: string, storePort: number, insecure: boolean, databaseHost: string, databasePassword: string) {
-    /*const sourceId = 'PHOTOS'
-    const mimeType = 'image'*/
-    const sourceId = 'VIDEOS'
-    const mimeType = 'video'
+    const sourceId = 'PHOTOS'
+    const mimeType = 'image'
+    /*const sourceId = 'VIDEOS'
+    const mimeType = 'video'*/
 
     let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
     log('connected')
@@ -915,11 +915,12 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
 
         let pushedSha = await pushDirectoryDescriptor(currentDirectoryDescriptor, store)
         let date = new Date(currentDirectoryDescriptor.files[0].lastWrite * 1).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
+        let dateEnd = new Date(currentDirectoryDescriptor.files[currentDirectoryDescriptor.files.length - 1].lastWrite * 1).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
         let desc = {
             contentSha: pushedSha,
             isDirectory: true,
             lastWrite: Date.now(),
-            name: `iter-${(rootDirectoryDescriptor.files.length + '').padStart(5, "0")}-${date}`,
+            name: `${date} à ${dateEnd} (${currentDirectoryDescriptor.files.length} photos)`,
             size: 0
         }
         rootDirectoryDescriptor.files.push(desc)
