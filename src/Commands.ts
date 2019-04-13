@@ -1277,9 +1277,9 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 case 'ayoka':
                     refs = refs.filter(ref => {
                         switch (ref) {
-                            case 'MUSIQUE':
-                            case 'PHOTOS':
-                            case 'VIDEOS':
+                            case 'CLIENT_MUSIQUE':
+                            case 'CLIENT_PHOTOS':
+                            case 'CLIENT_VIDEOS':
                                 return true
                             default:
                                 return false
