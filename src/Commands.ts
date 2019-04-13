@@ -1231,6 +1231,12 @@ export async function store(directory: string, port: number, insecure: boolean) 
     app.post('/search', async (req, res) => {
         res.set('Content-Type', 'application/json')
         try {
+            let user = req.headers["x-authenticated-user"] || 'anonymous'
+            let authorizedRefs = null
+            if (user != 'ltearno') {
+                authorizedRefs = (await getAuthorizedRefs(user, store)).map(r => `'${r.substring('CLIENT_'.length)}'`).join(', ')
+            }
+
             const { Client } = require('pg')
 
             let { name, mimeType } = req.body
@@ -1244,13 +1250,13 @@ export async function store(directory: string, port: number, insecure: boolean) 
             })
             client.connect()
 
-            let resultDirectories: any = await dbQuery(client, `select o.sha, o.name from objects o where (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by sha, name order by similarity(o.name, '${name}') desc limit 500;`)
+            let resultDirectories: any = await dbQuery(client, `select o.sha, o.name from objects o where ${authorizedRefs ? `o.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by sha, name order by similarity(o.name, '${name}') desc limit 500;`)
             resultDirectories = resultDirectories.rows.map(row => ({
                 sha: row.sha,
                 name: row.name
             }))
 
-            let resultFiles: any = await dbQuery(client, `select o.sha, o.name, o.mimeType from objects o where (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by sha, name, mimeType order by similarity(o.name, '${name}') desc limit 500;`)
+            let resultFiles: any = await dbQuery(client, `select o.sha, o.name, o.mimeType from objects o where ${authorizedRefs ? `o.sourceId in (${authorizedRefs}) (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by sha, name, mimeType order by similarity(o.name, '${name}') desc limit 500;`)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
                 name: row.name,
@@ -1264,12 +1270,11 @@ export async function store(directory: string, port: number, insecure: boolean) 
         }
     });
 
-    app.get('/refs', async (req, res) => {
+    async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
         try {
             let refs = await store.getRefs()
 
             // this is highly a hack, will be moved elsewhere ;)
-            let user = req.headers["x-authenticated-user"] || 'anonymous'
             switch (user) {
                 case 'ltearno':
                     break
@@ -1291,6 +1296,19 @@ export async function store(directory: string, port: number, insecure: boolean) 
                     refs = []
                     break
             }
+
+            return refs
+        }
+        catch (err) {
+            return []
+        }
+    }
+
+    app.get('/refs', async (req, res) => {
+        try {
+            let user = req.headers["x-authenticated-user"] || 'anonymous'
+
+            let refs = await getAuthorizedRefs(user, store)
 
             res.send(JSON.stringify(refs))
         }
