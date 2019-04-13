@@ -1269,7 +1269,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
             let refs = await store.getRefs()
 
             // this is highly a hack, will be moved elsewhere ;)
-            let user = req.headers["X-Authenticated-User"] || 'anonymous'
+            let user = req.headers["x-authenticated-user"] || 'anonymous'
             switch (user) {
                 case 'ltearno':
                     break
