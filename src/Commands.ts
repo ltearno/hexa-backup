@@ -1264,9 +1264,34 @@ export async function store(directory: string, port: number, insecure: boolean) 
         }
     });
 
-    app.get('/refs', async (_req, res) => {
+    app.get('/refs', async (req, res) => {
         try {
             let refs = await store.getRefs()
+
+            // this is highly a hack, will be moved elsewhere ;)
+            let user = req.headers["X-Authenticated-User"] || 'anonymous'
+            switch (user) {
+                case 'ltearno':
+                    break
+
+                case 'ayoka':
+                    refs = refs.filter(ref => {
+                        switch (ref) {
+                            case 'MUSIQUE':
+                            case 'PHOTOS':
+                            case 'VIDEOS':
+                                return true
+                            default:
+                                return false
+                        }
+                    })
+                    break
+
+                default:
+                    refs = []
+                    break
+            }
+
             res.send(JSON.stringify(refs))
         }
         catch (err) {
