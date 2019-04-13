@@ -1256,7 +1256,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 name: row.name
             }))
 
-            let resultFiles: any = await dbQuery(client, `select o.sha, o.name, o.mimeType from objects o where ${authorizedRefs ? `o.sourceId in (${authorizedRefs}) (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by sha, name, mimeType order by similarity(o.name, '${name}') desc limit 500;`)
+            let resultFiles: any = await dbQuery(client, `select o.sha, o.name, o.mimeType from objects o where ${authorizedRefs ? `o.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by sha, name, mimeType order by similarity(o.name, '${name}') desc limit 500;`)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
                 name: row.name,
