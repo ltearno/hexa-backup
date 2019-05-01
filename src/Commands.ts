@@ -780,10 +780,12 @@ export async function dbPush(storeIp: string, storePort: number, insecure: boole
                     break
 
                 if (commit.directoryDescriptorSha) {
-                    await insertObjectSource(client, commit.directoryDescriptorSha, source)
-                    await insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
+                    // TODO if has object source, skip
 
                     await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source, commitSha)
+
+                    await insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
+                    await insertObjectSource(client, commit.directoryDescriptorSha, source)
                 }
 
                 commitSha = commit.parentSha
