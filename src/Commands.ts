@@ -780,18 +780,10 @@ export async function dbPush(storeIp: string, storePort: number, insecure: boole
                     break
 
                 if (commit.directoryDescriptorSha) {
-                    await dbQuery(client, {
-                        text: 'INSERT INTO object_sources(sha, sourceId) VALUES($1, $2) ON CONFLICT DO NOTHING',
-                        values: [commit.directoryDescriptorSha, source],
-                    })
-                    await recPushSource(client, store, `${source}:`, commit.directoryDescriptorSha, source, commitSha)
+                    await insertObjectSource(client, commit.directoryDescriptorSha, source)
+                    await insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
 
-                    /*await dbQuery(client, {
-                        text: 'INSERT INTO objects(isDirectory, sha, parentSha, sourceId, commit, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT DO NOTHING',
-                        values: [true, commit.directoryDescriptorSha, null, source, commitSha, 0, 0, '', 'application/directory'],
-                    })
-
-                    await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source, commitSha)*/
+                    await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source, commitSha)
                 }
 
                 commitSha = commit.parentSha
@@ -816,6 +808,30 @@ function getFileMimeType(fileName: string) {
     return 'application/octet-stream'
 }
 
+async function insertObject(client, file: Model.FileDescriptor) {
+    let fileName = file.name.replace('\\', '/')
+    let mimeType = file.isDirectory ? 'application/directory' : getFileMimeType(fileName)
+
+    await dbQuery(client, {
+        text: 'INSERT INTO objects(sha, isDirectory, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING',
+        values: [file.contentSha, file.isDirectory, file.size, file.lastWrite, fileName, mimeType],
+    })
+}
+
+async function insertObjectSource(client, sha: string, sourceId: string) {
+    await dbQuery(client, {
+        text: 'INSERT INTO object_sources(sha, sourceId) VALUES($1, $2) ON CONFLICT DO NOTHING',
+        values: [sha, sourceId],
+    })
+}
+
+async function insertObjectParent(client, sha: string, parentSha: string) {
+    await dbQuery(client, {
+        text: 'INSERT INTO object_parents(sha, parentSha) VALUES($1, $2) ON CONFLICT DO NOTHING',
+        values: [sha, parentSha],
+    })
+}
+
 async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string, commit: string) {
     log(`pushing ${directoryDescriptorSha} ${basePath}`)
 
@@ -824,37 +840,13 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
         return
 
     for (let file of dirDesc.files) {
-        let fileName = file.name.replace('\\', '/')
-        let mimeType = file.isDirectory ? 'application/directory' : getFileMimeType(fileName)
-
-        await dbQuery(client, {
-            text: 'INSERT INTO objects(isDirectory, sha, parentSha, sourceId, commit, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT DO NOTHING',
-            values: [file.isDirectory, file.contentSha, directoryDescriptorSha, sourceId, commit, file.size, file.lastWrite, fileName, mimeType],
-        })
+        await insertObjectParent(client, file.contentSha, directoryDescriptorSha)
+        await insertObjectSource(client, file.contentSha, sourceId)
+        await insertObject(client, file)
 
         if (file.isDirectory) {
-            let path = `${basePath}${fileName}/`
+            let path = `${basePath}${file.name.replace('\\', '/')}/`
             await recPushDir(client, store, path, file.contentSha, sourceId, commit)
-        }
-    }
-}
-
-async function recPushSource(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string, commit: string) {
-    log(`pushing source info for ${directoryDescriptorSha} ${basePath}`)
-
-    let dirDesc = await store.getDirectoryDescriptor(directoryDescriptorSha)
-    if (!dirDesc)
-        return
-
-    for (let file of dirDesc.files) {
-        await dbQuery(client, {
-            text: 'INSERT INTO object_sources(sha, sourceId) VALUES($1, $2) ON CONFLICT DO NOTHING',
-            values: [file.contentSha, sourceId],
-        })
-
-        if (file.isDirectory) {
-            let path = `${basePath}${file.name}/`
-            await recPushSource(client, store, path, file.contentSha, sourceId, commit)
         }
     }
 }
