@@ -809,6 +809,9 @@ function getFileMimeType(fileName: string) {
 }
 
 async function insertObject(client, file: Model.FileDescriptor) {
+    if (!file)
+        return
+
     let fileName = file.name.replace('\\', '/')
     let mimeType = file.isDirectory ? 'application/directory' : getFileMimeType(fileName)
 
@@ -819,6 +822,9 @@ async function insertObject(client, file: Model.FileDescriptor) {
 }
 
 async function insertObjectSource(client, sha: string, sourceId: string) {
+    if (!sha)
+        return
+
     await dbQuery(client, {
         text: 'INSERT INTO object_sources(sha, sourceId) VALUES($1, $2) ON CONFLICT DO NOTHING',
         values: [sha, sourceId],
@@ -826,6 +832,9 @@ async function insertObjectSource(client, sha: string, sourceId: string) {
 }
 
 async function insertObjectParent(client, sha: string, parentSha: string) {
+    if (!sha)
+        return
+
     await dbQuery(client, {
         text: 'INSERT INTO object_parents(sha, parentSha) VALUES($1, $2) ON CONFLICT DO NOTHING',
         values: [sha, parentSha],
