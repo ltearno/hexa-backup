@@ -819,8 +819,6 @@ function getFileMimeType(fileName: string) {
 async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string, commit: string) {
     log(`pushing ${directoryDescriptorSha} ${basePath}`)
 
-    // TODO if exist in DB, skip
-
     let dirDesc = await store.getDirectoryDescriptor(directoryDescriptorSha)
     if (!dirDesc)
         return
