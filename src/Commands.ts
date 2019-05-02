@@ -956,7 +956,7 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
         let desc = {
             contentSha: pushedSha,
             isDirectory: true,
-            lastWrite: Date.now(),
+            lastWrite: currentDirectoryDescriptor.files[currentDirectoryDescriptor.files.length - 1].lastWrite,
             name: `${date} à ${dateEnd} (${currentDirectoryDescriptor.files.length} photos)`,
             size: 0
         }
