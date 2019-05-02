@@ -943,6 +943,21 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
         minute: '2-digit'
     }
 
+    function formatDate(date: Date) {
+        var month = '' + (date.getMonth() + 1),
+            day = '' + date.getDate(),
+            year = date.getFullYear(),
+            hour = '' + date.getHours(),
+            minute = '' + date.getMinutes()
+
+        if (month.length < 2) month = '0' + month;
+        if (day.length < 2) day = '0' + day;
+        if (hour.length < 2) hour = '0' + hour;
+        if (minute.length < 2) minute = '0' + minute;
+
+        return [year, month, day].join('-');
+    }
+
     const maybePurge = async (max: number) => {
         if (!currentDirectoryDescriptor.files.length)
             return
@@ -951,8 +966,8 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
             return
 
         let pushedSha = await pushDirectoryDescriptor(currentDirectoryDescriptor, store)
-        let date = new Date(currentDirectoryDescriptor.files[0].lastWrite * 1).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
-        let dateEnd = new Date(currentDirectoryDescriptor.files[currentDirectoryDescriptor.files.length - 1].lastWrite * 1).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
+        let date = formatDate(new Date(currentDirectoryDescriptor.files[0].lastWrite * 1))
+        let dateEnd = formatDate(new Date(currentDirectoryDescriptor.files[currentDirectoryDescriptor.files.length - 1].lastWrite * 1))
         let desc = {
             contentSha: pushedSha,
             isDirectory: true,
