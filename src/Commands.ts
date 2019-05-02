@@ -782,7 +782,7 @@ export async function dbPush(storeIp: string, storePort: number, insecure: boole
                 if (commit.directoryDescriptorSha) {
                     // TODO if has object source, skip
 
-                    await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source, commitSha)
+                    await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
 
                     await insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
                     await insertObjectSource(client, commit.directoryDescriptorSha, source)
@@ -843,7 +843,17 @@ async function insertObjectParent(client, sha: string, parentSha: string) {
     })
 }
 
-async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string, commit: string) {
+async function hasObjectSource(client, sha: string, sourceId: string) {
+    let results: any = await dbQuery(client, `select sha, sourceId from object_sources where sha='${sha}' and sourceId='${sourceId}' limit 1;`)
+    return !!(results && results.rows && results.rows.length)
+}
+
+async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string) {
+    if (await hasObjectSource(client, directoryDescriptorSha, sourceId)) {
+        log(`skipped ${directoryDescriptorSha} ${basePath}, already indexed`)
+        return
+    }
+
     log(`pushing ${directoryDescriptorSha} ${basePath}`)
 
     let dirDesc = await store.getDirectoryDescriptor(directoryDescriptorSha)
@@ -857,7 +867,7 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
 
         if (file.isDirectory) {
             let path = `${basePath}${file.name.replace('\\', '/')}/`
-            await recPushDir(client, store, path, file.contentSha, sourceId, commit)
+            await recPushDir(client, store, path, file.contentSha, sourceId)
         }
     }
 }
