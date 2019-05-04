@@ -1442,9 +1442,9 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 dateWhere += ` and o.lastWrite<=${dateMax}`
             }
 
-            let orderBy = ``
+            let orderBy = `o.lastWrite`
 
-            let nameWhere = 'o.lastWrite'
+            let nameWhere = ''
             name = name.trim()
             if (name != '') {
                 nameWhere = ` and (o.name % '${name}' or o.name ilike '%${name}%')`
