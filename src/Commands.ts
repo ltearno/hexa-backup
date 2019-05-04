@@ -1090,7 +1090,7 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
                             continue
                         }
 
-                        log(`processing ${sha}`)
+                        log.dbg(`processing ${sha}`)
 
                         let buffer = await store.readShaBytes(sha, 0, 65635)
                         if (!buffer) {
