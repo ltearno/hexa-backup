@@ -1081,8 +1081,6 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
 
     let exifParserBuilder = require('exif-parser')
 
-    let processedShas = new Set<string>()
-
     try {
         while (true) {
             let rows = await readFromCursor()
@@ -1094,15 +1092,6 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
                 for (let row of rows) {
                     try {
                         let sha = row['sha']
-                        if (processedShas.has(sha)) {
-                            log(`skipping   ${sha}`)
-                            continue
-                        }
-
-                        if (processedShas.size > 10000)
-                            processedShas.clear()
-                        processedShas.add(sha)
-
                         log.dbg(`processing ${sha}`)
 
                         let buffer = await store.readShaBytes(sha, 0, 65635)
