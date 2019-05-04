@@ -1045,11 +1045,20 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
     })
     client.connect()
 
+    const client2 = new Client({
+        user: 'postgres',
+        host: databaseHost,
+        database: 'postgres',
+        password: databasePassword,
+        port: 5432,
+    })
+    client2.connect()
+
     log(`connected to database`)
 
     const Cursor = require('pg-cursor')
 
-    const query = `select sha from objects where size > 65635 and mimeType = 'image/jpeg';`
+    const query = `select distinct sha from objects where size > 65635 and mimeType = 'image/jpeg';`
 
     const cursor = client.query(new Cursor(query))
 
@@ -1067,9 +1076,12 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
     }
 
     let nbRows = 0
+    let nbRowsError = 0
+    log.setStatus(() => [`processed ${nbRows} rows so far (${nbRowsError} errors)`])
+
     let exifParserBuilder = require('exif-parser')
 
-    let processedShas = new Map<string, object>()
+    let processedShas = new Set<string>()
 
     try {
         while (true) {
@@ -1079,9 +1091,6 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
                 break
             }
             else {
-                nbRows += rows.length
-                log(`got ${nbRows} rows`)
-
                 for (let row of rows) {
                     try {
                         let sha = row['sha']
@@ -1090,13 +1099,15 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
                             continue
                         }
 
+                        if (processedShas.size > 10000)
+                            processedShas.clear()
+                        processedShas.add(sha)
+
                         log.dbg(`processing ${sha}`)
 
                         let buffer = await store.readShaBytes(sha, 0, 65635)
-                        if (!buffer) {
-                            log.err(`cannot read 65kb from sha ${sha}`)
-                            continue
-                        }
+                        if (!buffer)
+                            throw `cannot read 65kb from sha ${sha}`
 
                         let exifParser = exifParserBuilder.create(buffer)
                         let exif = exifParser.parse()
@@ -1105,10 +1116,13 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
                         log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
                         log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
 
-                        processedShas.set(sha, exif.tags)
+                        await insertObjectExif(client2, sha, exif.tags)
+
+                        nbRows++
                     }
                     catch (err) {
-                        log.err(`error processing images : ${err}`)
+                        nbRowsError++
+                        log.err(`error processing image : ${err}`)
                     }
                 }
             }
@@ -1123,15 +1137,8 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
         cursor.close(resolve)
     })
 
-    log(`storing images`)
-
-    for (let [sha, tags] of processedShas) {
-        await insertObjectExif(client, sha, tags)
-    }
-
-    log(`processed ${processedShas.size} images`)
-
     client.end()
+    client2.end()
 }
 
 export async function extractSha(storeIp: string, storePort: number, sha: string, destinationFile: string, insecure: boolean) {
