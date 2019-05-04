@@ -1424,7 +1424,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                     prairie: [43.572914, 1.457197],
                     mansac: [45.065374, 1.236009]
                 }*/
-                let [lat, long, zoom] = geoSearch
+                let { latitude, longitude, zoom } = geoSearch
                 zoom = zoom || 0.05
                 query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} inner join object_exifs oe on o.sha=oe.sha where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' and oe.exif ->> 'GPSLatitude' is not null and abs(cast(exif ->> 'GPSLatitude' as float) - ${lat})<${zoom} and abs(cast(exif ->> 'GPSLongitude' as float) - ${long})<${zoom} group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
             }
