@@ -375,6 +375,29 @@ async function run() {
 
                 process.exit(0)
             }
+        },
+        {
+            id: "exifextract",
+            verbs: ["exifextract"],
+            options: {
+                sourceId: defaultSourceId,
+                storeIp: "localhost",
+                storePort: 5005,
+                insecure: false,
+                databaseHost: "localhost",
+                databasePassword: "hexa-backup"
+            },
+            executor: async (options) => {
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const insecure = !!options['insecure']
+                const databaseHost = options['databaseHost']
+                const databasePassword = options['databasePassword']
+
+                await Commands.exifExtract(storeIp, storePort, insecure, databaseHost, databasePassword)
+
+                process.exit(0)
+            }
         }
     ])
 

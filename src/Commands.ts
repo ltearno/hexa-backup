@@ -843,6 +843,16 @@ async function insertObjectParent(client, sha: string, parentSha: string) {
     })
 }
 
+async function insertObjectExif(client, sha: string, exif: object) {
+    if (!sha || !exif)
+        return
+
+    await dbQuery(client, {
+        text: 'INSERT INTO object_exifs(sha, exif) VALUES($1, $2) ON CONFLICT DO NOTHING',
+        values: [sha, JSON.stringify(exif)],
+    })
+}
+
 async function hasObjectSource(client, sha: string, sourceId: string) {
     let results: any = await dbQuery(client, `select sha, sourceId from object_sources where sha='${sha}' and sourceId='${sourceId}' limit 1;`)
     return !!(results && results.rows && results.rows.length)
@@ -935,14 +945,6 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
     let currentDirectoryDescriptor: Model.DirectoryDescriptor = { files: [] }
     let nbRows = 0
 
-    const DATE_DISPLAY_OPTIONS = {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    }
-
     function formatDate(date: Date) {
         var month = '' + (date.getMonth() + 1),
             day = '' + date.getDate(),
@@ -1019,6 +1021,118 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
     })
 
     client.end()
+}
+
+export async function exifExtract(storeIp: string, storePort: number, insecure: boolean, databaseHost: string, databasePassword: string) {
+    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    log('connected')
+
+    let peering = new ClientPeering.Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    log(`store ready`)
+
+    const { Client } = require('pg')
+
+    const client = new Client({
+        user: 'postgres',
+        host: databaseHost,
+        database: 'postgres',
+        password: databasePassword,
+        port: 5432,
+    })
+    client.connect()
+
+    const client2 = new Client({
+        user: 'postgres',
+        host: databaseHost,
+        database: 'postgres',
+        password: databasePassword,
+        port: 5432,
+    })
+    client2.connect()
+
+    log(`connected to database`)
+
+    const Cursor = require('pg-cursor')
+
+    const query = `select sha from objects where size > 65635 and mimeType = 'image/jpeg';`
+
+    const cursor = client.query(new Cursor(query))
+
+    const readFromCursor: () => Promise<any[]> = async () => {
+        return new Promise((resolve, reject) => {
+            cursor.read(100, function (err, rows) {
+                if (err) {
+                    reject(err)
+                    return
+                }
+
+                resolve(rows)
+            })
+        })
+    }
+
+    let nbRows = 0
+    let exifParserBuilder = require('exif-parser')
+    // problem with cursor and putting a 'distinct' in sql query...
+    let processedShas = new Set<string>()
+
+    try {
+        while (true) {
+            let rows = await readFromCursor()
+            if (!rows || !rows.length) {
+                log(`finished cursor`)
+                break
+            }
+            else {
+                nbRows += rows.length
+                log(`got ${nbRows} rows`)
+
+                for (let row of rows) {
+                    let sha = row['sha']
+                    if (processedShas.has(sha)) {
+                        log(`skipping   ${sha}`)
+                        continue
+                    }
+
+                    if (processedShas.size > 10000)
+                        processedShas = new Set<string>()
+                    processedShas.add(sha)
+
+                    log(`processing ${sha}`)
+
+                    let buffer = await store.readShaBytes(sha, 0, 65635)
+                    if (!buffer) {
+                        log.err(`cannot read 65kb from sha ${sha}`)
+                        continue
+                    }
+
+                    let exifParser = exifParserBuilder.create(buffer)
+                    let exif = exifParser.parse()
+
+                    log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
+                    log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
+                    log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+
+                    await insertObjectExif(client2, sha, exif.tags)
+                }
+            }
+        }
+    } catch (err) {
+        log.err(`error parsing sql cursor : ${err}`)
+    }
+
+    log(`processed ${nbRows} images`)
+
+    await new Promise(resolve => {
+        cursor.close(resolve)
+    })
+
+    client.end()
+    client2.end()
 }
 
 export async function extractSha(storeIp: string, storePort: number, sha: string, destinationFile: string, insecure: boolean) {

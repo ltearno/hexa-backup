@@ -37,6 +37,23 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "exifextract",
+            "program": "${workspaceFolder}/target/cli/hexa-backup.js",
+            "outFiles": [
+                "${workspaceFolder}/target/**/*.js"
+            ],
+            "args": [
+                "exifextract",
+                "-storeIp",
+                "192.168.0.2",
+                "-databaseHost",
+                "192.168.0.2"
+            ],
+            "cwd": "/home/arnaud/repos/stacklabs/stack-labs.gitlab.io"
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "Sources",
             "program": "${workspaceFolder}/target/cli/hexa-backup.js",
             "outFiles": [
