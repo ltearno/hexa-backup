@@ -1420,6 +1420,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
             let geoSearchSelect = ''
             let geoSearchJoin = ''
             let geoSearchWhere = ''
+            let geoSearchGroupBy = ''
             if (mimeType && mimeType.startsWith('image') && geoSearch) {
                 let { nw, se } = geoSearch
                 let latMin = Math.min(nw.lat, se.lat)
@@ -1430,9 +1431,10 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 geoSearchSelect = `, cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`
                 geoSearchJoin = ` inner join object_exifs oe on o.sha=oe.sha`
                 geoSearchWhere = ` and cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`
+                geoSearchGroupBy = `, cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`
             }
 
-            let query = `select distinct o.sha, o.name, o.mimeType${geoSearchSelect} from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}'${geoSearchWhere} order by similarity(o.name, '${name}') desc limit 500;`
+            let query = `select o.sha, o.name, o.mimeType${geoSearchSelect} from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}'${geoSearchWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} order by similarity(o.name, '${name}') desc limit 500;`
             let resultFiles: any = await dbQuery(client, query)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
