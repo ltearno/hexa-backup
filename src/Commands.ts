@@ -1400,7 +1400,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
             const { Client } = require('pg')
 
-            let { name, mimeType } = req.body
+            let { name, mimeType, geoSearch } = req.body
 
             const client = new Client({
                 user: 'postgres',
@@ -1418,14 +1418,15 @@ export async function store(directory: string, port: number, insecure: boolean) 
             }))
 
             let query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
-            if (mimeType && mimeType.startsWith('image')) {
-                let coords = {
+            if (mimeType && mimeType.startsWith('image') && geoSearch) {
+                /*let coords = {
                     barthe: [43.63, 1.44],
                     prairie: [43.572914, 1.457197],
                     mansac: [45.065374, 1.236009]
-                }
-                let [lat, long] = coords.mansac
-                query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} inner join object_exifs oe on o.sha=oe.sha where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' and oe.exif ->> 'GPSLatitude' is not null and abs(cast(exif ->> 'GPSLatitude' as float) - ${lat})<0.05 and abs(cast(exif ->> 'GPSLongitude' as float) - ${long})<0.05 group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
+                }*/
+                let [lat, long, zoom] = geoSearch
+                zoom = zoom || 0.05
+                query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} inner join object_exifs oe on o.sha=oe.sha where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' and oe.exif ->> 'GPSLatitude' is not null and abs(cast(exif ->> 'GPSLatitude' as float) - ${lat})<${zoom} and abs(cast(exif ->> 'GPSLongitude' as float) - ${long})<${zoom} group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
             }
             let resultFiles: any = await dbQuery(client, query)
             resultFiles = resultFiles.rows.map(row => ({
