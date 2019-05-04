@@ -1411,7 +1411,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
             })
             client.connect()
 
-            let resultDirectories: any = await dbQuery(client, `select o.sha, o.name from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by o.sha, o.name order by similarity(o.name, '${name}') desc limit 500;`)
+            let resultDirectories: any = name != '' ? await dbQuery(client, `select o.sha, o.name from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by o.sha, o.name order by similarity(o.name, '${name}') desc limit 500;`) : []
             resultDirectories = resultDirectories.rows.map(row => ({
                 sha: row.sha,
                 name: row.name
@@ -1425,7 +1425,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 let latMax = Math.max(nw.lat, se.lat)
                 let lngMin = Math.min(nw.lng, se.lng)
                 let lngMax = Math.max(nw.lng, se.lng)
-                
+
                 geoSearchJoin = ` inner join object_exifs oe on o.sha=oe.sha`
                 geoSearchWhere = ` and cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`
             }
