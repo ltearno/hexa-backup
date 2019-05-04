@@ -1417,15 +1417,14 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 name: row.name
             }))
 
-            //select sha, cast(exif ->> 'GPSLatitude' as float) as latitude, cast(exif ->> 'GPSLongitude' as float) as longitude from object_exifs where exif ->> 'GPSLatitude' is not null;
-
             let query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
             if (mimeType && mimeType.startsWith('image')) {
                 let coords = {
                     barthe: [43.63, 1.44],
-                    prairie: [43.572914, 1.457197]
+                    prairie: [43.572914, 1.457197],
+                    mansac: [45.065374, 1.236009]
                 }
-                let [lat, long] = coords.prairie
+                let [lat, long] = coords.mansac
                 query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} inner join object_exifs oe on o.sha=oe.sha where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' and oe.exif ->> 'GPSLatitude' is not null and abs(cast(exif ->> 'GPSLatitude' as float) - ${lat})<0.05 and abs(cast(exif ->> 'GPSLongitude' as float) - ${long})<0.05 group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
             }
             let resultFiles: any = await dbQuery(client, query)
