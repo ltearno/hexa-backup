@@ -1400,7 +1400,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
             const { Client } = require('pg')
 
-            let { name, mimeType, geoSearch } = req.body
+            let { name, mimeType, geoSearch, date, dateInterval } = req.body
 
             const client = new Client({
                 user: 'postgres',
@@ -1434,7 +1434,12 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 geoSearchGroupBy = `, cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`
             }
 
-            let query = `select o.sha, o.name, o.mimeType${geoSearchSelect} from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}'${geoSearchWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} order by similarity(o.name, '${name}') desc limit 500;`
+            let dateWhere = ''
+            if (date) {
+                dateWhere = ` and abs(o.lastWrite-${date})<=${dateInterval * 60 * 60 * 24}`
+            }
+
+            let query = `select o.sha, o.name, o.mimeType${geoSearchSelect} from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} order by similarity(o.name, '${name}') desc limit 500;`
             let resultFiles: any = await dbQuery(client, query)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
