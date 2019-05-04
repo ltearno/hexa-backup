@@ -1417,12 +1417,20 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 name: row.name
             }))
 
-            let query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
+            let geoSearchJoin = ''
+            let geoSearchWhere = ''
             if (mimeType && mimeType.startsWith('image') && geoSearch) {
-                let { latitude, longitude, zoom } = geoSearch
-                zoom = zoom || 0.05
-                query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} inner join object_exifs oe on o.sha=oe.sha where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' and oe.exif ->> 'GPSLatitude' is not null and abs(cast(exif ->> 'GPSLatitude' as float) - ${latitude})<${zoom} and abs(cast(exif ->> 'GPSLongitude' as float) - ${longitude})<${zoom} group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
+                let { nw, se } = geoSearch
+                let latMin = Math.min(nw.lat, se.lat)
+                let latMax = Math.max(nw.lat, se.lat)
+                let lngMin = Math.min(nw.lng, se.lng)
+                let lngMax = Math.max(nw.lng, se.lng)
+                
+                geoSearchJoin = ` inner join object_exifs oe on o.sha=oe.sha`
+                geoSearchWhere = ` and cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`
             }
+
+            let query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}'${geoSearchWhere} group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
             let resultFiles: any = await dbQuery(client, query)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
