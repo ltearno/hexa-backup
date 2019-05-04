@@ -1045,15 +1045,6 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
     })
     client.connect()
 
-    const client2 = new Client({
-        user: 'postgres',
-        host: databaseHost,
-        database: 'postgres',
-        password: databasePassword,
-        port: 5432,
-    })
-    client2.connect()
-
     log(`connected to database`)
 
     const Cursor = require('pg-cursor')
@@ -1077,8 +1068,8 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
 
     let nbRows = 0
     let exifParserBuilder = require('exif-parser')
-    // problem with cursor and putting a 'distinct' in sql query...
-    let processedShas = new Set<string>()
+
+    let processedShas = new Map<string, object>()
 
     try {
         while (true) {
@@ -1092,37 +1083,38 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
                 log(`got ${nbRows} rows`)
 
                 for (let row of rows) {
-                    let sha = row['sha']
-                    if (processedShas.has(sha)) {
-                        log(`skipping   ${sha}`)
-                        continue
+                    try {
+                        let sha = row['sha']
+                        if (processedShas.has(sha)) {
+                            log(`skipping   ${sha}`)
+                            continue
+                        }
+
+                        log(`processing ${sha}`)
+
+                        let buffer = await store.readShaBytes(sha, 0, 65635)
+                        if (!buffer) {
+                            log.err(`cannot read 65kb from sha ${sha}`)
+                            continue
+                        }
+
+                        let exifParser = exifParserBuilder.create(buffer)
+                        let exif = exifParser.parse()
+
+                        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
+                        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
+                        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+
+                        processedShas.set(sha, exif.tags)
                     }
-
-                    if (processedShas.size > 10000)
-                        processedShas = new Set<string>()
-                    processedShas.add(sha)
-
-                    log(`processing ${sha}`)
-
-                    let buffer = await store.readShaBytes(sha, 0, 65635)
-                    if (!buffer) {
-                        log.err(`cannot read 65kb from sha ${sha}`)
-                        continue
+                    catch (err) {
+                        log.err(`error processing images : ${err}`)
                     }
-
-                    let exifParser = exifParserBuilder.create(buffer)
-                    let exif = exifParser.parse()
-
-                    log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
-                    log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
-                    log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
-
-                    await insertObjectExif(client2, sha, exif.tags)
                 }
             }
         }
     } catch (err) {
-        log.err(`error parsing sql cursor : ${err}`)
+        log.err(`error processing images : ${err}`)
     }
 
     log(`processed ${nbRows} images`)
@@ -1131,8 +1123,15 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
         cursor.close(resolve)
     })
 
+    log(`storing images`)
+
+    for (let [sha, tags] of processedShas) {
+        await insertObjectExif(client, sha, tags)
+    }
+
+    log(`processed ${processedShas.size} images`)
+
     client.end()
-    client2.end()
 }
 
 export async function extractSha(storeIp: string, storePort: number, sha: string, destinationFile: string, insecure: boolean) {
