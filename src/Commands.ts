@@ -1451,12 +1451,13 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 orderBy = `order by similarity(o.name, '${name}') desc`
             }
 
-            let query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.lastWrite) from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs})` : '1=1'}${nameWhere} and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit 500;`
+            let query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.lastWrite) as lastWrite from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs})` : '1=1'}${nameWhere} and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit 500;`
             let resultFiles: any = await dbQuery(client, query)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
                 name: row.name,
                 mimeType: row.mimetype,
+                lastWrite: row.lastWrite,
                 lat: row.latitude,
                 lng: row.longitude
             }))
