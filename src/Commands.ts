@@ -1417,7 +1417,12 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 name: row.name
             }))
 
-            let resultFiles: any = await dbQuery(client, `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`)
+            //select sha, cast(exif ->> 'GPSLatitude' as float) as latitude, cast(exif ->> 'GPSLongitude' as float) as longitude from object_exifs where exif ->> 'GPSLatitude' is not null;
+
+            let query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
+            if (mimeType && mimeType.startsWith('image'))
+                query = `select o.sha, o.name, o.mimeType from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``} inner join object_exifs oe on o.sha=oe.sha where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}' and oe.exif ->> 'GPSLatitude' is not null and abs(cast(exif ->> 'GPSLatitude' as float) - 43.63)<0.05 group by o.sha, o.name, o.mimeType order by similarity(o.name, '${name}') desc limit 500;`
+            let resultFiles: any = await dbQuery(client, query)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
                 name: row.name,
