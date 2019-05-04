@@ -1439,7 +1439,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 dateWhere = ` and o.lastWrite>=${dateMin}`
             }
             if (dateMax) {
-                dateWhere = ` and o.lastWrite<=${dateMax}`
+                dateWhere += ` and o.lastWrite<=${dateMax}`
             }
 
             let query = `select o.sha, o.name, o.mimeType${geoSearchSelect} from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} order by similarity(o.name, '${name}') desc limit 500;`
