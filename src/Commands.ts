@@ -1460,7 +1460,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 sha: row.sha,
                 name: row.name,
                 mimeType: row.mimetype,
-                lastWrite: row.lastwrite,
+                lastWrite: row.lastwrite * 1,
                 lat: row.latitude,
                 lng: row.longitude
             }))
