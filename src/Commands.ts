@@ -1452,6 +1452,9 @@ export async function store(directory: string, port: number, insecure: boolean) 
             }
 
             let query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.lastWrite) as lastWrite from objects o ${authorizedRefs ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs ? `os.sourceId in (${authorizedRefs})` : '1=1'}${nameWhere} and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit 500;`
+
+            log(`searchQuery: ${query}`)
+
             let resultFiles: any = await dbQuery(client, query)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
