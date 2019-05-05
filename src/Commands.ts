@@ -1395,7 +1395,13 @@ export async function store(directory: string, port: number, insecure: boolean) 
             let user = req.headers["x-authenticated-user"] || 'anonymous'
             let authorizedRefs = null
             if (user != 'ltearno') {
-                authorizedRefs = (await getAuthorizedRefs(user, store)).map(r => `'${r.substring('CLIENT_'.length)}'`).join(', ')
+                let tmp = await getAuthorizedRefs(user, store)
+                if (!tmp || !tmp.length) {
+                    res.send(JSON.stringify({ resultDirectories: [], resultFilesddd: [] }))
+                    return
+                }
+
+                authorizedRefs = tmp.map(r => `'${r.substring('CLIENT_'.length)}'`).join(', ')
             }
 
             const { Client } = require('pg')
