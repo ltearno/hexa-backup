@@ -1417,7 +1417,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
             })
             client.connect()
 
-            let resultSet: any = name != '' ? await dbQuery(client, `select distinct o.parentSha from object_parents o ${authorizedRefs !== null ? `inner join object_sources os on o.parentSha=os.sha` : ``} where ${authorizedRefs != null ? `os.sourceId in (${authorizedRefs}) and` : ''} o.sha = '${sha}' limit 500;`) : { rows: [] }
+            let resultSet: any = await dbQuery(client, `select distinct o.parentSha from object_parents o ${authorizedRefs !== null ? `inner join object_sources os on o.parentSha=os.sha` : ``} where ${authorizedRefs != null ? `os.sourceId in (${authorizedRefs}) and` : ''} o.sha = '${sha}' limit 500;`)
 
             let result = resultSet.rows.map(row => row.parentsha)
 
