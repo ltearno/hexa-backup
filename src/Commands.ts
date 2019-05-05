@@ -1461,8 +1461,8 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 name: row.name,
                 mimeType: row.mimetype,
                 lastWrite: row.lastwrite * 1,
-                lat: row.latitude,
-                lng: row.longitude
+                lat: row.latitude * 1,
+                lng: row.longitude * 1
             }))
 
             res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles }))
