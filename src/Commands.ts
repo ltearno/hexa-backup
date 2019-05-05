@@ -1505,6 +1505,7 @@ export async function store(directory: string, port: number, insecure: boolean) 
                     refs = refs.filter(ref => {
                         switch (ref) {
                             case 'CLIENT_POUR-MAMAN':
+                            case 'CLIENT_MUSIQUE':
                                 return true
                             default:
                                 return false
