@@ -1421,6 +1421,8 @@ export async function store(directory: string, port: number, insecure: boolean) 
 
             let result = resultSet.rows.map(row => row.parentsha)
 
+            client.end()
+
             res.send(JSON.stringify(result))
         }
         catch (err) {
@@ -1511,6 +1513,8 @@ export async function store(directory: string, port: number, insecure: boolean) 
                 lat: row.latitude * 1,
                 lng: row.longitude * 1
             }))
+
+            client.end()
 
             res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles }))
         }
