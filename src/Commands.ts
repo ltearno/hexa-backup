@@ -1430,6 +1430,48 @@ export async function store(directory: string, port: number, insecure: boolean) 
         }
     });
 
+    app.get('/names/:sha', async (req, res) => {
+        res.set('Content-Type', 'application/json')
+
+        try {
+            let user = req.headers["x-authenticated-user"] || 'anonymous'
+            let authorizedRefs = null
+            if (user != 'ltearno') {
+                let tmp = await getAuthorizedRefs(user, store)
+                if (!tmp || !tmp.length) {
+                    res.send(JSON.stringify([]))
+                    return
+                }
+
+                authorizedRefs = tmp.map(r => `'${r.substring('CLIENT_'.length)}'`).join(', ')
+            }
+
+            let sha = req.params.sha
+
+            const { Client } = require('pg')
+
+            const client = new Client({
+                user: 'postgres',
+                host: 'localhost',
+                database: 'postgres',
+                password: 'hexa-backup',
+                port: 5432,
+            })
+            client.connect()
+
+            let resultSet: any = await dbQuery(client, `select distinct o.name from objects o ${authorizedRefs !== null ? `inner join object_sources os on o.parentSha=os.sha` : ``} where ${authorizedRefs != null ? `os.sourceId in (${authorizedRefs}) and` : ''} o.sha = '${sha}' limit 500;`)
+
+            let result = resultSet.rows.map(row => row.name)
+
+            client.end()
+
+            res.send(JSON.stringify(result))
+        }
+        catch (err) {
+            res.send(`{"error":"${err}"}`)
+        }
+    });
+
     // todo should be moved in another program !
     app.post('/search', async (req, res) => {
         res.set('Content-Type', 'application/json')
