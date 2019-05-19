@@ -263,20 +263,16 @@ export class Peering {
                     break
 
                 let shaEntry = directoryBrowser.closeEntry(shaToSend.sha)
-
-                if (sentShas.has(shaToSend.sha)) {
+                if (!shaEntry || sentShas.has(shaToSend.sha)) {
                     log.dbg(`sha already sent ${shaToSend.sha.substr(0, 7)}`)
                     continue
                 }
+
                 // clear cache when too big
                 if (sentShas.size > 1000)
                     sentShas.clear()
-                sentShas.add(shaToSend.sha)
 
-                if (!shaEntry) {
-                    log.wrn(`void entry in shasToSend ${shaToSend.sha}`)
-                    continue
-                }
+                sentShas.add(shaToSend.sha)
 
                 log.dbg(`shaEntry ${JSON.stringify(shaEntry)}`)
 
