@@ -488,7 +488,7 @@ class CommandManager {
             return false
         }
 
-        if ('debug' in processed.options)
+        if (processed.options['debug'])
             log.conf('dbg', true)
 
         spec.executor(processed.options)
