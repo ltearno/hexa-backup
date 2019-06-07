@@ -21,10 +21,12 @@ interface TreeDirectoryInfo {
     directories: TreeDirectoryInfo[]
 }
 
-function connectToRemoteSocket(host: string, port: number, insecure: boolean): Promise<NetworkApi.WebSocket> {
+function connectToRemoteSocket(host: string, port: number, token: string, insecure: boolean): Promise<NetworkApi.WebSocket> {
     return new Promise((resolve, reject) => {
         let network = new NetworkApiNodeImpl.NetworkApiNodeImpl()
-        let ws = network.createClientWebSocket(`${insecure ? 'ws' : 'wss'}://${host}:${port}/hexa-backup`)
+        let url = `${insecure ? 'ws' : 'wss'}://${host}:${port}/hexa-backup`
+        log(`connecting to ${url}`)
+        let ws = network.createClientWebSocket(url, token ? { Authorization: `Bearer ${token}` } : null)
         let opened = false
 
         ws.on('open', () => {
@@ -47,10 +49,10 @@ function connectToRemoteSocket(host: string, port: number, insecure: boolean): P
 
 
 
-export async function refs(storeIp, storePort, _verbose, insecure: boolean) {
+export async function refs(storeIp, storePort, storeToken, _verbose, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -74,10 +76,10 @@ export async function refs(storeIp, storePort, _verbose, insecure: boolean) {
 }
 
 
-export async function sources(storeIp, storePort, verbose, insecure: boolean) {
+export async function sources(storeIp, storePort, storeToken: string, verbose, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -144,10 +146,10 @@ export async function sources(storeIp, storePort, verbose, insecure: boolean) {
     }
 }
 
-export async function stats(storeIp, storePort, _verbose, insecure: boolean) {
+export async function stats(storeIp, storePort, storeToken: string, _verbose, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -169,10 +171,10 @@ export async function stats(storeIp, storePort, _verbose, insecure: boolean) {
 }
 
 
-export async function history(sourceId: string, storeIp: string, storePort: number, verbose: boolean, insecure: boolean) {
+export async function history(sourceId: string, storeIp: string, storePort: number, storeToken: string, verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -291,10 +293,10 @@ async function loadTreeDirectoryInfoFromDirectoryDescriptor(_store: IHexaBackupS
     return rootDirectory
 }
 
-export async function normalize(sourceId: string, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
+export async function normalize(sourceId: string, storeIp: string, storePort: number, storeToken: string, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -443,7 +445,7 @@ async function parseSourceSpec(s: string, store: IHexaBackupStore) {
     }
 }
 
-export async function copy(sourceId: string, pushedDirectory: string, destination: string, recursive: boolean, storeIp: string, storePort: number, insecure: boolean) {
+export async function copy(sourceId: string, pushedDirectory: string, destination: string, recursive: boolean, storeIp: string, storePort: number, storeToken: string, insecure: boolean) {
     log('connecting to remote store...')
     log(`push options :`)
     log(`  directory: ${pushedDirectory}`)
@@ -451,7 +453,7 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
     log(`  server: ${storeIp}:${storePort}`)
     log(`  insecure: ${insecure}`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, true)
@@ -466,10 +468,10 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
     await Operations.mergeDirectoryDescriptorToDestination(source, destination, recursive, store)
 }
 
-export async function merge(sourceSpec: string, destination: string, recursive: boolean, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
+export async function merge(sourceSpec: string, destination: string, recursive: boolean, storeIp: string, storePort: number, storeToken: string, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -486,10 +488,10 @@ export async function merge(sourceSpec: string, destination: string, recursive: 
     await Operations.mergeDirectoryDescriptorToDestination(source, destination, recursive, store)
 }
 
-export async function lsDirectoryStructure(storeIp: string, storePort: number, directoryDescriptorSha: string, recursive: boolean, insecure: boolean) {
+export async function lsDirectoryStructure(storeIp: string, storePort: number, storeToken: string, directoryDescriptorSha: string, recursive: boolean, insecure: boolean) {
     log('connecting to remote store...')
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -512,12 +514,12 @@ export async function lsDirectoryStructure(storeIp: string, storePort: number, d
     await showDirectoryDescriptor(directoryDescriptor, store, directoryDescriptorSha.substr(0, 7), recursive)
 }
 
-export async function extract(storeIp: string, storePort: number, directoryDescriptorSha: string, prefix: string, destinationDirectory: string, insecure: boolean) {
+export async function extract(storeIp: string, storePort: number, storeToken: string, directoryDescriptorSha: string, prefix: string, destinationDirectory: string, insecure: boolean) {
     log('connecting to remote store...')
 
     let shaCache = new ShaCache.ShaCache('.hb-cache')
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -541,8 +543,8 @@ export async function extract(storeIp: string, storePort: number, directoryDescr
     await extractDirectoryDescriptor(store, shaCache, directoryDescriptorSha, prefix, destinationDirectory)
 }
 
-export async function dbPush(storeIp: string, storePort: number, insecure: boolean, databaseHost: string, databasePassword: string) {
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -624,13 +626,13 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
     }
 }
 
-export async function dbImage(storeIp: string, storePort: number, insecure: boolean, databaseHost: string, databasePassword: string) {
+export async function dbImage(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
     const sourceId = 'PHOTOS'
     const mimeType = 'image'
     /*const sourceId = 'VIDEOS'
     const mimeType = 'video'*/
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -754,8 +756,8 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
     client.end()
 }
 
-export async function exifExtract(storeIp: string, storePort: number, insecure: boolean, databaseHost: string, databasePassword: string) {
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+export async function exifExtract(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -861,12 +863,12 @@ export async function exifExtract(storeIp: string, storePort: number, insecure: 
     client2.end()
 }
 
-export async function extractSha(storeIp: string, storePort: number, sha: string, destinationFile: string, insecure: boolean) {
+export async function extractSha(storeIp: string, storePort: number, storeToken: string, sha: string, destinationFile: string, insecure: boolean) {
     log('connecting to remote store...')
 
     let shaCache = new ShaCache.ShaCache('.hb-cache')
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, false)
@@ -998,7 +1000,7 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
     }
 }
 
-export async function push(sourceId: string, pushedDirectory: string, storeIp: string, storePort: number, estimateSize: boolean, insecure: boolean) {
+export async function push(sourceId: string, pushedDirectory: string, storeIp: string, storePort: number, storeToken: string, estimateSize: boolean, insecure: boolean) {
     log('connecting to remote store...')
     log(`push options :`)
     log(`  directory: ${pushedDirectory}`)
@@ -1007,7 +1009,7 @@ export async function push(sourceId: string, pushedDirectory: string, storeIp: s
     log(`  estimateSize: ${estimateSize}`)
     log(`  insecure: ${insecure}`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     let peering = new ClientPeering.Peering(ws, true)
@@ -1016,7 +1018,7 @@ export async function push(sourceId: string, pushedDirectory: string, storeIp: s
     await Operations.pushDirectoryToSource(peering, pushedDirectory, sourceId)
 }
 
-export async function pushStore(directory: string, storeIp: string, storePort: number, estimateSize: boolean, insecure: boolean) {
+export async function pushStore(directory: string, storeIp: string, storePort: number, storeToken: string, estimateSize: boolean, insecure: boolean) {
     // TODO : ignore .bak files and shabytes currently received
 
     log(`push options :`)
@@ -1024,7 +1026,7 @@ export async function pushStore(directory: string, storeIp: string, storePort: n
     log(`  estimateSize: ${estimateSize}`)
 
     log('connecting to remote store...')
-    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     log('connected')
 
     log(`preparing read store in ${directory}`)
