@@ -385,29 +385,6 @@ export async function normalize(sourceId: string, storeIp: string, storePort: nu
     log(`finished normalization: ${result}`)
 }
 
-async function pushDirectoryDescriptor(descriptor: Model.DirectoryDescriptor, store: IHexaBackupStore): Promise<string> {
-    let stringified = OrderedJson.stringify(descriptor)
-
-    let content = Buffer.from(stringified, 'utf8')
-    let sha = HashTools.hashStringSync(stringified)
-
-    let len = await store.hasOneShaBytes(sha)
-    if (len != content.length) {
-        log(`send directory ${sha}`)
-        await store.putShaBytes(sha, 0, content)
-        let ok = await store.validateShaBytes(sha)
-        if (!ok) {
-            log.err(`sha not validated ${sha}`)
-            return null
-        }
-    }
-    else {
-        log.dbg(`directory already in store ${sha}`)
-    }
-
-    return sha
-}
-
 async function parseSourceSpec(s: string, store: IHexaBackupStore) {
     if (!s || !s.trim().length) {
         log.err(`no source`)
@@ -466,108 +443,6 @@ async function parseSourceSpec(s: string, store: IHexaBackupStore) {
     }
 }
 
-function parseTargetSpec(s: string) {
-    if (!s || !s.trim().length) {
-        log.err(`empty target`)
-        return null
-    }
-
-    if (!s.includes(':')) {
-        log.err(`target should be in the form 'sourceId:path'`)
-        return null
-    }
-
-    let parts = s.split(':')
-    if (parts.length != 2) {
-        log.err(`syntax error for target : '${s}'`)
-        return null
-    }
-
-    let sourceId = parts[0]
-
-    let path = parts[1].trim()
-    if (path.startsWith('/'))
-        path = path.substring(1)
-    let pathParts = path.length ? path.split('/') : []
-
-    return {
-        sourceId,
-        pathParts
-    }
-}
-
-// returns the saved directory descriptr's sha
-async function saveInMemoryDirectoryDescriptor(inMemoryDescriptor: Operations.InMemoryDirectoryDescriptor, store: IHexaBackupStore): Promise<string> {
-    for (let item of inMemoryDescriptor.files) {
-        if (typeof item.content != 'string') {
-            item.content = await saveInMemoryDirectoryDescriptor(item.content, store)
-        }
-    }
-
-    // now all sub items have sha, it's time to convert and push descriptor
-    let converted: Model.DirectoryDescriptor = {
-        files: inMemoryDescriptor.files.map(item => {
-            return {
-                name: item.name,
-                isDirectory: item.isDirectory,
-                lastWrite: item.lastWrite,
-                size: item.size,
-                contentSha: item.content as string
-            }
-        })
-    }
-
-    return await pushDirectoryDescriptor(converted, store)
-}
-
-async function recMerge(src: Operations.InMemoryDirectoryDescriptor, dst: Operations.InMemoryDirectoryDescriptor, recursive: boolean, store: IHexaBackupStore) {
-    let namesIndex = new Map<string, number>()
-    dst.files.forEach((item, index) => namesIndex.set(item.name, index))
-
-    for (let item of src.files) {
-        if (item.isDirectory && !recursive) {
-            log(`skipped dir ${item.name} (non recursive)`)
-            continue
-        }
-
-        if (namesIndex.has(item.name)) {
-            log(`existing file/dir ${item.name}`)
-            let existing = dst.files[namesIndex.get(item.name)]
-
-            if (item.content == existing.content) {
-                log(`same content, skipping`)
-                continue
-            }
-
-            if (item.isDirectory != existing.isDirectory) {
-                log.err(`not same types, skipping ! src:${item.isDirectory} dst:${item.isDirectory}`)
-                continue
-            }
-
-            if (item.name != existing.name) {
-                log.err(`BIG ERROR 938763987692 not same name, skipping ! src:${item.name} dst:${item.name}`)
-                return
-            }
-
-            if (item.isDirectory) {
-                await Operations.resolve(item, store)
-                await Operations.resolve(existing, store)
-                await recMerge(item.content as Operations.InMemoryDirectoryDescriptor, existing.content as Operations.InMemoryDirectoryDescriptor, recursive, store)
-            }
-            else {
-                log(`replacing file ${item.name} with sha ${existing.content} by sha ${item.content}`)
-                existing.content = item.content
-                existing.lastWrite = item.lastWrite
-                existing.size = item.size
-            }
-        }
-        else {
-            log(`added ${item.name}`)
-            dst.files.push(item)
-        }
-    }
-}
-
 export async function copy(sourceId: string, pushedDirectory: string, destination: string, recursive: boolean, storeIp: string, storePort: number, insecure: boolean) {
     log('connecting to remote store...')
     log(`push options :`)
@@ -588,99 +463,7 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
 
     let source = pushResult.directoryDescriptorSha
 
-    // COPY OF merge(...)
-    let parsedDestination = parseTargetSpec(destination)
-    if (!parsedDestination) {
-        log.err(`destination not specified`)
-        return
-    }
-
-    log(`source : ${source}`)
-    log(`destination : ${parsedDestination.sourceId} @ ${parsedDestination.pathParts.join('/')}`)
-
-    let destinationSourceState = await store.getSourceState(parsedDestination.sourceId)
-    if (!destinationSourceState) {
-        log.err(`destination source state not found`)
-        return
-    }
-
-    if (!destinationSourceState.currentCommitSha) {
-        log.err(`destination has no commit specified`)
-        return
-    }
-
-    let commit = await store.getCommit(destinationSourceState.currentCommitSha)
-    if (!commit) {
-        log.err(`destination's current commit ${destinationSourceState.currentCommitSha} not found`)
-        return
-    }
-
-    if (!commit.directoryDescriptorSha) {
-        log.err(`current commit has no root directory descriptor`)
-        return
-    }
-
-    let currentRootDirectoryDescriptor = await store.getDirectoryDescriptor(commit.directoryDescriptorSha)
-    if (!currentRootDirectoryDescriptor) {
-        log.err(`cannot fetch root directory descriptor ${commit.directoryDescriptorSha}`)
-        return
-    }
-
-    let rootInMemoryDirectoryDescriptor = Operations.createInMemoryDirectoryDescriptor(currentRootDirectoryDescriptor)
-
-    let targetInMemoryDirectoryDescriptor = rootInMemoryDirectoryDescriptor
-    for (let subDirName of parsedDestination.pathParts) {
-        let subDirItem = targetInMemoryDirectoryDescriptor.files.find(item => item.name == subDirName)
-        if (!subDirItem) {
-            log.wrn(`creating sub directory '${subDirName}' in destination path`)
-            subDirItem = {
-                name: subDirName,
-                content: { files: [] },
-                isDirectory: true,
-                size: 0,
-                lastWrite: Date.now()
-            }
-            targetInMemoryDirectoryDescriptor.files.push(subDirItem)
-        }
-        else {
-            await Operations.resolve(subDirItem, store)
-        }
-
-        if (typeof subDirItem.content == 'string') {
-            log.err(`cannot resolve in memory directory descriptor with content ${subDirItem.content}`)
-            return
-        }
-
-        targetInMemoryDirectoryDescriptor = subDirItem.content
-    }
-
-    if (!targetInMemoryDirectoryDescriptor) {
-        log.err(`big error h36@Sg2887, bye`)
-        return
-    }
-
-    let mergedDescriptor = await store.getDirectoryDescriptor(source)
-    if (!mergedDescriptor) {
-        log.err(`cannot load source descriptor ${source}`)
-        return
-    }
-
-    let sourceInMemoryDirectoryDescriptor = Operations.createInMemoryDirectoryDescriptor(mergedDescriptor)
-
-    await recMerge(sourceInMemoryDirectoryDescriptor, targetInMemoryDirectoryDescriptor, recursive, store)
-
-    let newRootDescriptorSha = await saveInMemoryDirectoryDescriptor(rootInMemoryDirectoryDescriptor, store)
-    if (!newRootDescriptorSha) {
-        log.err(`failed to save new root descriptor`)
-        return
-    }
-
-    log(`new root directory descriptor : ${newRootDescriptorSha}`)
-
-    pushResult.commitSha = await store.registerNewCommit(parsedDestination.sourceId, newRootDescriptorSha)
-
-    log(`validated commit ${pushResult.commitSha} on source ${parsedDestination.sourceId}`)
-    // END OF COPY OF merge(...)
+    await Operations.mergeDirectoryDescriptorToDestination(source, destination, recursive, store)
 }
 
 export async function merge(sourceSpec: string, destination: string, recursive: boolean, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
@@ -700,97 +483,7 @@ export async function merge(sourceSpec: string, destination: string, recursive: 
         return
     }
 
-    let parsedDestination = parseTargetSpec(destination)
-    if (!parsedDestination) {
-        log.err(`destination not specified`)
-        return
-    }
-
-    log(`source : ${source}`)
-    log(`destination : ${parsedDestination.sourceId} @ ${parsedDestination.pathParts.join('/')}`)
-
-    let destinationSourceState = await store.getSourceState(parsedDestination.sourceId)
-    if (!destinationSourceState) {
-        log.err(`destination source state not found`)
-        return
-    }
-
-    if (!destinationSourceState.currentCommitSha) {
-        log.err(`destination has no commit specified`)
-        return
-    }
-
-    let commit = await store.getCommit(destinationSourceState.currentCommitSha)
-    if (!commit) {
-        log.err(`destination's current commit ${destinationSourceState.currentCommitSha} not found`)
-        return
-    }
-
-    if (!commit.directoryDescriptorSha) {
-        log.err(`current commit has no root directory descriptor`)
-        return
-    }
-
-    let currentRootDirectoryDescriptor = await store.getDirectoryDescriptor(commit.directoryDescriptorSha)
-    if (!currentRootDirectoryDescriptor) {
-        log.err(`cannot fetch root directory descriptor ${commit.directoryDescriptorSha}`)
-        return
-    }
-
-    let rootInMemoryDirectoryDescriptor = Operations.createInMemoryDirectoryDescriptor(currentRootDirectoryDescriptor)
-
-    let targetInMemoryDirectoryDescriptor = rootInMemoryDirectoryDescriptor
-    for (let subDirName of parsedDestination.pathParts) {
-        let subDirItem = targetInMemoryDirectoryDescriptor.files.find(item => item.name == subDirName)
-        if (!subDirItem) {
-            log.wrn(`creating sub directory '${subDirName}' in destination path`)
-            subDirItem = {
-                name: subDirName,
-                content: { files: [] },
-                isDirectory: true,
-                size: 0,
-                lastWrite: Date.now()
-            }
-            targetInMemoryDirectoryDescriptor.files.push(subDirItem)
-        }
-        else {
-            await Operations.resolve(subDirItem, store)
-        }
-
-        if (typeof subDirItem.content == 'string') {
-            log.err(`cannot resolve in memory directory descriptor with content ${subDirItem.content}`)
-            return
-        }
-
-        targetInMemoryDirectoryDescriptor = subDirItem.content
-    }
-
-    if (!targetInMemoryDirectoryDescriptor) {
-        log.err(`big error h36@Sg2887, bye`)
-        return
-    }
-
-    let mergedDescriptor = await store.getDirectoryDescriptor(source)
-    if (!mergedDescriptor) {
-        log.err(`cannot load source descriptor ${source}`)
-        return
-    }
-
-    let sourceInMemoryDirectoryDescriptor = Operations.createInMemoryDirectoryDescriptor(mergedDescriptor)
-
-    await recMerge(sourceInMemoryDirectoryDescriptor, targetInMemoryDirectoryDescriptor, recursive, store)
-
-    let newRootDescriptorSha = await saveInMemoryDirectoryDescriptor(rootInMemoryDirectoryDescriptor, store)
-    if (!newRootDescriptorSha) {
-        log.err(`failed to save new root descriptor`)
-        return
-    }
-
-    log(`new root directory descriptor : ${newRootDescriptorSha}`)
-
-    let commitSha = await store.registerNewCommit(parsedDestination.sourceId, newRootDescriptorSha)
-
-    log(`validated commit ${commitSha} on source ${parsedDestination.sourceId}`)
+    await Operations.mergeDirectoryDescriptorToDestination(source, destination, recursive, store)
 }
 
 export async function lsDirectoryStructure(storeIp: string, storePort: number, directoryDescriptorSha: string, recursive: boolean, insecure: boolean) {
@@ -1005,7 +698,7 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
         if (currentDirectoryDescriptor.files.length < max)
             return
 
-        let pushedSha = await pushDirectoryDescriptor(currentDirectoryDescriptor, store)
+        let pushedSha = await Operations.pushDirectoryDescriptor(currentDirectoryDescriptor, store)
         let date = formatDate(new Date(currentDirectoryDescriptor.files[0].lastWrite * 1))
         let dateEnd = formatDate(new Date(currentDirectoryDescriptor.files[currentDirectoryDescriptor.files.length - 1].lastWrite * 1))
         let desc = {
@@ -1046,7 +739,7 @@ export async function dbImage(storeIp: string, storePort: number, insecure: bool
             }
         }
 
-        let rootSha = await pushDirectoryDescriptor(rootDirectoryDescriptor, store)
+        let rootSha = await Operations.pushDirectoryDescriptor(rootDirectoryDescriptor, store)
 
         let commitSha = await store.registerNewCommit(sourceId, rootSha)
         log(`commited sha ${commitSha}, rootdesc ${rootSha}`)
