@@ -308,6 +308,31 @@ async function run() {
             }
         },
         {
+            id: "cp",
+            verbs: ["cp", "!destination"],
+            options: {
+                sourceId: `${os.hostname()}-UPLOAD`,
+                pushedDirectory: '.',
+                storeIp: "localhost",
+                storePort: 5005,
+                insecure: false,
+                recursive: false
+            },
+            executor: async (options) => {
+                const source = options['sourceId']
+                let pushedDirectory = fsPath.resolve(options['pushedDirectory'])
+                const destination = options['destination']
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const insecure = !!options['insecure']
+                const recursive = !!options['recursive']
+
+                await Commands.copy(source, pushedDirectory, destination, recursive, storeIp, storePort, insecure)
+
+                process.exit(0)
+            }
+        },
+        {
             id: "merge",
             verbs: ["merge", "!source", "!destination"],
             options: {

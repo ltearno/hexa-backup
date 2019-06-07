@@ -568,6 +568,130 @@ async function recMerge(src: Operations.InMemoryDirectoryDescriptor, dst: Operat
     }
 }
 
+export async function copy(sourceId: string, pushedDirectory: string, destination: string, recursive: boolean, storeIp: string, storePort: number, insecure: boolean) {
+    // COPY OF push(...)
+    log('connecting to remote store...')
+    log(`push options :`)
+    log(`  directory: ${pushedDirectory}`)
+    log(`  source: ${sourceId}`)
+    log(`  server: ${storeIp}:${storePort}`)
+    log(`  insecure: ${insecure}`)
+
+    let ws = await connectToRemoteSocket(storeIp, storePort, insecure)
+    log('connected')
+
+    let peering = new ClientPeering.Peering(ws, true)
+    peering.start().then(_ => log(`finished peering`))
+
+    let store = peering.remoteStore
+
+    log(`starting push`)
+
+    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, true)
+    log(`directory descriptor  : ${directoryDescriptorSha}`)
+
+    let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
+
+    log(`finished push, commit : ${commitSha}`)
+    // END OF COPY OF push(...)
+
+    let source = directoryDescriptorSha
+
+    // COPY OF merge(...)
+    let parsedDestination = parseTargetSpec(destination)
+    if (!parsedDestination) {
+        log.err(`destination not specified`)
+        return
+    }
+
+    log(`source : ${source}`)
+    log(`destination : ${parsedDestination.sourceId} @ ${parsedDestination.pathParts.join('/')}`)
+
+    let destinationSourceState = await store.getSourceState(parsedDestination.sourceId)
+    if (!destinationSourceState) {
+        log.err(`destination source state not found`)
+        return
+    }
+
+    if (!destinationSourceState.currentCommitSha) {
+        log.err(`destination has no commit specified`)
+        return
+    }
+
+    let commit = await store.getCommit(destinationSourceState.currentCommitSha)
+    if (!commit) {
+        log.err(`destination's current commit ${destinationSourceState.currentCommitSha} not found`)
+        return
+    }
+
+    if (!commit.directoryDescriptorSha) {
+        log.err(`current commit has no root directory descriptor`)
+        return
+    }
+
+    let currentRootDirectoryDescriptor = await store.getDirectoryDescriptor(commit.directoryDescriptorSha)
+    if (!currentRootDirectoryDescriptor) {
+        log.err(`cannot fetch root directory descriptor ${commit.directoryDescriptorSha}`)
+        return
+    }
+
+    let rootInMemoryDirectoryDescriptor = Operations.createInMemoryDirectoryDescriptor(currentRootDirectoryDescriptor)
+
+    let targetInMemoryDirectoryDescriptor = rootInMemoryDirectoryDescriptor
+    for (let subDirName of parsedDestination.pathParts) {
+        let subDirItem = targetInMemoryDirectoryDescriptor.files.find(item => item.name == subDirName)
+        if (!subDirItem) {
+            log.wrn(`creating sub directory '${subDirName}' in destination path`)
+            subDirItem = {
+                name: subDirName,
+                content: { files: [] },
+                isDirectory: true,
+                size: 0,
+                lastWrite: Date.now()
+            }
+            targetInMemoryDirectoryDescriptor.files.push(subDirItem)
+        }
+        else {
+            await Operations.resolve(subDirItem, store)
+        }
+
+        if (typeof subDirItem.content == 'string') {
+            log.err(`cannot resolve in memory directory descriptor with content ${subDirItem.content}`)
+            return
+        }
+
+        targetInMemoryDirectoryDescriptor = subDirItem.content
+    }
+
+    if (!targetInMemoryDirectoryDescriptor) {
+        log.err(`big error h36@Sg2887, bye`)
+        return
+    }
+
+    let mergedDescriptor = await store.getDirectoryDescriptor(source)
+    if (!mergedDescriptor) {
+        log.err(`cannot load source descriptor ${source}`)
+        return
+    }
+
+    let sourceInMemoryDirectoryDescriptor = Operations.createInMemoryDirectoryDescriptor(mergedDescriptor)
+
+    await recMerge(sourceInMemoryDirectoryDescriptor, targetInMemoryDirectoryDescriptor, recursive, store)
+
+    let newRootDescriptorSha = await saveInMemoryDirectoryDescriptor(rootInMemoryDirectoryDescriptor, store)
+    if (!newRootDescriptorSha) {
+        log.err(`failed to save new root descriptor`)
+        return
+    }
+
+    log(`new root directory descriptor : ${newRootDescriptorSha}`)
+
+    commitSha = await store.registerNewCommit(parsedDestination.sourceId, newRootDescriptorSha)
+
+    log(`validated commit ${commitSha} on source ${parsedDestination.sourceId}`)
+    // END OF COPY OF merge(...)
+}
+
 export async function merge(sourceSpec: string, destination: string, recursive: boolean, storeIp: string, storePort: number, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
