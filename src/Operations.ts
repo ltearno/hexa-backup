@@ -1,5 +1,9 @@
+import * as ClientPeering from './ClientPeering'
 import * as Model from './Model'
-import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
+import { IHexaBackupStore } from './HexaBackupStore'
+import { LoggerBuilder } from '@ltearno/hexa-js'
+
+const log = LoggerBuilder.buildLogger('Operations')
 export interface InMemoryDirectoryDescriptor {
     files: InMemoryFileDescriptor[]
 }
@@ -48,5 +52,23 @@ export function createInMemoryFileDescriptor(descriptor: Model.FileDescriptor): 
 export async function resolve(item: InMemoryFileDescriptor, store: IHexaBackupStore) {
     if (typeof item.content === 'string') {
         item.content = createInMemoryDirectoryDescriptor(await store.getDirectoryDescriptor(item.content))
+    }
+}
+
+export async function pushDirectoryToSource(peering: ClientPeering.Peering, pushedDirectory: string, sourceId: string) {
+    let store = peering.remoteStore
+
+    log(`starting push`)
+
+    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, true)
+    log(`directory descriptor  : ${directoryDescriptorSha}`)
+
+    let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
+
+    log(`finished push, commit : ${commitSha}`)
+
+    return {
+        directoryDescriptorSha,
+        commitSha
     }
 }

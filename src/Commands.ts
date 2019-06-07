@@ -569,7 +569,6 @@ async function recMerge(src: Operations.InMemoryDirectoryDescriptor, dst: Operat
 }
 
 export async function copy(sourceId: string, pushedDirectory: string, destination: string, recursive: boolean, storeIp: string, storePort: number, insecure: boolean) {
-    // COPY OF push(...)
     log('connecting to remote store...')
     log(`push options :`)
     log(`  directory: ${pushedDirectory}`)
@@ -585,17 +584,9 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
 
     let store = peering.remoteStore
 
-    log(`starting push`)
+    let pushResult = await Operations.pushDirectoryToSource(peering, pushedDirectory, sourceId)
 
-    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, true)
-    log(`directory descriptor  : ${directoryDescriptorSha}`)
-
-    let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
-
-    log(`finished push, commit : ${commitSha}`)
-    // END OF COPY OF push(...)
-
-    let source = directoryDescriptorSha
+    let source = pushResult.directoryDescriptorSha
 
     // COPY OF merge(...)
     let parsedDestination = parseTargetSpec(destination)
@@ -686,9 +677,9 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
 
     log(`new root directory descriptor : ${newRootDescriptorSha}`)
 
-    commitSha = await store.registerNewCommit(parsedDestination.sourceId, newRootDescriptorSha)
+    pushResult.commitSha = await store.registerNewCommit(parsedDestination.sourceId, newRootDescriptorSha)
 
-    log(`validated commit ${commitSha} on source ${parsedDestination.sourceId}`)
+    log(`validated commit ${pushResult.commitSha} on source ${parsedDestination.sourceId}`)
     // END OF COPY OF merge(...)
 }
 
@@ -1329,16 +1320,7 @@ export async function push(sourceId: string, pushedDirectory: string, storeIp: s
     let peering = new ClientPeering.Peering(ws, true)
     peering.start().then(_ => log(`finished peering`))
 
-    let store = peering.remoteStore
-
-    log(`starting push`)
-
-    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, true)
-    log(`directory descriptor  : ${directoryDescriptorSha}`)
-
-    let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
-
-    log(`finished push, commit : ${commitSha}`)
+    await Operations.pushDirectoryToSource(peering, pushedDirectory, sourceId)
 }
 
 export async function pushStore(directory: string, storeIp: string, storePort: number, estimateSize: boolean, insecure: boolean) {
