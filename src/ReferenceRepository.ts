@@ -61,7 +61,10 @@ export class ReferenceRepository {
     }
 
     async list() {
-        return FsTools.readDir(this.rootPath)
+        return FsTools.readDir(this.rootPath).then(files => files.filter(file => {
+            let stat = fs.lstatSync(fsPath.join(this.rootPath, file))
+            return stat && stat.isFile()
+        }))
     }
 
     private contentFileName(referenceName: string) {
