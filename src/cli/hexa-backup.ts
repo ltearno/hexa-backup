@@ -319,7 +319,8 @@ async function run() {
                 storeIp: "localhost",
                 storePort: 5005,
                 storeToken: null,
-                insecure: false
+                insecure: false,
+                force: false
             },
             executor: async (options) => {
                 const directory = fsPath.resolve(options['storeDirectory'])
@@ -328,8 +329,9 @@ async function run() {
                 const storeToken = options['storeToken']
                 const insecure = !!options['insecure']
                 const sourceId = options['sourceId']
+                const force = !!options['force']
 
-                await Commands.pull(directory, sourceId, storeIp, storePort, storeToken, insecure)
+                await Commands.pull(directory, sourceId, storeIp, storePort, storeToken, insecure, force)
 
                 process.exit(0)
             }

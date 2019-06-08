@@ -595,11 +595,11 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
     }
 
     if (sourceLength < targetLength) {
-        log.err(`error, pulling something smaller than what we have here ${sha}`)
+        log.err(`error, transferring something smaller than what we have here ${sha}`)
         return false
     }
 
-    log(`pulling sha ${sha}`)
+    log(`transferring sha ${sha}`)
 
     let offset = targetLength
     while (offset < sourceLength) {
@@ -660,12 +660,46 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
     }
 }
 
-async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sourceId: string) {
+async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sourceId: string, forced: boolean) {
     log(`pulling source ${sourceId}`)
 
     let sourceState = await sourceStore.getSourceState(sourceId)
 
     let currentCommitSha = sourceState.currentCommitSha
+
+    let destinationState = await destinationStore.getSourceState(sourceId)
+    log.dbg(`     source state : ${JSON.stringify(sourceState)}`)
+    log.dbg(`destination state : ${JSON.stringify(destinationState)}`)
+    if (destinationState && destinationState.currentCommitSha) {
+        // avoid conflicts !
+        let accepted = false
+        let browsedCommitSha = currentCommitSha
+        while (browsedCommitSha) {
+            log.dbg(`browse source commit ${browsedCommitSha}`)
+            if (browsedCommitSha == destinationState.currentCommitSha) {
+                log.dbg(`ok, tip of the destination, accepted`)
+                accepted = true
+                break
+            }
+
+            let browsedCommit = await sourceStore.getCommit(browsedCommitSha)
+            if (!browsedCommit) {
+                log.wrn(`pull with source conflict !`)
+                break
+            }
+            browsedCommitSha = browsedCommit.parentSha
+        }
+
+        if (!accepted) {
+            if (!forced) {
+                log.err(`cannot pull since pull conflicts ! use --force to force`)
+                return false
+            }
+            else {
+                log.wrn(`conflict ignored because force option is on`)
+            }
+        }
+    }
 
     while (currentCommitSha) {
         log(`pulling commit ${currentCommitSha}`)
@@ -673,8 +707,8 @@ async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexa
         let sourceLength = await sourceStore.hasOneShaBytes(currentCommitSha)
         let targetLength = await destinationStore.hasOneShaBytes(currentCommitSha)
         if (sourceLength == targetLength) {
-            log(`already have commit ${currentCommitSha}`)
-            return true
+            log.dbg(`already have commit ${currentCommitSha}`)
+            break
         }
 
         let commit = await sourceStore.getCommit(currentCommitSha)
@@ -695,12 +729,13 @@ async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexa
         currentCommitSha = commit.parentSha
     }
 
-    // TODO set the source state to the pulled sourceState (commit and commit history)
+    log.dbg(`      copy state : ${JSON.stringify(sourceState)}`)
+    await destinationStore.setClientState(sourceId, sourceState)
 
     return true
 }
 
-export async function pull(directory: string, sourceId: string, storeIp: string, storePort: number, storeToken: string, insecure: boolean) {
+export async function pull(directory: string, sourceId: string, storeIp: string, storePort: number, storeToken: string, insecure: boolean, forced: boolean) {
     let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
@@ -715,6 +750,7 @@ export async function pull(directory: string, sourceId: string, storeIp: string,
     let remoteStore = peering.remoteStore
 
     log(`store ready`)
+    log(`transferring`)
 
     let localStore = new HexaBackupStore(directory)
 
@@ -725,7 +761,7 @@ export async function pull(directory: string, sourceId: string, storeIp: string,
         sourceIds = await remoteStore.getSources()
 
     for (let sourceId of sourceIds)
-        await pullSource(remoteStore, localStore, sourceId)
+        await pullSource(remoteStore, localStore, sourceId, forced)
 }
 
 export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
