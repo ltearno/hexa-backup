@@ -467,25 +467,13 @@ async function run() {
         return processed
     }
 
-    function shouldBeNull(args) {
-        let processed = parseAndProcess(args)
-        if (processed)
-            log.err(`SHOULD BE NULL : ${args.join()}`);
-    }
-
-    function shouldNotBeNull(args) {
-        let processed = parseAndProcess(args)
-        if (processed == null)
-            log.err(`SHOULD NOT BE NULL : ${args.join()} => ${processed.id} / ${JSON.stringify(processed.options)}`);
-    }
-
     let processed = parseAndProcess(args)
     if (processed == null) {
-        cmdManager.showHelp();
+        cmdManager.showHelp()
     }
     else {
         try {
-            if ('debug' in processed.options && processed.options['debug'])
+            if (processed.options['debug'])
                 log.conf('dbg', true)
             log.dbg('== executing in DEBUG mode ==')
 
