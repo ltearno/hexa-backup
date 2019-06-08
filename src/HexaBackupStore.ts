@@ -40,11 +40,13 @@ export class HexaBackupStore implements IHexaBackupStore {
         this.objectRepository = new ObjectRepository(fsPath.join(this.rootPath, '.hb-object'), this.shaCache)
 
         this.referenceRepository = new ReferenceRepository(fsPath.join(this.rootPath, '.hb-refs'))
-
-        log(`repository uuid: ${this.referenceRepository.getUuid()}`)
     }
 
     /** Public local interface */
+
+    getUuid() {
+        return this.referenceRepository.getUuid()
+    }
 
     getObjectRepository() {
         return this.objectRepository

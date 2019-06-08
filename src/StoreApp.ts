@@ -23,7 +23,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     let store = new HexaBackupStore(directory)
     let metadataServer = new Metadata.Server(directory)
 
-    console.log('server initialisation')
+    console.log(`server initialisation, uuid: ${store.getUuid()}`)
 
     let app: any = express()
 
