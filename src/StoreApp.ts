@@ -196,7 +196,12 @@ export async function runStore(directory: string, port: number, insecure: boolea
             for (let sourceId of sourceIds)
                 await Operations.pullSource(remoteStore, store, sourceId, force)
 
-            res.send(`{"ok":"successfull"}`)
+            log(`pull done`)
+
+            res.send(JSON.stringify({
+                ok: "successfull",
+                pulledSourceIds: sourceIds
+            }))
         }
         catch (err) {
             res.send(`{"error":"${err}"}`)

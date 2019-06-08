@@ -588,6 +588,8 @@ export async function pull(directory: string, sourceId: string, storeIp: string,
 
     for (let sourceId of sourceIds)
         await Operations.pullSource(remoteStore, localStore, sourceId, forced)
+
+    log(`pull done`)
 }
 
 export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
