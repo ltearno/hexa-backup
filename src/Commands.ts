@@ -689,10 +689,13 @@ export async function pull(directory: string, sourceId: string, storeIp: string,
         let ok = await pullDirectoryDescriptor(remoteStore, localStore, commit.directoryDescriptorSha)
         if (!ok) {
             log.err(`error pulling directory descriptor ${commit.directoryDescriptorSha}`)
+            return
         }
 
         currentCommitSha = commit.parentSha
     }
+
+    // TODO set the source state to the pulled sourceState (commit and commit history)
 }
 
 export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
