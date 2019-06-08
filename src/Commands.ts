@@ -1,5 +1,5 @@
 import * as ShaCache from './ShaCache'
-import { IHexaBackupStore } from './HexaBackupStore'
+import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
 import { HashTools, FsTools, LoggerBuilder, Queue, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
 import * as Model from './Model'
 import * as fs from 'fs'
@@ -584,6 +584,115 @@ export async function extract(storeIp: string, storePort: number, storeToken: st
 
     console.log(`extracting ${directoryDescriptorSha} to ${destinationDirectory}, prefix='${prefix}'...`)
     await extractDirectoryDescriptor(store, shaCache, directoryDescriptorSha, prefix, destinationDirectory)
+}
+
+async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sha: string) {
+    let sourceLength = await sourceStore.hasOneShaBytes(sha)
+    let targetLength = await destinationStore.hasOneShaBytes(sha)
+    if (sourceLength == targetLength) {
+        log(`already have sha ${sha}`)
+        return true
+    }
+
+    if (sourceLength < targetLength) {
+        log.err(`error, pulling something smaller than what we have here ${sha}`)
+        return false
+    }
+
+    log(`pulling sha ${sha}`)
+
+    let offset = targetLength
+    while (offset < sourceLength) {
+        let len = Math.min(1024 * 1024 * 1, sourceLength - offset)
+        log(`transfer ${len}@${offset} bytes (${Math.floor(100 * offset / sourceLength)}%)...`)
+
+        let buffer = await sourceStore.readShaBytes(sha, offset, len)
+        await destinationStore.putShaBytes(sha, offset, buffer)
+
+        offset += len
+    }
+
+    let ok = await destinationStore.validateShaBytes(sha)
+    if (ok) {
+        log(`transferred successfully sha ${sha}`)
+        return true
+    }
+    else {
+        log.err(`error transferring successfully sha ${sha}`)
+        return false
+    }
+}
+
+async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, directoryDescriptorSha: string) {
+    log(`pulling directory descriptor ${directoryDescriptorSha}`)
+
+    let sourceLength = await sourceStore.hasOneShaBytes(directoryDescriptorSha)
+    let targetLength = await destinationStore.hasOneShaBytes(directoryDescriptorSha)
+
+    if (sourceLength == targetLength) {
+        log(`already have directoryDescriptor`)
+        return true
+    }
+
+    let directoryDescriptor = await sourceStore.getDirectoryDescriptor(directoryDescriptorSha)
+
+    for (let file of directoryDescriptor.files) {
+        if (file.isDirectory) {
+            let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, file.contentSha)
+            if (!ok)
+                return false
+        }
+        else {
+            let ok = await pullFile(sourceStore, destinationStore, file.contentSha)
+            if (!ok)
+                return false
+        }
+    }
+
+    let pushedSha = await Operations.pushDirectoryDescriptor(directoryDescriptor, destinationStore)
+    if (pushedSha == directoryDescriptorSha) {
+        log(`ok, synced directory descriptor ${directoryDescriptorSha}`)
+        return true
+    }
+    else {
+        log.err(`failed to sync ! ${directoryDescriptorSha} / ${pushedSha}`)
+        return false
+    }
+}
+
+export async function pull(directory: string, sourceId: string, storeIp: string, storePort: number, storeToken: string, insecure: boolean) {
+    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    if (!ws) {
+        log(`connection impossible`)
+        return
+    }
+
+    log('connected')
+
+    let peering = new ClientPeering.Peering(ws, false)
+    peering.start().then(_ => log(`finished peering`))
+
+    let remoteStore = peering.remoteStore
+
+    log(`store ready`)
+
+    let localStore = new HexaBackupStore(directory)
+
+    let sourceState = await remoteStore.getSourceState(sourceId)
+    let currentCommitSha = sourceState.currentCommitSha
+
+    while (currentCommitSha) {
+        log(`pulling commit ${currentCommitSha}`)
+
+        let commit = await remoteStore.getCommit(currentCommitSha)
+
+        let ok = await pullDirectoryDescriptor(remoteStore, localStore, commit.directoryDescriptorSha)
+        if (!ok) {
+            log.err(`error pulling directory descriptor ${commit.directoryDescriptorSha}`)
+        }
+
+        currentCommitSha = commit.parentSha
+    }
 }
 
 export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {

@@ -312,6 +312,29 @@ async function run() {
             }
         },
         {
+            id: "pull",
+            verbs: ["pull", "!sourceId"],
+            options: {
+                storeDirectory: '.',
+                storeIp: "localhost",
+                storePort: 5005,
+                storeToken: null,
+                insecure: false
+            },
+            executor: async (options) => {
+                const directory = fsPath.resolve(options['storeDirectory'])
+                const storeIp = options['storeIp']
+                const storePort = options['storePort']
+                const storeToken = options['storeToken']
+                const insecure = !!options['insecure']
+                const sourceId = options['sourceId']
+
+                await Commands.pull(directory, sourceId, storeIp, storePort, storeToken, insecure)
+
+                process.exit(0)
+            }
+        },
+        {
             id: "store",
             verbs: ["store"],
             options: {
