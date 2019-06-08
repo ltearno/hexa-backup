@@ -20,37 +20,12 @@ interface TreeDirectoryInfo {
     directories: TreeDirectoryInfo[]
 }
 
-function connectToRemoteSocket(host: string, port: number, token: string, insecure: boolean): Promise<NetworkApi.WebSocket> {
-    return new Promise((resolve, reject) => {
-        let network = new NetworkApiNodeImpl.NetworkApiNodeImpl()
-        let url = `${insecure ? 'ws' : 'wss'}://${host}:${port}/hexa-backup`
-        log(`connecting to ${url}`)
-        let ws = network.createClientWebSocket(url, token ? { Authorization: `Bearer ${token}` } : null)
-        let opened = false
-
-        ws.on('open', () => {
-            opened = true
-            resolve(ws)
-        })
-
-        ws.on('error', err => {
-            log.err(`websocket error: ${err}`)
-            if (!opened)
-                resolve(null)
-            else
-                ws.close()
-        })
-    })
-}
-
-
-
 
 
 export async function refs(storeIp, storePort, storeToken, _verbose, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -81,7 +56,7 @@ export async function refs(storeIp, storePort, storeToken, _verbose, insecure: b
 export async function sources(storeIp, storePort, storeToken: string, verbose, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -156,7 +131,7 @@ export async function sources(storeIp, storePort, storeToken: string, verbose, i
 export async function stats(storeIp, storePort, storeToken: string, _verbose, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -186,7 +161,7 @@ export async function stats(storeIp, storePort, storeToken: string, _verbose, in
 export async function history(sourceId: string, storeIp: string, storePort: number, storeToken: string, verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -313,7 +288,7 @@ async function loadTreeDirectoryInfoFromDirectoryDescriptor(_store: IHexaBackupS
 export async function normalize(sourceId: string, storeIp: string, storePort: number, storeToken: string, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -476,7 +451,7 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
     log(`  server: ${storeIp}:${storePort}`)
     log(`  insecure: ${insecure}`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -499,7 +474,7 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
 export async function merge(sourceSpec: string, destination: string, recursive: boolean, storeIp: string, storePort: number, storeToken: string, _verbose: boolean, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort}...`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -524,7 +499,7 @@ export async function merge(sourceSpec: string, destination: string, recursive: 
 export async function lsDirectoryStructure(storeIp: string, storePort: number, storeToken: string, directoryDescriptorSha: string, recursive: boolean, insecure: boolean) {
     log('connecting to remote store...')
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -557,7 +532,7 @@ export async function extract(storeIp: string, storePort: number, storeToken: st
 
     let shaCache = new ShaCache.ShaCache('.hb-cache')
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -586,157 +561,8 @@ export async function extract(storeIp: string, storePort: number, storeToken: st
     await extractDirectoryDescriptor(store, shaCache, directoryDescriptorSha, prefix, destinationDirectory)
 }
 
-async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sha: string) {
-    let sourceLength = await sourceStore.hasOneShaBytes(sha)
-    let targetLength = await destinationStore.hasOneShaBytes(sha)
-    if (sourceLength == targetLength) {
-        log(`already have sha ${sha}`)
-        return true
-    }
-
-    if (sourceLength < targetLength) {
-        log.err(`error, transferring something smaller than what we have here ${sha}`)
-        return false
-    }
-
-    log(`transferring sha ${sha}`)
-
-    let offset = targetLength
-    while (offset < sourceLength) {
-        let len = Math.min(1024 * 1024 * 1, sourceLength - offset)
-        log(`transfer ${len}@${offset} bytes (${Math.floor(100 * offset / sourceLength)}%)...`)
-
-        let buffer = await sourceStore.readShaBytes(sha, offset, len)
-        await destinationStore.putShaBytes(sha, offset, buffer)
-
-        offset += len
-    }
-
-    let ok = await destinationStore.validateShaBytes(sha)
-    if (ok) {
-        log(`transferred successfully sha ${sha}`)
-        return true
-    }
-    else {
-        log.err(`error transferring successfully sha ${sha}`)
-        return false
-    }
-}
-
-async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, directoryDescriptorSha: string) {
-    log(`pulling directory descriptor ${directoryDescriptorSha}`)
-
-    let sourceLength = await sourceStore.hasOneShaBytes(directoryDescriptorSha)
-    let targetLength = await destinationStore.hasOneShaBytes(directoryDescriptorSha)
-
-    if (sourceLength == targetLength) {
-        log(`already have directoryDescriptor`)
-        return true
-    }
-
-    let directoryDescriptor = await sourceStore.getDirectoryDescriptor(directoryDescriptorSha)
-
-    for (let file of directoryDescriptor.files) {
-        if (file.isDirectory) {
-            let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, file.contentSha)
-            if (!ok)
-                return false
-        }
-        else {
-            let ok = await pullFile(sourceStore, destinationStore, file.contentSha)
-            if (!ok)
-                return false
-        }
-    }
-
-    let pushedSha = await Operations.pushDirectoryDescriptor(directoryDescriptor, destinationStore)
-    if (pushedSha == directoryDescriptorSha) {
-        log(`ok, synced directory descriptor ${directoryDescriptorSha}`)
-        return true
-    }
-    else {
-        log.err(`failed to sync ! ${directoryDescriptorSha} / ${pushedSha}`)
-        return false
-    }
-}
-
-async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sourceId: string, forced: boolean) {
-    log(`pulling source ${sourceId}`)
-
-    let sourceState = await sourceStore.getSourceState(sourceId)
-
-    let currentCommitSha = sourceState.currentCommitSha
-
-    let destinationState = await destinationStore.getSourceState(sourceId)
-    log.dbg(`     source state : ${JSON.stringify(sourceState)}`)
-    log.dbg(`destination state : ${JSON.stringify(destinationState)}`)
-    if (destinationState && destinationState.currentCommitSha) {
-        // avoid conflicts !
-        let accepted = false
-        let browsedCommitSha = currentCommitSha
-        while (browsedCommitSha) {
-            log.dbg(`browse source commit ${browsedCommitSha}`)
-            if (browsedCommitSha == destinationState.currentCommitSha) {
-                log.dbg(`ok, tip of the destination, accepted`)
-                accepted = true
-                break
-            }
-
-            let browsedCommit = await sourceStore.getCommit(browsedCommitSha)
-            if (!browsedCommit) {
-                log.wrn(`pull with source conflict !`)
-                break
-            }
-            browsedCommitSha = browsedCommit.parentSha
-        }
-
-        if (!accepted) {
-            if (!forced) {
-                log.err(`cannot pull since pull conflicts ! use --force to force`)
-                return false
-            }
-            else {
-                log.wrn(`conflict ignored because force option is on`)
-            }
-        }
-    }
-
-    while (currentCommitSha) {
-        log(`pulling commit ${currentCommitSha}`)
-
-        let sourceLength = await sourceStore.hasOneShaBytes(currentCommitSha)
-        let targetLength = await destinationStore.hasOneShaBytes(currentCommitSha)
-        if (sourceLength == targetLength) {
-            log.dbg(`already have commit ${currentCommitSha}`)
-            break
-        }
-
-        let commit = await sourceStore.getCommit(currentCommitSha)
-
-        let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, commit.directoryDescriptorSha)
-        if (!ok) {
-            log.err(`error pulling directory descriptor ${commit.directoryDescriptorSha}`)
-            return false
-        }
-
-        // copy commit
-        ok = await pullFile(sourceStore, destinationStore, currentCommitSha)
-        if (!ok) {
-            log.err(`failed to copy commit ${currentCommitSha}`)
-            return false
-        }
-
-        currentCommitSha = commit.parentSha
-    }
-
-    log.dbg(`      copy state : ${JSON.stringify(sourceState)}`)
-    await destinationStore.setClientState(sourceId, sourceState)
-
-    return true
-}
-
 export async function pull(directory: string, sourceId: string, storeIp: string, storePort: number, storeToken: string, insecure: boolean, forced: boolean) {
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -761,11 +587,11 @@ export async function pull(directory: string, sourceId: string, storeIp: string,
         sourceIds = await remoteStore.getSources()
 
     for (let sourceId of sourceIds)
-        await pullSource(remoteStore, localStore, sourceId, forced)
+        await Operations.pullSource(remoteStore, localStore, sourceId, forced)
 }
 
 export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -858,7 +684,7 @@ export async function dbImage(storeIp: string, storePort: number, storeToken: st
     /*const sourceId = 'VIDEOS'
     const mimeType = 'video'*/
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -988,7 +814,7 @@ export async function dbImage(storeIp: string, storePort: number, storeToken: st
 }
 
 export async function exifExtract(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -1104,7 +930,7 @@ export async function extractSha(storeIp: string, storePort: number, storeToken:
 
     let shaCache = new ShaCache.ShaCache('.hb-cache')
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -1250,7 +1076,7 @@ export async function push(sourceId: string, pushedDirectory: string, storeIp: s
     log(`  estimateSize: ${estimateSize}`)
     log(`  insecure: ${insecure}`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return
@@ -1271,7 +1097,7 @@ export async function pushStore(directory: string, storeIp: string, storePort: n
     log(`  server: ${storeIp}:${storePort}`)
     log(`  estimateSize: ${estimateSize}`)
 
-    let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
         log(`connection impossible`)
         return

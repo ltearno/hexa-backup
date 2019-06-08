@@ -13,6 +13,8 @@ import * as Metadata from './Metadata'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as DbHelpers from './DbHelpers'
+import * as Operations from './Operations'
+import * as ClientPeering from './ClientPeering'
 
 const { spawn } = require('child_process')
 
@@ -164,6 +166,42 @@ export async function runStore(directory: string, port: number, insecure: boolea
             res.send(`{"error":"${err}"}`)
         }
     });
+
+    app.post('/pull', async (req, res) => {
+        res.set('Content-Type', 'application/json')
+        try {
+            let { sourceId, storeIp, storePort, storeToken, insecure, force } = req.body
+
+            let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+            if (!ws) {
+                throw (`connection impossible`)
+            }
+
+            log('connected')
+
+            let peering = new ClientPeering.Peering(ws, false)
+            peering.start().then(_ => log(`finished peering`))
+
+            let remoteStore = peering.remoteStore
+
+            log(`store ready`)
+            log(`transferring`)
+
+            let sourceIds = []
+            if (sourceId)
+                sourceIds.push(sourceId)
+            else
+                sourceIds = await remoteStore.getSources()
+
+            for (let sourceId of sourceIds)
+                await Operations.pullSource(remoteStore, store, sourceId, force)
+
+            res.send(`{"ok":"successfull"}`)
+        }
+        catch (err) {
+            res.send(`{"error":"${err}"}`)
+        }
+    })
 
     // todo should be moved in another program !
     app.post('/search', async (req, res) => {
