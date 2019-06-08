@@ -1,14 +1,31 @@
 import fs = require('fs')
 import fsPath = require('path')
-import { FsTools } from '@ltearno/hexa-js'
+import { FsTools, HashTools } from '@ltearno/hexa-js'
+import * as Model from './Model'
 
 export class ReferenceRepository {
-    private rootPath: string;
+    private rootPath: string
+    private repositoryId: string
 
     constructor(rootPath: string) {
         this.rootPath = fsPath.resolve(rootPath);
         if (!fs.existsSync(this.rootPath))
-            fs.mkdirSync(this.rootPath);
+            fs.mkdirSync(this.rootPath)
+
+        let configPath = fsPath.join(this.rootPath, 'config')
+        if (!fs.existsSync(configPath))
+            fs.mkdirSync(configPath)
+
+        let idFilePath = fsPath.join(configPath, 'id')
+        if (fs.existsSync(idFilePath)) {
+            let content = fs.readFileSync(idFilePath, 'utf8')
+            this.repositoryId = JSON.parse(content).uuid
+        }
+
+        if (!this.repositoryId) {
+            this.repositoryId = HashTools.hashStringSync(`${Math.random()}-${Math.random()}-${Math.random()}-${new Date().getTime()}`)
+            fs.writeFileSync(idFilePath, JSON.stringify({ uuid: this.repositoryId }), 'utf8')
+        }
     }
 
     async stats() {
@@ -17,7 +34,11 @@ export class ReferenceRepository {
         }
     }
 
-    async put(name: string, value: any) {
+    getUuid() {
+        return this.repositoryId
+    }
+
+    async put(name: string, value: Model.SourceState) {
         return new Promise<void>(async (resolve, reject) => {
             let contentFileName = this.contentFileName(name);
 
@@ -42,7 +63,7 @@ export class ReferenceRepository {
         });
     }
 
-    async get(name: string) {
+    async get(name: string): Promise<Model.SourceState> {
         return new Promise<any>(async (resolve, reject) => {
             let contentFileName = this.contentFileName(name);
             if (fs.existsSync(contentFileName)) {
