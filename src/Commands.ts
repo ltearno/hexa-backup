@@ -669,18 +669,34 @@ async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexa
     while (currentCommitSha) {
         log(`pulling commit ${currentCommitSha}`)
 
+        let sourceLength = await sourceStore.hasOneShaBytes(currentCommitSha)
+        let targetLength = await destinationStore.hasOneShaBytes(currentCommitSha)
+        if (sourceLength == targetLength) {
+            log(`already have commit ${currentCommitSha}`)
+            return true
+        }
+
         let commit = await sourceStore.getCommit(currentCommitSha)
 
         let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, commit.directoryDescriptorSha)
         if (!ok) {
             log.err(`error pulling directory descriptor ${commit.directoryDescriptorSha}`)
-            return
+            return false
+        }
+
+        // copy commit
+        ok = await pullFile(sourceStore, destinationStore, currentCommitSha)
+        if (!ok) {
+            log.err(`failed to copy commit ${currentCommitSha}`)
+            return false
         }
 
         currentCommitSha = commit.parentSha
     }
 
     // TODO set the source state to the pulled sourceState (commit and commit history)
+
+    return true
 }
 
 export async function pull(directory: string, sourceId: string, storeIp: string, storePort: number, storeToken: string, insecure: boolean) {
