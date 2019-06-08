@@ -69,7 +69,9 @@ export class ReferenceRepository {
             if (fs.existsSync(contentFileName)) {
                 let content = fs.readFileSync(contentFileName, 'utf8');
                 try {
-                    resolve(JSON.parse(content));
+                    let state: Model.SourceState = JSON.parse(content)
+
+                    resolve(state)
                 }
                 catch (error) {
                     resolve(null);

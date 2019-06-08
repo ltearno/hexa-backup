@@ -664,6 +664,7 @@ async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexa
     log(`pulling source ${sourceId}`)
 
     let sourceState = await sourceStore.getSourceState(sourceId)
+
     let currentCommitSha = sourceState.currentCommitSha
 
     while (currentCommitSha) {

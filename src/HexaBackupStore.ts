@@ -15,6 +15,7 @@ export interface IHexaBackupStore {
     putShaBytes(sha: string, offset: number, data: Buffer): Promise<number>
     readShaBytes(sha: string, offset: number, length: number): Promise<Buffer>
     registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string>
+    setClientState(sourceId: string, state: Model.SourceState): Promise<void>
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
     getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor>
@@ -127,6 +128,10 @@ export class HexaBackupStore implements IHexaBackupStore {
         await this.storeClientState(sourceId, clientState, true)
 
         return clientState.currentCommitSha
+    }
+
+    async setClientState(sourceId: string, state: Model.SourceState) {
+        await this.storeClientState(sourceId, state, true)
     }
 
     async getSourceState(sourceId: string) {
