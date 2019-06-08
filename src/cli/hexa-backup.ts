@@ -313,7 +313,7 @@ async function run() {
         },
         {
             id: "pull",
-            verbs: ["pull", "!sourceId"],
+            verbs: ["pull", "?sourceId"],
             options: {
                 storeDirectory: '.',
                 storeIp: "localhost",

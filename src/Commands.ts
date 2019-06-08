@@ -660,6 +660,29 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
     }
 }
 
+async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sourceId: string) {
+    log(`pulling source ${sourceId}`)
+
+    let sourceState = await sourceStore.getSourceState(sourceId)
+    let currentCommitSha = sourceState.currentCommitSha
+
+    while (currentCommitSha) {
+        log(`pulling commit ${currentCommitSha}`)
+
+        let commit = await sourceStore.getCommit(currentCommitSha)
+
+        let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, commit.directoryDescriptorSha)
+        if (!ok) {
+            log.err(`error pulling directory descriptor ${commit.directoryDescriptorSha}`)
+            return
+        }
+
+        currentCommitSha = commit.parentSha
+    }
+
+    // TODO set the source state to the pulled sourceState (commit and commit history)
+}
+
 export async function pull(directory: string, sourceId: string, storeIp: string, storePort: number, storeToken: string, insecure: boolean) {
     let ws = await connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {
@@ -678,24 +701,14 @@ export async function pull(directory: string, sourceId: string, storeIp: string,
 
     let localStore = new HexaBackupStore(directory)
 
-    let sourceState = await remoteStore.getSourceState(sourceId)
-    let currentCommitSha = sourceState.currentCommitSha
+    let sourceIds = []
+    if (sourceId)
+        sourceIds.push(sourceId)
+    else
+        sourceIds = await remoteStore.getSources()
 
-    while (currentCommitSha) {
-        log(`pulling commit ${currentCommitSha}`)
-
-        let commit = await remoteStore.getCommit(currentCommitSha)
-
-        let ok = await pullDirectoryDescriptor(remoteStore, localStore, commit.directoryDescriptorSha)
-        if (!ok) {
-            log.err(`error pulling directory descriptor ${commit.directoryDescriptorSha}`)
-            return
-        }
-
-        currentCommitSha = commit.parentSha
-    }
-
-    // TODO set the source state to the pulled sourceState (commit and commit history)
+    for (let sourceId of sourceIds)
+        await pullSource(remoteStore, localStore, sourceId)
 }
 
 export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
