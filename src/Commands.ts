@@ -1,6 +1,6 @@
 import * as ShaCache from './ShaCache'
 import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
-import { HashTools, FsTools, LoggerBuilder, Queue, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
+import { HashTools, FsTools, LoggerBuilder, Queue, OrderedJson } from '@ltearno/hexa-js'
 import * as Model from './Model'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -8,7 +8,7 @@ import * as DirectoryBrowser from './DirectoryBrowser'
 import * as ClientPeering from './ClientPeering'
 import * as Tools from './Tools'
 import * as Operations from './Operations'
-import * as StoreApp from './StoreApp'
+import * as WebServer from './WebServer'
 import * as DbHelpers from './DbHelpers'
 
 const log = LoggerBuilder.buildLogger('Commands')
@@ -1128,7 +1128,7 @@ export async function pushStore(directory: string, storeIp: string, storePort: n
 }
 
 export async function store(directory: string, port: number, insecure: boolean) {
-    return StoreApp.runStore(directory, port, insecure)
+    return WebServer.runStore(directory, port, insecure)
 }
 
 export async function browse(directory: string, verbose: boolean) {

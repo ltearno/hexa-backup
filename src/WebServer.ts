@@ -15,10 +15,55 @@ import * as path from 'path'
 import * as DbHelpers from './DbHelpers'
 import * as Operations from './Operations'
 import * as ClientPeering from './ClientPeering'
+import * as VideoConverter from './VideoConverter'
 
-const { spawn } = require('child_process')
+const log = LoggerBuilder.buildLogger('WebServer')
 
-const log = LoggerBuilder.buildLogger('StoreApp')
+async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
+    try {
+        let refs = await store.getRefs()
+
+        // this is highly a hack, will be moved elsewhere ;)
+        switch (user) {
+            case 'ltearno':
+                break
+
+            case 'ayoka':
+                refs = refs.filter(ref => {
+                    switch (ref) {
+                        case 'CLIENT_MUSIQUE':
+                        case 'CLIENT_PHOTOS':
+                        case 'CLIENT_VIDEOS':
+                            return true
+                        default:
+                            return false
+                    }
+                })
+                break
+
+            case 'alice.gallas':
+                refs = refs.filter(ref => {
+                    switch (ref) {
+                        case 'CLIENT_POUR-MAMAN':
+                        case 'CLIENT_MUSIQUE':
+                            return true
+                        default:
+                            return false
+                    }
+                })
+                break
+
+            default:
+                refs = []
+                break
+        }
+
+        return refs
+    }
+    catch (err) {
+        return []
+    }
+}
 
 export async function runStore(directory: string, port: number, insecure: boolean) {
     console.log(`preparing store in ${directory}`)
@@ -71,17 +116,8 @@ export async function runStore(directory: string, port: number, insecure: boolea
     let mediumCache = new Map<string, Buffer>()
     let mediumCacheEntries = []
 
-    interface VideoConversion {
-        sha: string,
-        waiters: ((convertedFilePath: string) => void)[],
-        result: string
-    }
-
-    const videoCacheDir = '.hb-videocache'
-    const videoConversions = new Map<string, VideoConversion>()
-    const videoConversionQueue = new Queue.Queue<VideoConversion>('video-conversions')
-
-    videoConversionLoop()
+    let videoConverter = new VideoConverter.VideoConverter(store)
+    videoConverter.init()
 
     app.get('/parents/:sha', async (req, res) => {
         res.set('Content-Type', 'application/json')
@@ -299,53 +335,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
         catch (err) {
             res.send(`{"error":"${err}"}`)
         }
-    });
-
-    async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
-        try {
-            let refs = await store.getRefs()
-
-            // this is highly a hack, will be moved elsewhere ;)
-            switch (user) {
-                case 'ltearno':
-                    break
-
-                case 'ayoka':
-                    refs = refs.filter(ref => {
-                        switch (ref) {
-                            case 'CLIENT_MUSIQUE':
-                            case 'CLIENT_PHOTOS':
-                            case 'CLIENT_VIDEOS':
-                                return true
-                            default:
-                                return false
-                        }
-                    })
-                    break
-
-                case 'alice.gallas':
-                    refs = refs.filter(ref => {
-                        switch (ref) {
-                            case 'CLIENT_POUR-MAMAN':
-                            case 'CLIENT_MUSIQUE':
-                                return true
-                            default:
-                                return false
-                        }
-                    })
-                    break
-
-                default:
-                    refs = []
-                    break
-            }
-
-            return refs
-        }
-        catch (err) {
-            return []
-        }
-    }
+    })
 
     app.get('/refs', async (req, res) => {
         try {
@@ -358,7 +348,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
         catch (err) {
             res.send(`{"error":"${err}"}`)
         }
-    });
+    })
 
     app.get('/refs/:id', async (req, res) => {
         try {
@@ -513,119 +503,6 @@ export async function runStore(directory: string, port: number, insecure: boolea
         }
     })
 
-    function convertVideo(sha: string): Promise<string> {
-        return new Promise(resolve => {
-            try {
-                if (!fs.existsSync(videoCacheDir))
-                    fs.mkdirSync(videoCacheDir)
-
-                let destFile = path.join(videoCacheDir, `svhb-${sha}.mp4`)
-                if (fs.existsSync(destFile)) {
-                    resolve(destFile)
-                    return
-                }
-
-                let inputFile = store.getShaFileName(sha)
-                if (!fs.existsSync(inputFile)) {
-                    resolve(null)
-                    return
-                }
-
-                const child = spawn('/snap/bin/ffmpeg', [
-                    '-y',
-                    '-i',
-                    inputFile,
-                    '-vf',
-                    'scale=w=320:h=-2',
-                    destFile
-                ])
-
-                child.stdout.on('data', (data) => {
-                    console.log(`${data}`)
-                })
-
-                child.stderr.on('data', (data) => {
-                    console.error(`${data}`)
-                })
-
-                child.on('error', (err) => {
-                    console.error(`error on spawned process : ${err}`, err)
-                    resolve(null)
-                })
-
-                child.on('exit', (code, signal) => {
-                    if (!code) {
-                        resolve(destFile)
-                    }
-                    else {
-                        log.err(`ffmpeg error code ${code} (${signal})`)
-                        resolve(null)
-                    }
-                })
-            }
-            catch (err) {
-                log.err(`ffmpeg conversion error ${err}`)
-                resolve(null)
-            }
-        })
-    }
-
-    async function videoConversionLoop() {
-        const waiter = Queue.waitPopper(videoConversionQueue)
-
-        while (true) {
-            const info = await waiter()
-            if (!info) {
-                log(`finished video conversion loop`)
-                break
-            }
-            try {
-                log(`starting video conversion ${info.sha}, still ${videoConversionQueue.size()} in queue`)
-                info.result = await convertVideo(info.sha)
-                log(`finished video conversion ${info.sha}, still ${videoConversionQueue.size()} in queue`)
-                info.waiters.forEach(w => w(info.result))
-            }
-            catch (err) {
-                log.err(`sorry, failed video conversion !`)
-                console.error(err)
-                info.waiters.forEach(w => w(null))
-            }
-
-            videoConversions.delete(info.sha)
-        }
-    }
-
-    const createSmallVideo = (sha: string): Promise<string> => {
-        return new Promise(resolve => {
-            if (videoConversions.has(sha)) {
-                console.log(`waiting for existing conversion ${sha}, ${videoConversionQueue.size()} in queue`)
-                let info = videoConversions.get(sha)
-
-                info.waiters.push(resolve)
-                return
-            }
-
-            let destFile = path.join(videoCacheDir, `svhb-${sha}.mp4`)
-            if (fs.existsSync(destFile)) {
-                resolve(destFile)
-                return
-            }
-
-            let info = {
-                sha,
-                waiters: [resolve],
-                result: null
-            }
-
-            console.log(`waiting for conversion ${sha}, ${videoConversionQueue.size()} in queue`)
-
-            videoConversions.set(sha, info)
-            videoConversionQueue.push(info)
-
-            return
-        })
-    }
-
     app.get('/sha/:sha/plugins/video/small', async (req, res) => {
         let sha = req.params.sha
         if (sha == null || sha == 'null') {
@@ -636,7 +513,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
         try {
             res.set('Content-Type', 'video/mp4')
 
-            let fileName = await createSmallVideo(sha)
+            let fileName = await videoConverter.createSmallVideo(sha)
             if (!fileName) {
                 res.send(`{"error":"converting video content (sha is ${sha})"}`)
                 return
