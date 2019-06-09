@@ -23,7 +23,7 @@ export class Server {
         }
     }
 
-    init(app) {
+    addEnpointsToApp(app) {
         app.get('/metadata/:name', async (req, res) => {
             res.set('Content-Type', 'application/json')
 

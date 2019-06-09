@@ -20,6 +20,14 @@ import * as VideoConverter from './VideoConverter'
 const log = LoggerBuilder.buildLogger('WebServer')
 
 async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
+    let tmp = await getRawAuthorizedRefs(user, store)
+    if (!tmp)
+        return null
+
+    return tmp.map(r => `'${r.substring('CLIENT_'.length)}'`)
+}
+
+async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
     try {
         let refs = await store.getRefs()
 
@@ -66,11 +74,21 @@ async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
 }
 
 export async function runStore(directory: string, port: number, insecure: boolean) {
-    console.log(`preparing store in ${directory}`)
+    log(`preparing store and components in ${directory}`)
     let store = new HexaBackupStore(directory)
+
     let metadataServer = new Metadata.Server(directory)
 
-    console.log(`server initialisation, uuid: ${store.getUuid()}`)
+    let thumbnailCache = new Map<string, Buffer>()
+    let thumbnailCacheEntries = []
+
+    let mediumCache = new Map<string, Buffer>()
+    let mediumCacheEntries = []
+
+    let videoConverter = new VideoConverter.VideoConverter(store)
+    videoConverter.init()
+
+    log(`web initialisation, server uuid: ${store.getUuid()}`)
 
     let app: any = express()
 
@@ -101,23 +119,15 @@ export async function runStore(directory: string, port: number, insecure: boolea
     }
 
     server.listen(port)
-    console.log(`listening ${insecure ? 'HTTP' : 'HTTPS'} on ${port}`)
+    log(`listening ${insecure ? 'HTTP' : 'HTTPS'} on ${port}`)
 
     require('express-ws')(app, server)
 
-    console.log(`base dir: ${path.dirname(__dirname)}`)
-    app.use('/public', express.static(path.join(path.dirname(__dirname), 'static')))
+    metadataServer.addEnpointsToApp(app)
 
-    metadataServer.init(app)
-
-    let thumbnailCache = new Map<string, Buffer>()
-    let thumbnailCacheEntries = []
-
-    let mediumCache = new Map<string, Buffer>()
-    let mediumCacheEntries = []
-
-    let videoConverter = new VideoConverter.VideoConverter(store)
-    videoConverter.init()
+    let publicFileRoot = path.join(path.dirname(__dirname), 'static')
+    log.dbg(`serving /public with ${publicFileRoot}`)
+    app.use('/public', express.static(publicFileRoot))
 
     app.get('/parents/:sha', async (req, res) => {
         res.set('Content-Type', 'application/json')
@@ -132,7 +142,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
                     return
                 }
 
-                authorizedRefs = tmp.map(r => `'${r.substring('CLIENT_'.length)}'`).join(', ')
+                authorizedRefs = tmp.join(', ')
             }
 
             let sha = req.params.sha
@@ -174,7 +184,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
                     return
                 }
 
-                authorizedRefs = tmp.map(r => `'${r.substring('CLIENT_'.length)}'`).join(', ')
+                authorizedRefs = tmp.join(', ')
             }
 
             let sha = req.params.sha
@@ -257,7 +267,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
                     return
                 }
 
-                authorizedRefs = tmp.map(r => `'${r.substring('CLIENT_'.length)}'`).join(', ')
+                authorizedRefs = tmp.join(', ')
             }
 
             const { Client } = require('pg')
@@ -341,7 +351,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
         try {
             let user = req.headers["x-authenticated-user"] || 'anonymous'
 
-            let refs = await getAuthorizedRefs(user, store)
+            let refs = await getRawAuthorizedRefs(user, store)
 
             res.send(JSON.stringify(refs))
         }
@@ -567,7 +577,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     });
 
     app.ws('/hexa-backup', async (ws: NetworkApi.WebSocket, _req: any) => {
-        console.log(`serving new client ws`)
+        log(`serving new client ws`)
 
         let rpcTxIn = new Queue.Queue<RpcQuery>('rpc-tx-in')
         let rpcTxOut = new Queue.Queue<{ request: RpcQuery; reply: RpcReply }>('rpc-tx-out')
@@ -578,12 +588,12 @@ export async function runStore(directory: string, port: number, insecure: boolea
         transport.start()
 
         ws.on('error', err => {
-            console.log(`error on ws ${err}`)
+            log(`error on ws ${err}`)
             ws.close()
         })
 
         ws.on('close', () => {
-            console.log(`closed ws`)
+            log(`closed ws`)
             rpcRxOut.push(null)
         })
 
@@ -614,7 +624,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
                         let method = store[methodName]
                         if (!method) {
-                            console.log(`not found method ${methodName} in store !`)
+                            log(`not found method ${methodName} in store !`)
                         }
                         try {
                             let result = await method.apply(store, args)
@@ -634,8 +644,8 @@ export async function runStore(directory: string, port: number, insecure: boolea
                 }
             })
 
-        console.log(`bye bye client ws !`)
+        log(`bye bye client ws !`)
     })
 
-    console.log(`ready on port ${port} !`)
+    log(`ready on port ${port} !`)
 }
