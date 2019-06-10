@@ -1,7 +1,7 @@
 import { LoggerBuilder } from '@ltearno/hexa-js'
 import * as Operations from './Operations'
 import * as ClientPeering from './ClientPeering'
-import { IHexaBackupStore } from './HexaBackupStore'
+import { HexaBackupStore } from './HexaBackupStore'
 import * as RestTools from './RestTools'
 
 const log = LoggerBuilder.buildLogger('peer-stores')
@@ -25,10 +25,18 @@ export class PeerStores {
     private delay = 1000 * 60 * 5
     private timeout: NodeJS.Timeout
 
-    constructor(private store: IHexaBackupStore) { }
+    constructor(private store: HexaBackupStore) { }
 
-    init() {
+    async init() {
         this.schedule()
+
+        this.peers = await this.store.getReferenceRepository().getEx(`peers`, `peers`)
+        if (!this.peers) {
+            this.peers = []
+        }
+        else {
+            log(`loaded peers : ${JSON.stringify(this.peers)}`)
+        }
     }
 
     private schedule() {
@@ -103,7 +111,7 @@ export class PeerStores {
             res.send(JSON.stringify(this.peers))
         })
 
-        app.post('/peers', (req, res) => {
+        app.post('/peers', async (req, res) => {
             res.set('Content-Type', 'application/json')
             let peer: Peer = req.body
 
@@ -120,9 +128,15 @@ export class PeerStores {
 
             res.send(JSON.stringify({ message: "ok, added peer" }))
 
+            await this.storePeers()
+
             if (this.timeout)
                 clearTimeout(this.timeout)
             this.scheduledTask()
         })
+    }
+
+    private async storePeers() {
+        this.store.getReferenceRepository().putEx(`peers`, `peers`, this.peers)
     }
 }

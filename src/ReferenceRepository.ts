@@ -39,8 +39,12 @@ export class ReferenceRepository {
     }
 
     async put(name: string, value: Model.SourceState) {
+        return await this.putEx(null, name, value)
+    }
+
+    async putEx(directory: string, name: string, value: any) {
         return new Promise<void>(async (resolve, reject) => {
-            let contentFileName = this.contentFileName(name);
+            let contentFileName = this.contentFileName(directory, name);
 
             if (value == null) {
                 fs.unlinkSync(contentFileName);
@@ -64,21 +68,25 @@ export class ReferenceRepository {
     }
 
     async get(name: string): Promise<Model.SourceState> {
+        return await this.getEx(null, name)
+    }
+
+    async  getEx<T>(directory: string, name: string): Promise<T> {
         return new Promise<any>(async (resolve, reject) => {
-            let contentFileName = this.contentFileName(name);
+            let contentFileName = this.contentFileName(directory, name);
             if (fs.existsSync(contentFileName)) {
                 let content = fs.readFileSync(contentFileName, 'utf8');
                 try {
-                    let state: Model.SourceState = JSON.parse(content)
+                    let state: T = JSON.parse(content)
 
                     resolve(state)
                 }
                 catch (error) {
-                    resolve(null);
+                    resolve(null)
                 }
             }
             else {
-                resolve(null);
+                resolve(null)
             }
         });
     }
@@ -90,7 +98,14 @@ export class ReferenceRepository {
         }))
     }
 
-    private contentFileName(referenceName: string) {
-        return fsPath.join(this.rootPath, `${referenceName.toLocaleUpperCase()}`);
+    private contentFileName(directory: string, referenceName: string) {
+        let path = this.rootPath
+        if (directory) {
+            path = fsPath.join(path, directory)
+            if (!fs.existsSync(path))
+                fs.mkdirSync(path)
+        }
+
+        return fsPath.join(path, `${referenceName.toLocaleUpperCase()}`);
     }
 }

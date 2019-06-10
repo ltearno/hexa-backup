@@ -90,7 +90,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     videoConverter.init()
 
     let peerStores = new PeerStores.PeerStores(store)
-    peerStores.init()
+    await peerStores.init()
 
     log(`web initialisation, server uuid: ${store.getUuid()}`)
 
