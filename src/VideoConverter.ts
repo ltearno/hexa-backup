@@ -4,7 +4,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { spawn } from 'child_process'
 
-const log = LoggerBuilder.buildLogger('VideoConverter')
+const log = LoggerBuilder.buildLogger('video-converter')
 
 interface VideoConversion {
     sha: string,

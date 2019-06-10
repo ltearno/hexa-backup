@@ -16,8 +16,9 @@ import * as DbHelpers from './DbHelpers'
 import * as Operations from './Operations'
 import * as ClientPeering from './ClientPeering'
 import * as VideoConverter from './VideoConverter'
+import * as PeerStores from './PeerStores'
 
-const log = LoggerBuilder.buildLogger('WebServer')
+const log = LoggerBuilder.buildLogger('web-server')
 
 async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
     let tmp = await getRawAuthorizedRefs(user, store)
@@ -88,6 +89,9 @@ export async function runStore(directory: string, port: number, insecure: boolea
     let videoConverter = new VideoConverter.VideoConverter(store)
     videoConverter.init()
 
+    let peerStores = new PeerStores.PeerStores(store)
+    peerStores.init()
+
     log(`web initialisation, server uuid: ${store.getUuid()}`)
 
     let app: any = express()
@@ -124,6 +128,8 @@ export async function runStore(directory: string, port: number, insecure: boolea
     require('express-ws')(app, server)
 
     metadataServer.addEnpointsToApp(app)
+
+    peerStores.addEnpointsToApp(app)
 
     let publicFileRoot = path.join(path.dirname(__dirname), 'static')
     log.dbg(`serving /public with ${publicFileRoot}`)
