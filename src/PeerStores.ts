@@ -57,7 +57,6 @@ export class PeerStores {
                             peer.connection.token = parsedResponse.token
                         }
                     }
-
                 }
 
                 let ws = await Operations.connectToRemoteSocket(peer.connection.ip, peer.connection.port, peer.connection.token, peer.connection.insecure)
