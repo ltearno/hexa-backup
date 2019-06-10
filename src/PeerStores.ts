@@ -79,7 +79,13 @@ export class PeerStores {
                 log(`store ready`)
                 log(`transferring`)
 
-                for (let sourceId of peer.sourceIds)
+                let sourceIds = []
+                if (peer.sourceIds)
+                    sourceIds = peer.sourceIds
+                else
+                    sourceIds = await remoteStore.getSources()
+
+                for (let sourceId of sourceIds)
                     await Operations.pullSource(remoteStore, this.store, sourceId, peer.force)
 
                 log(`pull done`)
