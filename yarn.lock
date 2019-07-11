@@ -2,9 +2,9 @@
 # yarn lockfile v1
 
 
-"@ltearno/hexa-js@1.0.3":
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/@ltearno/hexa-js/-/hexa-js-1.0.3.tgz#850476c7a2408280c31687b687f71b92c217b01f"
+"@ltearno/hexa-js@1.0.4":
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@ltearno/hexa-js/-/hexa-js-1.0.4.tgz#66142a46b3c833fc0bce2a736aff554b5f0b8744"
   dependencies:
     ansi-escapes "^3.0.0"
     ansi-styles "^3.2.0"
