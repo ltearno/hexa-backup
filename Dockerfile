@@ -12,12 +12,20 @@ RUN ./node_modules/.bin/tsc || echo "yes"
 
 FROM node:10
 
-ADD server.crt /hexa-backup/server.crt
-ADD server.key /hexa-backup/server.key
-ADD static /hexa-backup/static
+ARG UID=1000
+ARG GID=1000
 
-COPY --from=builder /hexa-backup/target /hexa-backup/target
-COPY --from=builder /hexa-backup/node_modules/ /hexa-backup/node_modules/
+RUN groupadd --gid ${GID} hexa-backup-group || echo "group ${GID} already exists"
+RUN useradd --uid ${UID} --gid ${GID} hexa-backup-user || echo "user ${UID} already exists"
+
+USER ${UID}
+
+ADD --chown=1000:1000 server.crt /hexa-backup/server.crt
+ADD --chown=1000:1000 server.key /hexa-backup/server.key
+ADD --chown=1000:1000 static /hexa-backup/static
+
+COPY --from=builder --chown=1000:1000 /hexa-backup/target /hexa-backup/target
+COPY --from=builder --chown=1000:1000 /hexa-backup/node_modules/ /hexa-backup/node_modules/
 
 WORKDIR /hexa-backup
 
