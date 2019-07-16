@@ -23,6 +23,7 @@ export class Plugins {
         app.get('/sha/:sha/plugins/image/thumbnail', async (req, res) => {
             let sha = req.params.sha
             if (sha == null || sha == 'null') {
+                res.set('Content-Type', 'application/json')
                 res.send(`{"error":"input validation (sha is ${sha})"}`)
                 return
             }
@@ -64,6 +65,7 @@ export class Plugins {
         app.get('/sha/:sha/plugins/image/medium', async (req, res) => {
             let sha = req.params.sha
             if (sha == null || sha == 'null') {
+                res.set('Content-Type', 'application/json')
                 res.send(`{"error":"input validation (sha is ${sha})"}`)
                 return
             }
@@ -97,6 +99,7 @@ export class Plugins {
                 }
             }
             catch (err) {
+                res.set('Content-Type', 'application/json')    
                 res.send(`{"error":"missing sha ${sha}!"}`)
             }
         })
@@ -104,18 +107,20 @@ export class Plugins {
         app.get('/sha/:sha/plugins/video/small', async (req, res) => {
             let sha = req.params.sha
             if (sha == null || sha == 'null') {
+                res.set('Content-Type', 'application/json')
                 res.send(`{"error":"input validation (sha is ${sha})"}`)
                 return
             }
 
             try {
-                res.set('Content-Type', 'video/mp4')
-
                 let fileName = await this.videoConverter.createSmallVideo(sha)
                 if (!fileName) {
+                    res.set('Content-Type', 'application/json')
                     res.send(`{"error":"converting video content (sha is ${sha})"}`)
                     return
                 }
+
+                res.set('Content-Type', 'video/mp4')
 
                 const range = req.headers.range
 
@@ -154,6 +159,7 @@ export class Plugins {
                 }
             }
             catch (err) {
+                res.set('Content-Type', 'application/json')
                 try {
                     this.log.err(`error when sending byte range: ${err}`)
                     res.send(`{"error":"missing sha ${sha}!"}`)

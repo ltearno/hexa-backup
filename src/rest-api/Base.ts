@@ -10,6 +10,8 @@ export class Base {
 
     addEnpointsToApp(app: any) {
         app.get('/refs', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+
             try {
                 let refs = await Authorization.getAuthorizedRefsFromHttpRequest(req, this.store)
                 res.send(JSON.stringify(refs))
@@ -20,6 +22,8 @@ export class Base {
         })
 
         app.get('/refs/:id', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+            
             try {
                 let id = req.params.id
 
@@ -39,6 +43,8 @@ export class Base {
         });
 
         app.get('/sha/:sha/content', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+            
             let sha = req.params.sha
             if (sha == null || sha == 'null') {
                 res.send(`{"error":"input validation (sha is ${sha})"}`)

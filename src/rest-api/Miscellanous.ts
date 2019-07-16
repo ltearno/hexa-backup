@@ -12,6 +12,7 @@ export class Miscellanous {
     addEnpointsToApp(app: any) {
         app.post('/pull', async (req, res) => {
             res.set('Content-Type', 'application/json')
+            
             try {
                 let { sourceId, storeIp, storePort, storeToken, insecure, force } = req.body
 
