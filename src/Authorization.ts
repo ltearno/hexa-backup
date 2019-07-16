@@ -22,13 +22,12 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
     try {
         let refs = await store.getRefs()
 
-        // this is highly a hack, will be moved elsewhere ;)
         switch (user) {
             case 'ltearno':
-                break
+                return refs
 
             case 'ayoka':
-                refs = refs.filter(ref => {
+                return refs.filter(ref => {
                     switch (ref) {
                         case 'CLIENT_MUSIQUE':
                         case 'CLIENT_PHOTOS':
@@ -38,10 +37,9 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
                             return false
                     }
                 })
-                break
 
             case 'alice.gallas':
-                refs = refs.filter(ref => {
+                return refs.filter(ref => {
                     switch (ref) {
                         case 'CLIENT_POUR-MAMAN':
                         case 'CLIENT_MUSIQUE':
@@ -50,14 +48,9 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
                             return false
                     }
                 })
-                break
-
-            default:
-                refs = []
-                break
         }
 
-        return refs
+        return []
     }
     catch (err) {
         return []

@@ -11,7 +11,7 @@ export class Base {
     addEnpointsToApp(app: any) {
         app.get('/refs', async (req, res) => {
             try {
-                let refs = Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
+                let refs = await Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
                 res.send(JSON.stringify(refs))
             }
             catch (err) {

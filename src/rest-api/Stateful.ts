@@ -27,7 +27,7 @@ export class Stateful {
             res.set('Content-Type', 'application/json')
 
             try {
-                let authorizedRefs = Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
+                let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
                 if (!authorizedRefs) {
                     res.send(JSON.stringify([]))
                     return
@@ -62,7 +62,7 @@ export class Stateful {
             res.set('Content-Type', 'application/json')
 
             try {
-                let authorizedRefs = Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
+                let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
                 if (!authorizedRefs) {
                     res.send(JSON.stringify([]))
                     return
@@ -97,7 +97,7 @@ export class Stateful {
         app.post('/search', async (req, res) => {
             res.set('Content-Type', 'application/json')
             try {
-                let authorizedRefs = Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
+                let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
                 if (!authorizedRefs) {
                     res.send(JSON.stringify({ resultDirectories: [], resultFilesddd: [] }))
                     return
