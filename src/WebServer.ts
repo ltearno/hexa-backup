@@ -1,4 +1,4 @@
-import { HexaBackupStore } from './HexaBackupStore'
+import { HexaBackupStore, IHexaBackupStore } from './HexaBackupStore'
 import { Queue, Transport, NetworkApi, LoggerBuilder } from '@ltearno/hexa-js'
 import * as express from 'express'
 import * as bodyParser from 'body-parser'
@@ -20,6 +20,16 @@ import * as PeerStores from './PeerStores'
 import * as Authorization from './Authorization'
 
 const log = LoggerBuilder.buildLogger('web-server')
+
+async function getAuthorizedRefsFromHttpRequest(request: any, response: any, store: IHexaBackupStore) {
+    let user = request.headers["x-authenticated-user"] || 'anonymous'
+    let tmp = await Authorization.getAuthorizedRefs(user, store)
+    if (!tmp || !tmp.length) {
+        return null
+    }
+
+    return tmp.join(',')
+}
 
 export async function runStore(directory: string, port: number, insecure: boolean) {
     log(`preparing store and components in ${directory}`)
@@ -86,14 +96,11 @@ export async function runStore(directory: string, port: number, insecure: boolea
         res.set('Content-Type', 'application/json')
 
         try {
-            let user = req.headers["x-authenticated-user"] || 'anonymous'
-            let tmp = await Authorization.getAuthorizedRefs(user, store)
-            if (!tmp || !tmp.length) {
+            let authorizedRefs = getAuthorizedRefsFromHttpRequest(req, res, store)
+            if (!authorizedRefs) {
                 res.send(JSON.stringify([]))
                 return
             }
-
-            let authorizedRefs = tmp.join(', ')
 
             let sha = req.params.sha
 
@@ -132,14 +139,11 @@ export async function runStore(directory: string, port: number, insecure: boolea
         res.set('Content-Type', 'application/json')
 
         try {
-            let user = req.headers["x-authenticated-user"] || 'anonymous'
-            let tmp = await Authorization.getAuthorizedRefs(user, store)
-            if (!tmp || !tmp.length) {
+            let authorizedRefs = getAuthorizedRefsFromHttpRequest(req, res, store)
+            if (!authorizedRefs) {
                 res.send(JSON.stringify([]))
                 return
             }
-
-            let authorizedRefs = tmp.join(', ')
 
             let sha = req.params.sha
 
@@ -212,14 +216,11 @@ export async function runStore(directory: string, port: number, insecure: boolea
     app.post('/search', async (req, res) => {
         res.set('Content-Type', 'application/json')
         try {
-            let user = req.headers["x-authenticated-user"] || 'anonymous'
-            let tmp = await Authorization.getAuthorizedRefs(user, store)
-            if (!tmp || !tmp.length) {
+            let authorizedRefs = getAuthorizedRefsFromHttpRequest(req, res, store)
+            if (!authorizedRefs) {
                 res.send(JSON.stringify({ resultDirectories: [], resultFilesddd: [] }))
                 return
             }
-
-            let authorizedRefs = tmp.join(', ')
 
             const { Client } = require('pg')
 
@@ -298,10 +299,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
     app.get('/refs', async (req, res) => {
         try {
-            let user = req.headers["x-authenticated-user"] || 'anonymous'
-
-            let refs = await Authorization.getRawAuthorizedRefs(user, store)
-
+            let refs = getAuthorizedRefsFromHttpRequest(req, res, store)
             res.send(JSON.stringify(refs))
         }
         catch (err) {
