@@ -37,14 +37,15 @@ export class Stateful {
 
                 const client = createSqlClient()
 
-                let resultSet: any = await DbHelpers.dbQuery(
-                    client,
-                    `select distinct o.parentSha from object_parents o ${authorizedRefs !== null ?
-                        `inner join object_sources os on o.parentSha=os.sha` :
-                        ``} where ${authorizedRefs != null ?
-                            `os.sourceId in (${authorizedRefs}) and` :
-                            ''} o.sha = '${sha}' limit 500;`
-                )
+                const query = `select distinct o.parentSha from object_parents o ${authorizedRefs !== null ?
+                    `inner join object_sources os on o.parentSha=os.sha` :
+                    ``} where ${authorizedRefs != null ?
+                        `os.sourceId in (${authorizedRefs}) and` :
+                        ''} o.sha = '${sha}' limit 500;`
+
+                log.dbg(`sql:${query}`)
+
+                let resultSet: any = await DbHelpers.dbQuery(client, query)
 
                 let result = resultSet.rows.map(row => row.parentsha)
 
@@ -71,7 +72,15 @@ export class Stateful {
 
                 const client = createSqlClient()
 
-                let resultSet: any = await DbHelpers.dbQuery(client, `select distinct o.name from objects o ${authorizedRefs !== null ? `inner join object_sources os on o.parentSha=os.sha` : ``} where ${authorizedRefs != null ? `os.sourceId in (${authorizedRefs}) and` : ''} o.sha = '${sha}' limit 500;`)
+                const query = `select distinct o.name from objects o ${authorizedRefs !== null ?
+                    `inner join object_sources os on o.parentSha=os.sha` :
+                    ``} where ${authorizedRefs != null ?
+                        `os.sourceId in (${authorizedRefs}) and` :
+                        ''} o.sha = '${sha}' limit 500;`
+
+                log.dbg(`sql:${query}`)
+
+                let resultSet: any = await DbHelpers.dbQuery(client, query)
 
                 let result = resultSet.rows.map(row => row.name)
 
@@ -98,7 +107,15 @@ export class Stateful {
 
                 const client = createSqlClient()
 
-                let resultDirectories: any = name != '' ? await DbHelpers.dbQuery(client, `select o.sha, o.name from objects o ${authorizedRefs !== null ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs != null ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by o.sha, o.name order by similarity(o.name, '${name}') desc limit 500;`) : { rows: [] }
+                let query = `select o.sha, o.name from objects o ${authorizedRefs !== null ?
+                    `inner join object_sources os on o.sha=os.sha` :
+                    ``} where ${authorizedRefs != null ?
+                        `os.sourceId in (${authorizedRefs}) and` :
+                        ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by o.sha, o.name order by similarity(o.name, '${name}') desc limit 500;`
+
+                log.dbg(`sql:${query}`)
+
+                let resultDirectories: any = name != '' ? await DbHelpers.dbQuery(client, query) : { rows: [] }
                 resultDirectories = resultDirectories.rows.map(row => ({
                     sha: row.sha,
                     name: row.name
@@ -138,7 +155,13 @@ export class Stateful {
                     orderBy = `order by similarity(o.name, '${name}') desc`
                 }
 
-                let query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite from objects o ${authorizedRefs !== null ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs !== null ? `os.sourceId in (${authorizedRefs})` : '1=1'}${nameWhere} and o.mimeType != 'application/directory' and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit 500;`
+                query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite from objects o ${authorizedRefs !== null ?
+                    `inner join object_sources os on o.sha=os.sha` :
+                    ``}${geoSearchJoin} where ${authorizedRefs !== null ?
+                        `os.sourceId in (${authorizedRefs})` :
+                        '1=1'}${nameWhere} and o.mimeType != 'application/directory' and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit 500;`
+
+                log.dbg(`sql:${query}`)
 
                 let resultFiles: any = await DbHelpers.dbQuery(client, query)
                 resultFiles = resultFiles.rows.map(row => ({
