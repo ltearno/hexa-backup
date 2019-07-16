@@ -98,7 +98,6 @@ export async function runStore(directory: string, port: number, insecure: boolea
     require('express-ws')(app, server)
 
     metadataServer.addEnpointsToApp(app)
-
     peerStores.addEnpointsToApp(app)
 
     let publicFileRoot = path.join(path.dirname(__dirname), 'static')
@@ -171,17 +170,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
         try {
             let { sourceId, storeIp, storePort, storeToken, insecure, force } = req.body
 
-            let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
-            if (!ws) {
-                throw (`connection impossible`)
-            }
-
-            log('connected')
-
-            let peering = new ClientPeering.Peering(ws, false)
-            peering.start().then(_ => log(`finished peering`))
-
-            let remoteStore = peering.remoteStore
+            let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, insecure, false)).remoteStore
 
             log(`store ready`)
             log(`transferring`)

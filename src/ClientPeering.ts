@@ -15,6 +15,7 @@ import {
     RpcReply,
     ShaBytes
 } from './RPC'
+import * as Operations from './Operations'
 
 const log = LoggerBuilder.buildLogger('ClientPeering')
 
@@ -27,6 +28,21 @@ const log = LoggerBuilder.buildLogger('ClientPeering')
 interface ShaToSend {
     sha: string
     offset: number
+}
+
+export async function createClientPeeringFromWebSocket(storeIp: string, storePort: number, storeToken: string, insecure: boolean, withPush: boolean) {
+    log(`connecting to remote store ${storeIp}:${storePort}...`)
+
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    if (!ws) {
+        log(`connection impossible`)
+        return
+    }
+    log('connected')
+
+    let peering = new Peering(ws, withPush)
+    peering.start().then(_ => log(`finished peering`))
+    return peering
 }
 
 export class Peering {

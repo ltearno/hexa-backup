@@ -67,17 +67,7 @@ export class PeerStores {
                     }
                 }
 
-                let ws = await Operations.connectToRemoteSocket(peer.connection.ip, peer.connection.port, peer.connection.token, peer.connection.insecure)
-                if (!ws) {
-                    throw (`connection impossible`)
-                }
-
-                log('connected')
-
-                let peering = new ClientPeering.Peering(ws, false)
-                peering.start().then(_ => log(`finished peering`))
-
-                let remoteStore = peering.remoteStore
+                let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(peer.connection.ip, peer.connection.port, peer.connection.token, peer.connection.insecure, false)).remoteStore
                 if (!remoteStore) {
                     log.err(`cannot connect to remote store`)
                     return
