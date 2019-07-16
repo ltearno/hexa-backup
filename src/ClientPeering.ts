@@ -84,6 +84,7 @@ export class Peering {
         await this.startRpcLoops()
     }
 
+    // very experimental code
     private async startRpcLoops() {
         {
             let rpcTxPusher = Queue.waitPusher(this.rpcTxIn, 20, 10)
@@ -353,7 +354,6 @@ export class Peering {
         return directoryDescriptorSha
     }
 }
-
 
 class FileStreamToQueuePipe {
     private s: Readable
