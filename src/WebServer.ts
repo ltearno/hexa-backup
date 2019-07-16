@@ -1,4 +1,4 @@
-import { IHexaBackupStore, HexaBackupStore } from './HexaBackupStore'
+import { HexaBackupStore } from './HexaBackupStore'
 import { Queue, Transport, NetworkApi, LoggerBuilder } from '@ltearno/hexa-js'
 import * as express from 'express'
 import * as bodyParser from 'body-parser'
@@ -17,62 +17,9 @@ import * as Operations from './Operations'
 import * as ClientPeering from './ClientPeering'
 import * as VideoConverter from './VideoConverter'
 import * as PeerStores from './PeerStores'
+import * as Authorization from './Authorization'
 
 const log = LoggerBuilder.buildLogger('web-server')
-
-async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
-    let tmp = await getRawAuthorizedRefs(user, store)
-    if (!tmp)
-        return null
-
-    return tmp.map(r => `'${r.substring('CLIENT_'.length)}'`)
-}
-
-async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
-    try {
-        let refs = await store.getRefs()
-
-        // this is highly a hack, will be moved elsewhere ;)
-        switch (user) {
-            case 'ltearno':
-                break
-
-            case 'ayoka':
-                refs = refs.filter(ref => {
-                    switch (ref) {
-                        case 'CLIENT_MUSIQUE':
-                        case 'CLIENT_PHOTOS':
-                        case 'CLIENT_VIDEOS':
-                            return true
-                        default:
-                            return false
-                    }
-                })
-                break
-
-            case 'alice.gallas':
-                refs = refs.filter(ref => {
-                    switch (ref) {
-                        case 'CLIENT_POUR-MAMAN':
-                        case 'CLIENT_MUSIQUE':
-                            return true
-                        default:
-                            return false
-                    }
-                })
-                break
-
-            default:
-                refs = []
-                break
-        }
-
-        return refs
-    }
-    catch (err) {
-        return []
-    }
-}
 
 export async function runStore(directory: string, port: number, insecure: boolean) {
     log(`preparing store and components in ${directory}`)
@@ -140,16 +87,13 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
         try {
             let user = req.headers["x-authenticated-user"] || 'anonymous'
-            let authorizedRefs = null
-            if (user != 'ltearno') {
-                let tmp = await getAuthorizedRefs(user, store)
-                if (!tmp || !tmp.length) {
-                    res.send(JSON.stringify([]))
-                    return
-                }
-
-                authorizedRefs = tmp.join(', ')
+            let tmp = await Authorization.getAuthorizedRefs(user, store)
+            if (!tmp || !tmp.length) {
+                res.send(JSON.stringify([]))
+                return
             }
+
+            let authorizedRefs = tmp.join(', ')
 
             let sha = req.params.sha
 
@@ -164,7 +108,14 @@ export async function runStore(directory: string, port: number, insecure: boolea
             })
             client.connect()
 
-            let resultSet: any = await DbHelpers.dbQuery(client, `select distinct o.parentSha from object_parents o ${authorizedRefs !== null ? `inner join object_sources os on o.parentSha=os.sha` : ``} where ${authorizedRefs != null ? `os.sourceId in (${authorizedRefs}) and` : ''} o.sha = '${sha}' limit 500;`)
+            let resultSet: any = await DbHelpers.dbQuery(
+                client,
+                `select distinct o.parentSha from object_parents o ${authorizedRefs !== null ?
+                    `inner join object_sources os on o.parentSha=os.sha` :
+                    ``} where ${authorizedRefs != null ?
+                        `os.sourceId in (${authorizedRefs}) and` :
+                        ''} o.sha = '${sha}' limit 500;`
+            )
 
             let result = resultSet.rows.map(row => row.parentsha)
 
@@ -182,16 +133,13 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
         try {
             let user = req.headers["x-authenticated-user"] || 'anonymous'
-            let authorizedRefs = null
-            if (user != 'ltearno') {
-                let tmp = await getAuthorizedRefs(user, store)
-                if (!tmp || !tmp.length) {
-                    res.send(JSON.stringify([]))
-                    return
-                }
-
-                authorizedRefs = tmp.join(', ')
+            let tmp = await Authorization.getAuthorizedRefs(user, store)
+            if (!tmp || !tmp.length) {
+                res.send(JSON.stringify([]))
+                return
             }
+
+            let authorizedRefs = tmp.join(', ')
 
             let sha = req.params.sha
 
@@ -265,16 +213,13 @@ export async function runStore(directory: string, port: number, insecure: boolea
         res.set('Content-Type', 'application/json')
         try {
             let user = req.headers["x-authenticated-user"] || 'anonymous'
-            let authorizedRefs = null
-            if (user != 'ltearno') {
-                let tmp = await getAuthorizedRefs(user, store)
-                if (!tmp || !tmp.length) {
-                    res.send(JSON.stringify({ resultDirectories: [], resultFilesddd: [] }))
-                    return
-                }
-
-                authorizedRefs = tmp.join(', ')
+            let tmp = await Authorization.getAuthorizedRefs(user, store)
+            if (!tmp || !tmp.length) {
+                res.send(JSON.stringify({ resultDirectories: [], resultFilesddd: [] }))
+                return
             }
+
+            let authorizedRefs = tmp.join(', ')
 
             const { Client } = require('pg')
 
@@ -331,8 +276,6 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
             let query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite from objects o ${authorizedRefs !== null ? `inner join object_sources os on o.sha=os.sha` : ``}${geoSearchJoin} where ${authorizedRefs !== null ? `os.sourceId in (${authorizedRefs})` : '1=1'}${nameWhere} and o.mimeType != 'application/directory' and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit 500;`
 
-            log(`search query ${user}: ${query}`)
-
             let resultFiles: any = await DbHelpers.dbQuery(client, query)
             resultFiles = resultFiles.rows.map(row => ({
                 sha: row.sha,
@@ -357,7 +300,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
         try {
             let user = req.headers["x-authenticated-user"] || 'anonymous'
 
-            let refs = await getRawAuthorizedRefs(user, store)
+            let refs = await Authorization.getRawAuthorizedRefs(user, store)
 
             res.send(JSON.stringify(refs))
         }
