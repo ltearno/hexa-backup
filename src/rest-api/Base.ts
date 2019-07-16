@@ -11,7 +11,7 @@ export class Base {
     addEnpointsToApp(app: any) {
         app.get('/refs', async (req, res) => {
             try {
-                let refs = await Authorization.getAuthorizedRefsFromHttpRequest(req, res, this.store)
+                let refs = await Authorization.getAuthorizedRefsFromHttpRequest(req, this.store)
                 res.send(JSON.stringify(refs))
             }
             catch (err) {
@@ -23,8 +23,7 @@ export class Base {
             try {
                 let id = req.params.id
 
-                let user = req.headers["x-authenticated-user"] || 'anonymous'
-                let refs = await Authorization.getAuthorizedRefs(user, this.store)
+                let refs = await Authorization.getAuthorizedRefsFromHttpRequest(req, this.store)
                 if (!refs || !refs.includes(id)) {
                     res.send(`{"error":"not authorized"}`)
                     return null

@@ -1,13 +1,18 @@
 import { IHexaBackupStore } from './HexaBackupStore'
 
-export async function getAuthorizedRefsFromHttpRequest(request: any, response: any, store: IHexaBackupStore) {
+export async function getAuthorizedRefsFromHttpRequest(request: any, store: IHexaBackupStore) {
     let user = request.headers["x-authenticated-user"] || 'anonymous'
-    let tmp = await getAuthorizedRefs(user, store)
+
+    return await getAuthorizedRefs(user, store)
+}
+
+export async function getAuthorizedRefsFromHttpRequestAsSql(request: any, store: IHexaBackupStore) {
+    let tmp = await getAuthorizedRefsFromHttpRequest(request, store)
     if (!tmp || !tmp.length) {
         return null
     }
 
-    return tmp.join(',')
+    return tmp.map(r => `'${r}'`).join(',')
 }
 
 export async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
@@ -15,7 +20,7 @@ export async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
     if (!tmp)
         return null
 
-    return tmp.map(r => `'${r.substring('CLIENT_'.length)}'`)
+    return tmp.map(r => r.substring('CLIENT_'.length))
 }
 
 async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
