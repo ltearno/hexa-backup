@@ -18,7 +18,7 @@ export async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
     return tmp.map(r => `'${r.substring('CLIENT_'.length)}'`)
 }
 
-export async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
+async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
     try {
         let refs = await store.getRefs()
 

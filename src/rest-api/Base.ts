@@ -23,6 +23,13 @@ export class Base {
             try {
                 let id = req.params.id
 
+                let user = req.headers["x-authenticated-user"] || 'anonymous'
+                let refs = await Authorization.getAuthorizedRefs(user, this.store)
+                if (!refs || !refs.includes(id)) {
+                    res.send(`{"error":"not authorized"}`)
+                    return null
+                }
+
                 let result = await this.store.getSourceState(id)
 
                 res.send(JSON.stringify(result))
@@ -38,6 +45,9 @@ export class Base {
                 res.send(`{"error":"input validation (sha is ${sha})"}`)
                 return
             }
+
+            // TODO maybe not consider knowing the sha is knowing the existence hence having permission,
+            // and thus make a check against authorized refs.
 
             const range = req.headers.range
 
