@@ -31,6 +31,19 @@ async function getAuthorizedRefsFromHttpRequest(request: any, response: any, sto
     return tmp.join(',')
 }
 
+function createSqlClient() {
+    const { Client } = require('pg')
+    const client = new Client({
+        user: 'postgres',
+        host: 'localhost',
+        database: 'postgres',
+        password: 'hexa-backup',
+        port: 5432,
+    })
+    client.connect()
+    return client
+}
+
 export async function runStore(directory: string, port: number, insecure: boolean) {
     log(`preparing store and components in ${directory}`)
     let store = new HexaBackupStore(directory)
@@ -104,16 +117,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
             let sha = req.params.sha
 
-            const { Client } = require('pg')
-
-            const client = new Client({
-                user: 'postgres',
-                host: 'localhost',
-                database: 'postgres',
-                password: 'hexa-backup',
-                port: 5432,
-            })
-            client.connect()
+            const client = createSqlClient()
 
             let resultSet: any = await DbHelpers.dbQuery(
                 client,
@@ -147,16 +151,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
             let sha = req.params.sha
 
-            const { Client } = require('pg')
-
-            const client = new Client({
-                user: 'postgres',
-                host: 'localhost',
-                database: 'postgres',
-                password: 'hexa-backup',
-                port: 5432,
-            })
-            client.connect()
+            const client = createSqlClient()
 
             let resultSet: any = await DbHelpers.dbQuery(client, `select distinct o.name from objects o ${authorizedRefs !== null ? `inner join object_sources os on o.parentSha=os.sha` : ``} where ${authorizedRefs != null ? `os.sourceId in (${authorizedRefs}) and` : ''} o.sha = '${sha}' limit 500;`)
 
@@ -222,18 +217,9 @@ export async function runStore(directory: string, port: number, insecure: boolea
                 return
             }
 
-            const { Client } = require('pg')
-
             let { name, mimeType, geoSearch, dateMin, dateMax } = req.body
 
-            const client = new Client({
-                user: 'postgres',
-                host: 'localhost',
-                database: 'postgres',
-                password: 'hexa-backup',
-                port: 5432,
-            })
-            client.connect()
+            const client = createSqlClient()
 
             let resultDirectories: any = name != '' ? await DbHelpers.dbQuery(client, `select o.sha, o.name from objects o ${authorizedRefs !== null ? `inner join object_sources os on o.sha=os.sha` : ``} where ${authorizedRefs != null ? `os.sourceId in (${authorizedRefs}) and` : ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by o.sha, o.name order by similarity(o.name, '${name}') desc limit 500;`) : { rows: [] }
             resultDirectories = resultDirectories.rows.map(row => ({
