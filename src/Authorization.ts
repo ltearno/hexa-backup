@@ -1,7 +1,11 @@
 import { IHexaBackupStore } from './HexaBackupStore'
 
+export function getUserFromRequest(request: any): string {
+    return request.headers["x-authenticated-user"] || 'anonymous'
+}
+
 export async function getAuthorizedRefsFromHttpRequest(request: any, store: IHexaBackupStore) {
-    let user = request.headers["x-authenticated-user"] || 'anonymous'
+    let user = getUserFromRequest(request)
 
     return await getAuthorizedRefs(user, store)
 }

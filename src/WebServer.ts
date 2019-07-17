@@ -13,6 +13,7 @@ import * as RestApiRpc from './rest-api/Rpc'
 import * as RestApiBase from './rest-api/Base'
 import * as RestApiStateful from './rest-api/Stateful'
 import * as Miscellanous from './rest-api/Miscellanous'
+import * as RestApiPlaylists from './rest-api/Playlists'
 
 const log = LoggerBuilder.buildLogger('web-server')
 
@@ -26,6 +27,8 @@ export async function runStore(directory: string, port: number, insecure: boolea
     const baseServer = new RestApiBase.Base(store)
     const statefulServer = new RestApiStateful.Stateful(store)
     const miscServer = new Miscellanous.Miscellanous(store)
+    const playlistServer = new RestApiPlaylists.Playlists(store)
+
     const peerStores = new PeerStores.PeerStores(store)
     await peerStores.init()
 
@@ -71,6 +74,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     baseServer.addEnpointsToApp(app)
     statefulServer.addEnpointsToApp(app)
     miscServer.addEnpointsToApp(app)
+    playlistServer.addEnpointsToApp(app)
 
     let publicFileRoot = path.join(path.dirname(__dirname), 'static')
     log.dbg(`serving /public with ${publicFileRoot}`)
