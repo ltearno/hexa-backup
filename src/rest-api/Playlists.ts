@@ -43,7 +43,7 @@ export class Playlists {
             }
 
             res.send(JSON.stringify(userRefs))
-        })
+        });
 
         app.get('/plugins/playlists/:name', async (req, res) => {
             try {
@@ -66,9 +66,24 @@ export class Playlists {
 
                 const commit = await this.store.getCommit(state.currentCommitSha)
 
-                const playlistDirectoryDescriptor = JSON.parse((await this.store.readShaBytes(commit.directoryDescriptorSha, 0, -1)).toString('utf8'))
+                const playlistDirectoryDescriptor = JSON.parse((await this.store.readShaBytes(commit.directoryDescriptorSha, 0, -1)).toString('utf8')) as Model.DirectoryDescriptor
 
-                res.send(JSON.stringify(playlistDirectoryDescriptor))
+                let result: PlaylistRequest = {
+                    name: req.params.name,
+                    descriptor: []
+                };
+
+                for (let file of playlistDirectoryDescriptor.files) {
+                    result.descriptor.push({
+                        name: file.name,
+                        date: file.lastWrite,
+                        isDirectory: file.isDirectory,
+                        mimeType: "",
+                        sha: file.contentSha
+                    })
+                }
+
+                res.send(JSON.stringify(result))
             }
             catch (err) {
                 log.err(`error get playlist ${err}`)
