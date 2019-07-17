@@ -112,7 +112,7 @@ export class Playlists {
             let playlistDescriptorSha = HashTools.hashStringSync(stringified)
 
             if (!await this.store.hasOneShaBytes(playlistDescriptorSha)) {
-                log.dbg(`write playlist directory descroiptor for user ${user}, name ${name} to ${playlistDescriptorSha}`)
+                log.dbg(`write playlist directory descriptor for user ${user}, name ${name} to ${playlistDescriptorSha}`)
 
                 await this.store.putShaBytes(playlistDescriptorSha, 0, playlistDescriptorRaw)
                 if (!await this.store.validateShaBytes(playlistDescriptorSha)) {

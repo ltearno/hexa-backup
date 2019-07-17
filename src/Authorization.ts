@@ -29,6 +29,8 @@ export async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
 
 async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
     try {
+        // TODO use ACLs in reference files
+        
         let refs = await store.getRefs()
 
         switch (user) {
