@@ -84,7 +84,6 @@ export class DirectoryBrowser {
 
                 let relative = fsPath.basename(fileName)
                 let ignores = ignoreExpressions.some(expression => expression.test(relative))
-                log.dbg(`test ${relative} => ${ignores}`)
                 if (ignores) {
                     log.dbg(`ignored path ${fileName}`)
                     continue
