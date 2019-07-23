@@ -93,16 +93,16 @@ export class DirectoryBrowser {
                 try {
                     let stat = fs.lstatSync(fileName)
                     if (!stat)
-                        return null
+                        continue
 
                     if (stat.isSymbolicLink()) {
                         log.wrn(`skipped symbolic link ${fileName}`)
-                        return null
+                        continue
                     }
 
                     if (!(stat.isDirectory() || stat.isFile())) {
-                        log.wrn(`skipped ${fileName}`)
-                        return null
+                        log.wrn(`skipped ${fileName} (nor directory, nor file)`)
+                        continue
                     }
 
                     let element = {
