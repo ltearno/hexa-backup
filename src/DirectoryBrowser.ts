@@ -161,7 +161,7 @@ export class DirectoryBrowser {
                     }
                 }
                 catch (error) {
-                    log.wrn(`cannot stat ${fileName} (${error})`)
+                    log.wrn(`cannot stat ${fileName} in ${path} (${error})`)
                 }
             }
 
