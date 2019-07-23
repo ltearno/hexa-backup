@@ -96,7 +96,10 @@ export class DirectoryBrowser {
                         continue
 
                     if (stat.isSymbolicLink()) {
-                        log.wrn(`skipped symbolic link ${fileName}`)
+                        let symbolicLinkTarget = fs.realpathSync(fs.readlinkSync(fileName))
+
+                        log.wrn(`skipped symbolic link ${fileName}, targetting ${symbolicLinkTarget}`)
+
                         continue
                     }
 
@@ -159,7 +162,7 @@ export class DirectoryBrowser {
                     }
                 }
                 catch (error) {
-                    log.wrn(`cannot stat ${fileName}`)
+                    log.wrn(`cannot stat ${fileName} (${error})`)
                 }
             }
 

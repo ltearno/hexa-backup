@@ -200,15 +200,18 @@ export class Peering {
         let lastShaEntry: DirectoryBrowser.OpenedEntry = null
         let lastShaToSend: ShaToSend = null
 
-        log.setStatus(() => {
+        let statusArray = () => {
             let shaStats = shaCache.stats()
-
-            let res = [
+            return [
                 `queues:               files ${this.fileInfos.size()} / hasShaBytes ${this.hasShaBytes.size()} ${this.closedHasShaBytes ? '[CLOSED]' : ''} / shasToSend ${this.shasToSend.size()} / shaBytes ${this.shaBytes.size()}`,
                 `browsing:             ${directoryBrowser.stats.nbDirectoriesBrowsed} dirs, ${directoryBrowser.stats.nbFilesBrowsed} files, ${Tools.prettySize(directoryBrowser.stats.bytesBrowsed)} browsed ${isBrowsing ? '' : ' [FINISHED]'}`,
                 `hashing:              ${Tools.prettySize(shaStats.totalHashedBytes)} hashed, ${Tools.prettyTime(shaStats.totalTimeHashing)}, ${Tools.prettySpeed(shaStats.totalHashedBytes, shaStats.totalTimeHashing)}, ${Tools.prettySize(shaStats.totalBytesCacheHit)} cache hit`,
                 `tx:                   ${Tools.prettySize(sentBytes)}, ${Tools.prettyTime(sendingTime)}, ${Tools.prettySpeed(sentBytes, sendingTime)}, ${sentDirectories} directories, ${sentFiles} files`
             ]
+        }
+
+        log.setStatus(() => {
+            let res = statusArray()
 
             if (isSending) {
                 if (lastShaEntry.type == 'directory') {
@@ -350,6 +353,8 @@ export class Peering {
 
         log(`finished sending shas`)
         this.shaBytes.push(null)
+
+        statusArray().forEach(log)
 
         return directoryDescriptorSha
     }
