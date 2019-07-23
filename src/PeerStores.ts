@@ -47,6 +47,11 @@ export class PeerStores {
 
     async scheduledTask() {
         try {
+            this.peers = await this.store.getReferenceRepository().getEx(`peers`, `peers`)
+            if (!this.peers) {
+                this.peers = []
+            }
+
             if (this.peers.length) {
                 this.peerIndex = (this.peerIndex + 1) % this.peers.length
 
