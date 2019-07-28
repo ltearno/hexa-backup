@@ -5,6 +5,7 @@ target/
 .hb-cache/
 .hb-videocache/
 .hb-metadata/
+.hb-youtubedlcache/
 *.log
 server.key
 server.crt
