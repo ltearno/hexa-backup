@@ -6,16 +6,12 @@ import * as DbHelpers from '../DbHelpers'
 const log = LoggerBuilder.buildLogger('stateful-server')
 
 function createSqlClient() {
-    const { Client } = require('pg')
-    const client = new Client({
+    return DbHelpers.createClient({
         user: 'postgres',
         host: 'localhost',
         database: 'postgres',
-        password: 'hexa-backup',
-        port: 5432,
+        password: 'hexa-backup'
     })
-    client.connect()
-    return client
 }
 
 export class Stateful {

@@ -1,7 +1,8 @@
 import * as MimeTypes from './mime-types'
 import * as Model from './Model'
+import { createClient } from 'http';
 
-export function getFileMimeType(fileName: string) {
+function getFileMimeType(fileName: string) {
     let pos = fileName.lastIndexOf('.')
     if (pos >= 0) {
         let extension = fileName.substr(pos + 1).toLocaleLowerCase()
@@ -10,6 +11,28 @@ export function getFileMimeType(fileName: string) {
     }
 
     return 'application/octet-stream'
+}
+
+export async function createClient(options: {
+    host: string
+    database: string
+    user: string
+    password: string
+    port?: string
+}) {
+    const { Client } = require('pg')
+
+    const client = new Client({
+        user: options.user,
+        host: options.host,
+        database: options.database,
+        password: options.password,
+        port: options.port || 5432,
+    })
+
+    client.connect()
+
+    return client
 }
 
 export async function insertObject(client, file: Model.FileDescriptor) {

@@ -473,16 +473,12 @@ export async function dbPush(storeIp: string, storePort: number, storeToken: str
 
     log(`store ready`)
 
-    const { Client } = require('pg')
-
-    const client = new Client({
+    const client = DbHelpers.createClient({
         user: 'postgres',
         host: databaseHost,
         database: 'postgres',
-        password: databasePassword,
-        port: 5432,
+        password: databasePassword
     })
-    client.connect()
 
     let sources = await store.getSources()
     for (let source of sources) {
