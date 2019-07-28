@@ -85,7 +85,7 @@ export class YoutubeDownload {
                     resolve()
                 }
                 else {
-                    log.err(`ffmpeg error code ${code} (${signal})`)
+                    log.err(`youtube-dl error code ${code} (${signal})`)
                     reject()
                 }
             })
