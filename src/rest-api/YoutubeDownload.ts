@@ -190,7 +190,7 @@ export class YoutubeDownload {
 
         log(`committing changes`)
 
-        //fileNames.forEach(fileName => fs.unlinkSync(fileName))
+        fileNames.forEach(fileName => fs.unlinkSync(fileName))
         //fs.rmdirSync(directory)
 
         // fetch source state
