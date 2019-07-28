@@ -102,14 +102,21 @@ export class Playlists {
             }[]
         }
 
-        app.post('/plugins/playlists', async (req, res) => {
-            res.set('Content-Type', 'application/json')
+        interface PlaylistAddRequest {
+            items: {
+                name: string
+                sha: string
+                isDirectory: boolean
+                mimeType: string
+                date: number
+            }[]
+        }
 
-            let { name, descriptor } = req.body as PlaylistRequest
-            if (!name || !name.length || name.length > 200) {
-                res.send(JSON.stringify({ error: `no name specified/name too long` }))
-                return
-            }
+        // todo remove from a playlist
+
+        // add to the playlist
+        app.put('/plugins/playlists/:name', async (req, res) => {
+            res.set('Content-Type', 'application/json')
 
             let user = await Authorization.getUserFromRequest(req)
             if (!user) {
@@ -117,11 +124,44 @@ export class Playlists {
                 return
             }
 
-            let playlistDescriptor: Model.DirectoryDescriptor = { files: [] }
-            for (let entry of descriptor) {
-                playlistDescriptor.files.push({ contentSha: entry.sha, isDirectory: entry.isDirectory, lastWrite: entry.date, name: entry.name, size: 0 })
+            const name = req.params.name
+            let request = req.body as PlaylistAddRequest
+
+            if (!name || !name.length || name.length > 200) {
+                res.send(JSON.stringify({ error: `no name specified/name too long` }))
+                return
             }
 
+            let messages = []
+
+            // fetch playlist directory descriptor
+            const playlistSourceId = userSourceId(user, name)
+            let sourceState = await this.store.getSourceState(playlistSourceId)
+            if (!sourceState) {
+                messages.push(`creating playlist ${name}`)
+            }
+            let commit = sourceState && sourceState.currentCommitSha && await this.store.getCommit(sourceState.currentCommitSha)
+            let currentDescriptor = commit && commit.directoryDescriptorSha && await this.store.getDirectoryDescriptor(commit.directoryDescriptorSha)
+            if (!currentDescriptor) {
+                messages.push(`creating directory descriptor`)
+                currentDescriptor = {
+                    files: []
+                }
+            }
+
+            // add items
+            let playlistDescriptor: Model.DirectoryDescriptor = JSON.parse(JSON.stringify(currentDescriptor))
+            for (let item of request.items) {
+                playlistDescriptor.files.push({
+                    contentSha: item.sha,
+                    name: item.name,
+                    isDirectory: item.isDirectory,
+                    lastWrite: item.date,
+                    size: 0
+                })
+            }
+
+            // store new playlist directory descriptor
             let stringified = OrderedJson.stringify(playlistDescriptor)
             let playlistDescriptorRaw = Buffer.from(stringified, 'utf8')
             let playlistDescriptorSha = HashTools.hashStringSync(stringified)
@@ -136,11 +176,9 @@ export class Playlists {
                 }
             }
 
-            const sourceId = userSourceId(user, name)
-
-            let commitSha = await this.store.registerNewCommit(sourceId, playlistDescriptorSha)
-
-            res.send(JSON.stringify({ ok: `went well, commit ${commitSha} with descriptor ${playlistDescriptorSha} descriptor ${playlistDescriptorSha}` }))
+            // commit the changes
+            let commitSha = await this.store.registerNewCommit(playlistSourceId, playlistDescriptorSha)
+            res.send(JSON.stringify({ ok: `went well, commit ${commitSha} with descriptor ${playlistDescriptorSha} descriptor ${playlistDescriptorSha}`, messages }))
         })
     }
 }
