@@ -50,8 +50,8 @@ export class YoutubeDownload {
 
             try {
                 log(`starting youtube conversion ${info.url} on ${info.sourceId}, still ${this.conversionQueue.size()} in queue`)
-                await this.grabFromYoutube(info.url, info.sourceId)
-                log(`finished conversion`)
+                let result = await this.grabFromYoutube(info.url, info.sourceId)
+                log(`finished conversion (res:${JSON.stringify(result)})`)
             }
             catch (err) {
                 log.err(`sorry, failed conversion !`)
