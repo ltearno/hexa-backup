@@ -478,6 +478,7 @@ export const MimeTypes = {
     "mp21": "application/mp21",
     "mp2a": "audio/mpeg",
     "mp3": "audio/mpeg",
+    "opus": "audio/opus",
     "mp4": "video/mp4",
     "mp4a": "audio/mp4",
     "mp4s": "application/mp4",

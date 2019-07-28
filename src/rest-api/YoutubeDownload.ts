@@ -145,6 +145,9 @@ export class YoutubeDownload {
         log(`files downloaded, now pushing ${fileNames.length} files to repo`)
 
         for (let fileName of fileNames) {
+            if (fileName.endsWith('.part'))
+                continue
+
             let stats = fs.statSync(fileName)
             let contentSha = await HashTools.hashFile(fileName)
             let offset = await this.store.hasOneShaBytes(contentSha)
@@ -205,6 +208,9 @@ export class YoutubeDownload {
 
         // add item
         for (let content of contents) {
+            if (content.fileName.endsWith('.part'))
+                continue
+
             if (currentDescriptor.files.some(file => file.contentSha == content.sha)) {
                 log(`already uploaded ${content.sha} (${content.fileName}), skipped`)
                 continue
