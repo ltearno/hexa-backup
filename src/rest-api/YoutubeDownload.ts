@@ -132,8 +132,8 @@ export class YoutubeDownload {
         await this.downloadYoutubeUrl(url, tmpDir)
 
         let files = fs.readdirSync(tmpDir)
-        if (!files || files.length != 1) {
-            return null
+        if (!files) {
+            return { error: `no files after running youtube-dl` }
         }
 
         let fileNames = files.map(name => fsPath.join(tmpDir, name))
@@ -147,7 +147,8 @@ export class YoutubeDownload {
             const fd = fs.openSync(fileName, 'r')
             if (!fd) {
                 log.err(`error reading`)
-                return null
+                fs.closeSync(fd)
+                continue
             }
 
             while (offset < stats.size) {
@@ -214,7 +215,7 @@ export class YoutubeDownload {
 
             await this.store.putShaBytes(descriptorSha, 0, descriptorRaw)
             if (!await this.store.validateShaBytes(descriptorSha)) {
-                return null
+                return { error: `cannot validate directory descriptor` }
             }
         }
 
@@ -222,7 +223,7 @@ export class YoutubeDownload {
         let commitSha = await this.store.registerNewCommit(sourceId, descriptorSha)
         log(`went well, commit ${commitSha} with descriptor ${descriptorSha} descriptor ${descriptorSha}`)
 
-        return commitSha
+        return { ok: `committed with commit ${commitSha}`, convertedFiles: contents }
     }
 
     addEnpointsToApp(app: any) {
