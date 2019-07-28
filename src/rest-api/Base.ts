@@ -79,7 +79,7 @@ export class Base {
                     res.writeHead(206, head)
                     this.store.readShaAsStream(sha, start, end).pipe(res)
 
-                    log(`range-rq ${sha} ${start}-${end}(${parts[1]})/${fileSize}`)
+                    log.dbg(`range-rq ${sha} ${start}-${end}(${parts[1]})/${fileSize}`)
                 }
                 else {
                     if (req.query.type)
