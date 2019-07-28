@@ -91,7 +91,7 @@ export class YoutubeDownload {
     downloadYoutubeUrl(url: string, directory: string) {
         return new Promise((resolve, reject) => {
             log(`downloading in directory ${directory}`)
-            const child = spawn('youtube-dl', ['-x', '-f', 'bestaudio', '--audio-format', 'mp3', url], {
+            const child = spawn('youtube-dl', ['-x', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'mp3', url], {
                 cwd: directory
             })
 
@@ -136,43 +136,52 @@ export class YoutubeDownload {
             return null
         }
 
-        let fileName = fsPath.join(tmpDir, files[0])
+        let fileNames = files.map(name => fsPath.join(tmpDir, name))
+        let contents = []
 
-        let stats = fs.statSync(fileName)
-        let contentSha = await HashTools.hashFile(fileName)
-        let offset = await this.store.hasOneShaBytes(contentSha)
+        for (let fileName of fileNames) {
+            let stats = fs.statSync(fileName)
+            let contentSha = await HashTools.hashFile(fileName)
+            let offset = await this.store.hasOneShaBytes(contentSha)
 
-        const fd = fs.openSync(fileName, 'r')
-        if (!fd) {
-            log.err(`error reading`)
-            return null
-        }
-
-        while (offset < stats.size) {
-            const length = Math.min(1024 * 1024, stats.size - offset)
-            let buffer = Buffer.alloc(length)
-
-            let nbRead = fs.readSync(fd, buffer, 0, length, offset)
-            if (nbRead != length) {
-                log.err(`inconsistent read`)
-                break
+            const fd = fs.openSync(fileName, 'r')
+            if (!fd) {
+                log.err(`error reading`)
+                return null
             }
 
-            await this.store.putShaBytes(contentSha, offset, buffer)
+            while (offset < stats.size) {
+                const length = Math.min(1024 * 1024, stats.size - offset)
+                let buffer = Buffer.alloc(length)
 
-            offset += length
+                let nbRead = fs.readSync(fd, buffer, 0, length, offset)
+                if (nbRead != length) {
+                    log.err(`inconsistent read`)
+                    break
+                }
+
+                await this.store.putShaBytes(contentSha, offset, buffer)
+
+                offset += length
+            }
+
+            fs.closeSync(fd)
+
+            let validated = await this.store.validateShaBytes(contentSha)
+            if (validated) {
+                contents.push({
+                    sha: contentSha,
+                    fileName,
+                    size: stats.size
+                })
+            }
+            else {
+                log.err(`cannot validate downloaded sha`)
+            }
         }
 
-        fs.closeSync(fd)
-
-        fs.unlinkSync(fileName)
+        fileNames.forEach(fileName => fs.unlinkSync(fileName))
         fs.rmdirSync(tmpDir)
-
-        let validated = await this.store.validateShaBytes(contentSha)
-        if (!validated) {
-            log.err(`cannot validate downloaded sha`)
-            return null
-        }
 
         // fetch source state
         let sourceState = await this.store.getSourceState(sourceId)
@@ -185,13 +194,15 @@ export class YoutubeDownload {
         }
 
         // add item
-        currentDescriptor.files.push({
-            contentSha,
-            name: fsPath.basename(fileName),
-            isDirectory: false,
-            lastWrite: Date.now(),
-            size: stats.size
-        })
+        for (let content of contents) {
+            currentDescriptor.files.push({
+                contentSha: content.sha,
+                name: fsPath.basename(content.fileName),
+                isDirectory: false,
+                lastWrite: Date.now(),
+                size: content.size
+            })
+        }
 
         // store new directory descriptor
         let stringified = OrderedJson.stringify(currentDescriptor)
@@ -199,7 +210,7 @@ export class YoutubeDownload {
         let descriptorSha = HashTools.hashStringSync(stringified)
 
         if (!await this.store.hasOneShaBytes(descriptorSha)) {
-            log.dbg(`write directory descriptor name ${fsPath.basename(fileName)} to ${descriptorSha}`)
+            log.dbg(`write directory descriptor after converting ${url} to ${descriptorSha}`)
 
             await this.store.putShaBytes(descriptorSha, 0, descriptorRaw)
             if (!await this.store.validateShaBytes(descriptorSha)) {
