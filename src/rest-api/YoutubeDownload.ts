@@ -136,6 +136,8 @@ export class YoutubeDownload {
             return { error: `no files after running youtube-dl` }
         }
 
+        log(`files downloaded, now pushing to repo`)
+
         let fileNames = files.map(name => fsPath.join(tmpDir, name))
         let contents = []
 
@@ -180,6 +182,8 @@ export class YoutubeDownload {
                 log.err(`cannot validate downloaded sha`)
             }
         }
+
+        log(`committing changes`)
 
         fileNames.forEach(fileName => fs.unlinkSync(fileName))
         fs.rmdirSync(tmpDir)
