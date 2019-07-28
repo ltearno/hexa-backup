@@ -1,5 +1,5 @@
 import { HexaBackupStore } from '../HexaBackupStore'
-import { LoggerBuilder, OrderedJson, HashTools } from '@ltearno/hexa-js'
+import { Queue, LoggerBuilder, OrderedJson, HashTools } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
 import * as Model from '../Model'
 import { spawn } from 'child_process'
@@ -27,9 +27,37 @@ function userSourceId(user: string) {
     return `plugin-youtubedownload-${user}`
 }
 
+interface ConversionJob {
+    url: string
+    sourceId: string
+}
 
 export class YoutubeDownload {
+    private conversionQueue = new Queue.Queue<ConversionJob>('youtube-conversions')
+
     constructor(private store: HexaBackupStore) {
+    }
+
+    private async conversionLoop() {
+        const waiter = Queue.waitPopper(this.conversionQueue)
+
+        while (true) {
+            const info = await waiter()
+            if (!info) {
+                log(`finished conversion loop`)
+                break
+            }
+
+            try {
+                log(`starting youtube conversion ${info.url} on ${info.sourceId}, still ${this.conversionQueue.size()} in queue`)
+                await this.grabFromYoutube(info.url, info.sourceId)
+                log(`finished conversion`)
+            }
+            catch (err) {
+                log.err(`sorry, failed conversion !`)
+                log.err(err)
+            }
+        }
     }
 
     updateYoutubeDl() {
@@ -92,7 +120,103 @@ export class YoutubeDownload {
         })
     }
 
+    async grabFromYoutube(url, sourceId) {
+        log(`fetch youtube from url ${url} on source ${sourceId}`)
+
+        await this.updateYoutubeDl()
+        log(`youtube-dl is up to date`)
+
+        let tmpDir = fsPath.join(os.homedir(), HashTools.hashStringSync(url + Date.now()))
+        fs.mkdirSync(tmpDir)
+
+        await this.downloadYoutubeUrl(url, tmpDir)
+
+        let files = fs.readdirSync(tmpDir)
+        if (!files || files.length != 1) {
+            return null
+        }
+
+        let fileName = fsPath.join(tmpDir, files[0])
+
+        let stats = fs.statSync(fileName)
+        let contentSha = await HashTools.hashFile(fileName)
+        let offset = await this.store.hasOneShaBytes(contentSha)
+
+        const fd = fs.openSync(fileName, 'r')
+        if (!fd) {
+            log.err(`error reading`)
+            return null
+        }
+
+        while (offset < stats.size) {
+            const length = Math.min(1024 * 1024, stats.size - offset)
+            let buffer = Buffer.alloc(length)
+
+            let nbRead = fs.readSync(fd, buffer, 0, length, offset)
+            if (nbRead != length) {
+                log.err(`inconsistent read`)
+                break
+            }
+
+            await this.store.putShaBytes(contentSha, offset, buffer)
+
+            offset += length
+        }
+
+        fs.closeSync(fd)
+
+        fs.unlinkSync(fileName)
+        fs.rmdirSync(tmpDir)
+
+        let validated = await this.store.validateShaBytes(contentSha)
+        if (!validated) {
+            log.err(`cannot validate downloaded sha`)
+            return null
+        }
+
+        // fetch source state
+        let sourceState = await this.store.getSourceState(sourceId)
+        let commit = sourceState && sourceState.currentCommitSha && await this.store.getCommit(sourceState.currentCommitSha)
+        let currentDescriptor = commit && commit.directoryDescriptorSha && await this.store.getDirectoryDescriptor(commit.directoryDescriptorSha)
+        if (!currentDescriptor) {
+            currentDescriptor = {
+                files: []
+            }
+        }
+
+        // add item
+        currentDescriptor.files.push({
+            contentSha,
+            name: fsPath.basename(fileName),
+            isDirectory: false,
+            lastWrite: Date.now(),
+            size: stats.size
+        })
+
+        // store new directory descriptor
+        let stringified = OrderedJson.stringify(currentDescriptor)
+        let descriptorRaw = Buffer.from(stringified, 'utf8')
+        let descriptorSha = HashTools.hashStringSync(stringified)
+
+        if (!await this.store.hasOneShaBytes(descriptorSha)) {
+            log.dbg(`write directory descriptor name ${fsPath.basename(fileName)} to ${descriptorSha}`)
+
+            await this.store.putShaBytes(descriptorSha, 0, descriptorRaw)
+            if (!await this.store.validateShaBytes(descriptorSha)) {
+                return null
+            }
+        }
+
+        // commit the changes
+        let commitSha = await this.store.registerNewCommit(sourceId, descriptorSha)
+        log(`went well, commit ${commitSha} with descriptor ${descriptorSha} descriptor ${descriptorSha}`)
+
+        return commitSha
+    }
+
     addEnpointsToApp(app: any) {
+        this.conversionLoop()
+
         app.post('/plugins/youtube/fetch', async (req, res) => {
             res.set('Content-Type', 'application/json')
 
@@ -103,99 +227,14 @@ export class YoutubeDownload {
             }
 
             let request = req.body as YoutubeFetchRequest
-            log(`fetch youtube from url ${request.url}`)
 
-            await this.updateYoutubeDl()
-            log(`youtube-dl is up to date`)
-
-            let tmpDir = fsPath.join(os.homedir(), HashTools.hashStringSync(request.url + Date.now()))
-            fs.mkdirSync(tmpDir)
-
-            await this.downloadYoutubeUrl(request.url, tmpDir)
-
-            let files = fs.readdirSync(tmpDir)
-            if (!files || files.length != 1) {
-                res.send(JSON.stringify({ result: 'error' }))
-                return
-            }
-
-            let fileName = fsPath.join(tmpDir, files[0])
-
-            let stats = fs.statSync(fileName)
-            let contentSha = await HashTools.hashFile(fileName)
-            let offset = await this.store.hasOneShaBytes(contentSha)
-
-            const fd = fs.openSync(fileName, 'r')
-            if (!fd) {
-                log.err(`error reading`)
-                return
-            }
-
-            while (offset < stats.size) {
-                const length = Math.min(1024 * 1024, stats.size - offset)
-                let buffer = Buffer.alloc(length)
-
-                let nbRead = fs.readSync(fd, buffer, 0, length, offset)
-                if (nbRead != length) {
-                    log.err(`inconsistent read`)
-                    break
-                }
-
-                await this.store.putShaBytes(contentSha, offset, buffer)
-
-                offset += length
-            }
-
-            fs.closeSync(fd)
-
-            fs.unlinkSync(fileName)
-            fs.rmdirSync(tmpDir)
-
-            let validated = await this.store.validateShaBytes(contentSha)
-            if (!validated) {
-                log.err(`cannot validate downloaded sha`)
-                res.send(JSON.stringify({ result: 'cannot validate downloaded sha' }))
-                return
-            }
-
-            // fetch source state
+            // url sourceId
+            let url = request.url
             let sourceId = userSourceId(user)
-            let sourceState = await this.store.getSourceState(sourceId)
-            let commit = sourceState && sourceState.currentCommitSha && await this.store.getCommit(sourceState.currentCommitSha)
-            let currentDescriptor = commit && commit.directoryDescriptorSha && await this.store.getDirectoryDescriptor(commit.directoryDescriptorSha)
-            if (!currentDescriptor) {
-                currentDescriptor = {
-                    files: []
-                }
-            }
 
-            // add item
-            currentDescriptor.files.push({
-                contentSha,
-                name: fsPath.basename(fileName),
-                isDirectory: false,
-                lastWrite: Date.now(),
-                size: stats.size
-            })
+            this.conversionQueue.push({ url, sourceId })
 
-            // store new directory descriptor
-            let stringified = OrderedJson.stringify(currentDescriptor)
-            let descriptorRaw = Buffer.from(stringified, 'utf8')
-            let descriptorSha = HashTools.hashStringSync(stringified)
-
-            if (!await this.store.hasOneShaBytes(descriptorSha)) {
-                log.dbg(`write directory descriptor for user ${user}, name ${fsPath.basename(fileName)} to ${descriptorSha}`)
-
-                await this.store.putShaBytes(descriptorSha, 0, descriptorRaw)
-                if (!await this.store.validateShaBytes(descriptorSha)) {
-                    res.send(JSON.stringify({ error: `cannot validate directory descriptor content` }))
-                    return
-                }
-            }
-
-            // commit the changes
-            let commitSha = await this.store.registerNewCommit(sourceId, descriptorSha)
-            res.send(JSON.stringify({ ok: `went well, commit ${commitSha} with descriptor ${descriptorSha} descriptor ${descriptorSha}` }))
+            res.send(JSON.stringify({ ok: `conversion pushed` }))
         })
     }
 }
