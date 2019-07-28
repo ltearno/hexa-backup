@@ -91,7 +91,7 @@ export class YoutubeDownload {
     downloadYoutubeUrl(url: string, directory: string) {
         return new Promise((resolve, reject) => {
             log(`downloading in directory ${directory}`)
-            const child = spawn('youtube-dl', ['-x', '--no-progress', '--yes-playlist', '-f', 'bestaudio', url], {
+            const child = spawn('youtube-dl', ['-x', '-i', '--no-progress', '--yes-playlist', '-f', 'bestaudio', url], {
                 cwd: directory
             })
 
