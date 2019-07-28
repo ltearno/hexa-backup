@@ -137,9 +137,6 @@ export class Playlists {
             // fetch playlist directory descriptor
             const playlistSourceId = userSourceId(user, name)
             let sourceState = await this.store.getSourceState(playlistSourceId)
-            if (!sourceState) {
-                messages.push(`creating playlist ${name}`)
-            }
             let commit = sourceState && sourceState.currentCommitSha && await this.store.getCommit(sourceState.currentCommitSha)
             let currentDescriptor = commit && commit.directoryDescriptorSha && await this.store.getDirectoryDescriptor(commit.directoryDescriptorSha)
             if (!currentDescriptor) {
