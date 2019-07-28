@@ -63,7 +63,7 @@ export class YoutubeDownload {
     downloadYoutubeUrl(url: string, directory: string) {
         return new Promise((resolve, reject) => {
             log(`downloading in directory ${directory}`)
-            const child = spawn('youtube-dl', ['-x', '--audio-format', 'mp3', url], {
+            const child = spawn('youtube-dl', ['-x', '-f', "'bestaudio'", '--audio-format', 'mp3', url], {
                 cwd: directory
             })
 
@@ -108,7 +108,7 @@ export class YoutubeDownload {
             await this.updateYoutubeDl()
             log(`youtube-dl is up to date`)
 
-            let tmpDir = fsPath.join(os.tmpdir(), HashTools.hashStringSync(request.url + Date.now()))
+            let tmpDir = fsPath.join(os.homedir(), HashTools.hashStringSync(request.url + Date.now()))
             fs.mkdirSync(tmpDir)
 
             await this.downloadYoutubeUrl(request.url, tmpDir)
