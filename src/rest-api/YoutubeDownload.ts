@@ -139,15 +139,17 @@ export class YoutubeDownload {
             return { error: `no files after running youtube-dl` }
         }
 
-        log(`files downloaded, now pushing to repo`)
-
         let fileNames = files.map(name => fsPath.join(directory, name))
         let contents = []
+
+        log(`files downloaded, now pushing ${fileNames.length} files to repo`)
 
         for (let fileName of fileNames) {
             let stats = fs.statSync(fileName)
             let contentSha = await HashTools.hashFile(fileName)
             let offset = await this.store.hasOneShaBytes(contentSha)
+
+            log(`pushing ${fileName} to repo`)
 
             const fd = fs.openSync(fileName, 'r')
             if (!fd) {
