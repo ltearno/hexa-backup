@@ -120,25 +120,28 @@ export class YoutubeDownload {
         })
     }
 
+    private conversionCacheDir = '.hb-youtubedlcache'
+
     async grabFromYoutube(url, sourceId) {
         log(`fetch youtube from url ${url} on source ${sourceId}`)
 
         await this.updateYoutubeDl()
         log(`youtube-dl is up to date`)
 
-        let tmpDir = fsPath.join(os.homedir(), HashTools.hashStringSync(url + Date.now()))
-        fs.mkdirSync(tmpDir)
+        if (!fs.existsSync(this.conversionCacheDir))
+            fs.mkdirSync(this.conversionCacheDir)
+        const directory = this.conversionCacheDir
 
-        await this.downloadYoutubeUrl(url, tmpDir)
+        await this.downloadYoutubeUrl(url, directory)
 
-        let files = fs.readdirSync(tmpDir)
+        let files = fs.readdirSync(directory)
         if (!files) {
             return { error: `no files after running youtube-dl` }
         }
 
         log(`files downloaded, now pushing to repo`)
 
-        let fileNames = files.map(name => fsPath.join(tmpDir, name))
+        let fileNames = files.map(name => fsPath.join(directory, name))
         let contents = []
 
         for (let fileName of fileNames) {
@@ -185,8 +188,8 @@ export class YoutubeDownload {
 
         log(`committing changes`)
 
-        fileNames.forEach(fileName => fs.unlinkSync(fileName))
-        fs.rmdirSync(tmpDir)
+        //fileNames.forEach(fileName => fs.unlinkSync(fileName))
+        //fs.rmdirSync(directory)
 
         // fetch source state
         let sourceState = await this.store.getSourceState(sourceId)
@@ -200,6 +203,11 @@ export class YoutubeDownload {
 
         // add item
         for (let content of contents) {
+            if (currentDescriptor.files.some(file => file.contentSha == content.sha)) {
+                log(`already uploaded ${content.sha} (${content.fileName}), skipped`)
+                continue
+            }
+
             currentDescriptor.files.push({
                 contentSha: content.sha,
                 name: fsPath.basename(content.fileName),
