@@ -78,11 +78,11 @@ export class YoutubeDownload {
 
             child.on('exit', (code, signal) => {
                 if (!code) {
-                    resolve()
+                    resolve(true)
                 }
                 else {
                     log.err(`youtube-dl update error code ${code} (${signal})`)
-                    reject()
+                    resolve(false)
                 }
             })
         })
@@ -110,11 +110,11 @@ export class YoutubeDownload {
             child.on('exit', (code, signal) => {
                 if (!code) {
                     log('done')
-                    resolve()
+                    resolve(true)
                 }
                 else {
                     log.err(`youtube-dl error code ${code} (${signal})`)
-                    reject()
+                    resolve(false)
                 }
             })
         })
