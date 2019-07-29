@@ -450,14 +450,10 @@ async function run() {
             .withStore()
             .withDatabase(),
         executor: async (options) => {
-            const storeIp = options['storeIp']
-            const storePort = options['storePort']
-            const storeToken = options['storeToken']
-            const insecure = !!options['insecure']
-            const databaseHost = options['databaseHost']
-            const databasePassword = options['databasePassword']
+            const storeParams = getStoreParams(options)
+            const databaseParams = getDatabaseParams(options)
 
-            await Commands.exifExtract(storeIp, storePort, storeToken, insecure, databaseHost, databasePassword)
+            await Commands.exifExtract(storeParams, databaseParams)
 
             process.exit(0)
         }

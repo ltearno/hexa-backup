@@ -107,6 +107,18 @@ export async function insertObjectExif(client, sha: string, exif: object) {
     })
 }
 
+export async function hasObjectExif(client, sha: string) {
+    if (!sha)
+        return
+
+    let results: any = await dbQuery(client, {
+        text: 'select sha from object_exifs where sha=$1 and exif is not null',
+        values: [sha],
+    })
+
+    return !!(results && results.rows && results.rows.length)
+}
+
 export async function hasObjectSource(client, sha: string, sourceId: string) {
     let results: any = await dbQuery(client, `select sha, sourceId from object_sources where sha='${sha}' and sourceId='${sourceId}' limit 1;`)
     return !!(results && results.rows && results.rows.length)
