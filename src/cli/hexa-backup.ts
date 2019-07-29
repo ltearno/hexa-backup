@@ -7,6 +7,75 @@ import * as Commands from '../Commands'
 const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)
 
+class CliOptionsBuilder {
+    constructor(private raw = {}) { }
+
+    build() {
+        return this.raw
+    }
+
+    with(name: string, value: any) {
+        this.raw[name] = value
+        return this
+    }
+
+    withVerbose() {
+        this.raw['verbose'] = false
+
+        return this
+    }
+
+    withStore() {
+        this.raw['storeIp'] = "localhost"
+        this.raw['storePort'] = 5005
+        this.raw['storeToken'] = null
+        this.raw['insecure'] = false
+
+        return this
+    }
+
+    withDatabase() {
+        this.raw['database'] = 'postgres'
+        this.raw['databaseHost'] = "localhost"
+        this.raw['databasePort'] = 5432
+        this.raw['databaseUser'] = 'postgres'
+        this.raw['databasePassword'] = "hexa-backup"
+
+        return this
+    }
+}
+
+function newOptions(base: any = {}) {
+    return new CliOptionsBuilder(base)
+}
+
+function getVerboseParam(options) {
+    return !!options['verbose']
+}
+
+function getSourceIdParam(options) {
+    return options['sourceId'] as string
+}
+
+function getStoreParams(options) {
+    return {
+        host: options['storeIp'] as string,
+        port: options['storePort'] as number,
+        token: options['storeToken'] as string,
+        insecure: !!options['insecure'] as boolean
+    }
+}
+
+function getDatabaseParams(options) {
+    return {
+        database: options['postgres'] as string,
+        host: options['databaseHost'] as string,
+        port: options['databasePort'] as number,
+        user: options['databaseUser'] as string,
+        password: options['databasePassword'] as string
+    }
+}
+
 // i only care about people sniffing the local network, not people making man in the middle attacks...
 // but that's is bad, for sure
 let hacky: any = process.env
@@ -66,21 +135,14 @@ async function run() {
         {
             id: "refs",
             verbs: ["refs"],
-            options: {
-                storeIp: "localhost",
-                storePort: 5005,
-                storeToken: null,
-                verbose: false,
-                insecure: false
-            },
+            options: newOptions()
+                .withVerbose()
+                .withStore(),
             executor: async (options) => {
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const storeToken = options['storeToken']
-                const verbose = options['verbose']
-                const insecure = !!options['insecure']
+                const storeParams = getStoreParams(options)
+                const verbose = getVerboseParam(options)
 
-                await Commands.refs(storeIp, storePort, storeToken, verbose, insecure)
+                await Commands.refs(storeParams, verbose)
 
                 process.exit(0)
             }
@@ -88,21 +150,14 @@ async function run() {
         {
             id: "sources",
             verbs: ["sources"],
-            options: {
-                storeIp: "localhost",
-                storePort: 5005,
-                storeToken: null,
-                verbose: false,
-                insecure: false
-            },
+            options: newOptions()
+                .withVerbose()
+                .withStore(),
             executor: async (options) => {
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const storeToken = options['storeToken']
-                const verbose = options['verbose']
-                const insecure = !!options['insecure']
+                const storeParams = getStoreParams(options)
+                const verbose = getVerboseParam(options)
 
-                await Commands.sources(storeIp, storePort, storeToken, verbose, insecure)
+                await Commands.sources(storeParams, verbose)
 
                 process.exit(0)
             }
@@ -110,21 +165,12 @@ async function run() {
         {
             id: "stats",
             verbs: ["stats"],
-            options: {
-                storeIp: "localhost",
-                storePort: 5005,
-                storeToken: null,
-                verbose: false,
-                insecure: false
-            },
+            options: newOptions()
+                .withStore(),
             executor: async (options) => {
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const storeToken = options['storeToken']
-                const verbose = options['verbose']
-                const insecure = !!options['insecure']
+                const storeParams = getStoreParams(options)
 
-                await Commands.stats(storeIp, storePort, storeToken, verbose, insecure)
+                await Commands.stats(storeParams)
 
                 process.exit(0)
             }
@@ -138,7 +184,7 @@ async function run() {
             },
             executor: async (options) => {
                 const directory = fsPath.resolve(options['directory'])
-                const verbose = options['verbose']
+                const verbose = !!options['verbose']
 
                 await Commands.browse(directory, verbose)
 
@@ -148,23 +194,16 @@ async function run() {
         {
             id: "history",
             verbs: ["history"],
-            options: {
-                sourceId: defaultSourceId,
-                storeIp: "localhost",
-                storePort: 5005,
-                storeToken: null,
-                verbose: false,
-                insecure: false
-            },
+            options: newOptions()
+                .with('sourceId', defaultSourceId)
+                .withVerbose()
+                .withStore(),
             executor: async (options) => {
-                const sourceId = options['sourceId']
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const storeToken = options['storeToken']
-                const verbose = options['verbose']
-                const insecure = !!options['insecure']
+                const storeParams = getStoreParams(options)
+                const sourceId = getSourceIdParam(options)
+                const verbose = getVerboseParam(options)
 
-                await Commands.history(sourceId, storeIp, storePort, storeToken, verbose, insecure)
+                await Commands.history(sourceId, storeParams, verbose)
 
                 process.exit(0)
             }
@@ -407,36 +446,15 @@ async function run() {
         {
             id: "dbpush",
             verbs: ["dbpush"],
-            options: {
-                sourceId: defaultSourceId,
-                storeIp: "localhost",
-                storePort: 5005,
-                storeToken: null,
-                insecure: false,
-                database: 'postgres',
-                databaseHost: "localhost",
-                databasePort: 5432,
-                databaseUser: 'postgres',
-                databasePassword: "hexa-backup"
-            },
+            options: newOptions()
+                .withStore()
+                .withDatabase()
+                .build(),
             executor: async (options) => {
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const storeToken = options['storeToken']
-                const insecure = !!options['insecure']
-                const database = options['postgres']
-                const databaseHost = options['databaseHost']
-                const databasePort = options['databasePort']
-                const databaseUser = options['databaseUser']
-                const databasePassword = options['databasePassword']
+                const storeParams = getStoreParams(options)
+                const databaseParams = getDatabaseParams(options)
 
-                await Commands.dbPush(storeIp, storePort, storeToken, insecure, {
-                    host: databaseHost,
-                    port: databasePort,
-                    database: database,
-                    user: databaseUser,
-                    password: databasePassword
-                })
+                await Commands.dbPush(storeParams, databaseParams)
 
                 process.exit(0)
             }

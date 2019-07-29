@@ -13,6 +13,13 @@ import * as DbHelpers from './DbHelpers'
 
 const log = LoggerBuilder.buildLogger('Commands')
 
+export interface StoreConnectionParams {
+    host: string
+    port: number
+    token: string
+    insecure: boolean
+}
+
 export interface DbConnectionParams {
     host: string
     database: string
@@ -28,8 +35,8 @@ interface TreeDirectoryInfo {
     directories: TreeDirectoryInfo[]
 }
 
-export async function refs(storeIp, storePort, storeToken, _verbose, insecure: boolean) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, insecure, false)).remoteStore
+export async function refs(storeParams: StoreConnectionParams, _verbose: boolean) {
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
 
     console.log(`refs on store`)
     console.log()
@@ -47,8 +54,8 @@ export async function refs(storeIp, storePort, storeToken, _verbose, insecure: b
 }
 
 
-export async function sources(storeIp, storePort, storeToken: string, verbose, insecure: boolean) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, insecure, false)).remoteStore
+export async function sources(storeParams: StoreConnectionParams, verbose) {
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
 
     console.log(`sources on store`)
 
@@ -109,8 +116,8 @@ export async function sources(storeIp, storePort, storeToken: string, verbose, i
     }
 }
 
-export async function stats(storeIp, storePort, storeToken: string, _verbose, insecure: boolean) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, insecure, false)).remoteStore
+export async function stats(storeParams: StoreConnectionParams) {
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
 
     console.log(`stats on store`)
 
@@ -126,8 +133,8 @@ export async function stats(storeIp, storePort, storeToken: string, _verbose, in
 }
 
 
-export async function history(sourceId: string, storeIp: string, storePort: number, storeToken: string, verbose: boolean, insecure: boolean) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, insecure, false)).remoteStore
+export async function history(sourceId: string, storeParams: StoreConnectionParams, verbose: boolean) {
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
 
     console.log(`history of ${sourceId} in store`)
     console.log()
@@ -476,8 +483,8 @@ export async function pull(directory: string, sourceId: string, storeIp: string,
     log(`pull done`)
 }
 
-export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, dbParams: DbConnectionParams) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, insecure, false)).remoteStore
+export async function dbPush(storeParams: StoreConnectionParams, dbParams: DbConnectionParams) {
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
 
     log(`store ready`)
 
