@@ -104,6 +104,8 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
             for (let row of rows) {
                 nbRows++
                 let sha = row['sha']
+                if (!sha)
+                    continue
 
                 log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
