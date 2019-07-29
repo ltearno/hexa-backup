@@ -111,6 +111,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                     let buffer = await store.readShaBytes(sha, 0, 65635)
                     if (!buffer)
                         throw `cannot read 65kb from sha ${sha}`
+                    log(`read ${buffer.length} bytes`)
 
                     let exifParser = exifParserBuilder.create(buffer)
                     let exif = exifParser.parse()
