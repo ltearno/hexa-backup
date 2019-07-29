@@ -58,6 +58,7 @@ export class BackgroundJobs {
                 log(`preparing for job ${uuid}`)
 
                 const info = this.waitingJobs.shift()
+                this.currentJob = info
                 if (uuid != info.id) {
                     log.err(`DISCREPANCIES DKJHGKJHGDZZ ${uuid} / ${info.id}`)
                 }
@@ -71,9 +72,11 @@ export class BackgroundJobs {
                 catch (err) {
                     error = err
                 }
+                this.currentJob = null
                 log(`finished job ${info.name}, id:${info.id}, result:${result}, err:${error}`)
             }
             catch (err) {
+                this.currentJob = null
                 log(`error ${err}, quitting background jobs loop`)
                 break
             }
