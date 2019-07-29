@@ -175,8 +175,7 @@ export class YoutubeDownload {
             let sourceId = userSourceId(user)
 
             this.backgroundJobs.addJob(
-                null,
-                `youtube-dl`,
+                `youtube-dl ${url}`,
                 async () => {
                     try {
                         log(`starting youtube conversion ${url} on ${sourceId}`)
@@ -189,8 +188,7 @@ export class YoutubeDownload {
                         log.err(err)
                         return null
                     }
-                },
-                async (info, result, error) => { })
+                })
 
             res.send(JSON.stringify({ ok: `conversion pushed` }))
         })

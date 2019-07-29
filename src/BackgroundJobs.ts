@@ -10,22 +10,18 @@ const log = LoggerBuilder.buildLogger('bkgnd-jobs')
 
 type JobBuilder = () => Promise<any>
 
-type JobWaiter<D, R> = (data: D, result: R, error) => any | Promise<any>
-
 interface Job<D, R> {
     clientName: string
     id: string
-    data: any
     name: string
     builder: JobBuilder
-    waiter: JobWaiter<D, R>
 }
 
 const uuid = () => HashTools.hashStringSync(`${Date.now()}-${Math.random()}-${Math.random()}`)
 
 export interface BackgroundJobClientApi {
     // returns the job's internal id
-    addJob<D, R>(data: D, name: string, builder: JobBuilder, waiter: JobWaiter<D, R>): string
+    addJob<D, R>(name: string, builder: JobBuilder): string
 }
 
 export class BackgroundJobs {
@@ -58,38 +54,26 @@ export class BackgroundJobs {
                 result = await info.builder()
             }
             catch (err) {
-                log.err(`in job "${info.name}": ${err}`)
                 error = err
             }
-
-            try {
-                if (info.waiter) {
-                    await info.waiter(info.data, result, error)
-                }
-            }
-            catch (err) {
-                log.err(`in job's waiter "${info.name}": ${err}`)
-            }
-            log(`finished job ${info.name} - ${info.id}`)
+            log(`finished job ${info.name}, id:${info.id}, result:${result}, err:${error}`)
         }
     }
 
     createClient(clientName: string): BackgroundJobClientApi {
         return {
-            addJob: (data, name, builder, waiter) => this.addJob(clientName, data, name, builder, waiter)
+            addJob: (name, builder) => this.addJob(clientName, name, builder)
         }
     }
 
-    private addJob<D, R>(clientName: string, data: D, name: string, builder: JobBuilder, waiter: JobWaiter<D, R>): string {
+    private addJob<D, R>(clientName: string, name: string, builder: JobBuilder): string {
         const id = uuid()
 
         const job = {
             clientName,
             id,
-            data,
             name,
-            builder,
-            waiter
+            builder
         }
 
         this.waitingJobs.push(job)

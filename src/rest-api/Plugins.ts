@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import { HexaBackupStore } from '../HexaBackupStore'
 import { LoggerBuilder } from '@ltearno/hexa-js'
 import * as VideoConverter from '../VideoConverter'
+import { BackgroundJobs } from '../BackgroundJobs';
 
 export class Plugins {
     thumbnailCache = new Map<string, Buffer>()
@@ -14,9 +15,8 @@ export class Plugins {
 
     private videoConverter: VideoConverter.VideoConverter
 
-    constructor(private store: HexaBackupStore) {
-        this.videoConverter = new VideoConverter.VideoConverter(this.store)
-        this.videoConverter.init()
+    constructor(private store: HexaBackupStore, backgroundJobs: BackgroundJobs) {
+        this.videoConverter = new VideoConverter.VideoConverter(this.store, backgroundJobs)
     }
 
     addEnpointsToApp(app: any) {
@@ -99,7 +99,7 @@ export class Plugins {
                 }
             }
             catch (err) {
-                res.set('Content-Type', 'application/json')    
+                res.set('Content-Type', 'application/json')
                 res.send(`{"error":"missing sha ${sha}!"}`)
             }
         })

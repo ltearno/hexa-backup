@@ -34,7 +34,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     const backgroundJobs = new BackgroundJobs.BackgroundJobs()
 
     const metadataServer = new Metadata.Server(directory)
-    const pluginsServer = new RestApiPlugins.Plugins(store)
+    const pluginsServer = new RestApiPlugins.Plugins(store, backgroundJobs)
     const rpcServer = new RestApiRpc.Rpc(store)
     const baseServer = new RestApiBase.Base(store)
     const statefulServer = new RestApiStateful.Stateful(store, databaseParams)

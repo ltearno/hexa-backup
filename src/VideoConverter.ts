@@ -48,7 +48,7 @@ export class VideoConverter {
 
             this.videoConversions.set(sha, info)
 
-            this.backgroundJobs.addJob(info, `video conversion`, async () => {
+            this.backgroundJobs.addJob(`video conversion ${info.sha}`, async () => {
                 try {
                     log(`starting video conversion ${info.sha}`)
                     info.result = await this.convertVideo(info.sha)
@@ -62,9 +62,7 @@ export class VideoConverter {
                 }
 
                 this.videoConversions.delete(info.sha)
-            },
-                (info, result, error) => { }
-            )
+            })
 
             return
         })
