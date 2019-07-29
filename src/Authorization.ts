@@ -1,5 +1,7 @@
 import { IHexaBackupStore } from './HexaBackupStore'
 
+// TODO if database is configured, use it (if not available, fail)
+
 export function getUserFromRequest(request: any): string {
     return request.headers["x-authenticated-user"] || 'anonymous'
 }

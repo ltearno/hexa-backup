@@ -5,6 +5,7 @@ import { spawn } from 'child_process'
 import * as fs from 'fs'
 import * as fsPath from 'path'
 import * as Operations from '../Operations'
+import * as BackgroundJobs from '../BackgroundJobs'
 
 const log = LoggerBuilder.buildLogger('plugins-youtube')
 
@@ -25,7 +26,7 @@ export class YoutubeDownload {
     private conversionCacheDir = '.hb-youtubedlcache'
     private conversionQueue = new Queue.Queue<ConversionJob>('youtube-conversions')
 
-    constructor(private store: HexaBackupStore) { }
+    constructor(private store: HexaBackupStore, private backgroundJobs: BackgroundJobs.BackgroundJobs) { }
 
     private async conversionLoop() {
         const waiter = Queue.waitPopper(this.conversionQueue)

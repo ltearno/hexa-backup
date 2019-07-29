@@ -15,6 +15,7 @@ import * as RestApiStateful from './rest-api/Stateful'
 import * as Miscellanous from './rest-api/Miscellanous'
 import * as RestApiPlaylists from './rest-api/Playlists'
 import * as YoutubeDownload from './rest-api/YoutubeDownload'
+import * as BackgroundJobs from './BackgroundJobs'
 
 const log = LoggerBuilder.buildLogger('web-server')
 
@@ -30,6 +31,8 @@ export async function runStore(directory: string, port: number, insecure: boolea
     log(`preparing store and components in ${directory}`)
     let store = new HexaBackupStore(directory)
 
+    const backgroundJobs = new BackgroundJobs.BackgroundJobs()
+
     const metadataServer = new Metadata.Server(directory)
     const pluginsServer = new RestApiPlugins.Plugins(store)
     const rpcServer = new RestApiRpc.Rpc(store)
@@ -37,7 +40,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     const statefulServer = new RestApiStateful.Stateful(store, databaseParams)
     const miscServer = new Miscellanous.Miscellanous(store)
     const playlistServer = new RestApiPlaylists.Playlists(store)
-    const youtubeDownloadServer = new YoutubeDownload.YoutubeDownload(store)
+    const youtubeDownloadServer = new YoutubeDownload.YoutubeDownload(store, backgroundJobs)
 
     const peerStores = new PeerStores.PeerStores(store)
     await peerStores.init()
