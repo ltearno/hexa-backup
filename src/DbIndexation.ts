@@ -101,11 +101,11 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                 break
             }
 
-            for (let rowI in rows) {
-                let row = rows[rowI]
+            for (let row of rows) {
+                nbRows++
                 let sha = row['sha']
 
-                log(`processing ${sha} (${rowI + 1}/${nbTotal} rows so far (${nbRowsError} errors))`)
+                log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
                 try {
                     let buffer = await store.readShaBytes(sha, 0, 65635)
@@ -123,13 +123,13 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                     log(`inserting exif`)
                     await DbHelpers.insertObjectExif(client2, sha, exif.tags)
                     log(`inserted exif`)
-
-                    nbRows++
                 }
                 catch (err) {
                     nbRowsError++
                     log.err(`error processing image ${sha} : ${err}`)
                 }
+
+                log(`endp`)
             }
         }
     } catch (err) {
