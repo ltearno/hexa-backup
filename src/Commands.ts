@@ -473,7 +473,7 @@ export async function dbPush(storeIp: string, storePort: number, storeToken: str
 
     log(`store ready`)
 
-    const client = DbHelpers.createClient({
+    const client = await DbHelpers.createClient({
         user: 'postgres',
         host: databaseHost,
         database: 'postgres',
@@ -551,37 +551,19 @@ export async function dbImage(storeIp: string, storePort: number, storeToken: st
 
     log(`store ready`)
 
-    const { Client } = require('pg')
-
-    const client = new Client({
+    const client = await DbHelpers.createClient({
         user: 'postgres',
         host: databaseHost,
         database: 'postgres',
         password: databasePassword,
-        port: 5432,
+        port: 5432
     })
-    client.connect()
 
     log(`connected to database`)
 
-    const Cursor = require('pg-cursor')
-
     const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite, min(mimeType) as mimeType from objects where size>100000 and mimeType ilike '${mimeType}/%' group by sha order by min(lastWrite);`
 
-    const cursor = client.query(new Cursor(query))
-
-    const readFromCursor: () => Promise<any[]> = async () => {
-        return new Promise((resolve, reject) => {
-            cursor.read(100, function (err, rows) {
-                if (err) {
-                    reject(err)
-                    return
-                }
-
-                resolve(rows)
-            })
-        })
-    }
+    const cursor = await DbHelpers.createCursor(client, query)
 
     let rootDirectoryDescriptor: Model.DirectoryDescriptor = { files: [] }
     let currentDirectoryDescriptor: Model.DirectoryDescriptor = { files: [] }
@@ -626,7 +608,7 @@ export async function dbImage(storeIp: string, storePort: number, storeToken: st
 
     try {
         while (true) {
-            let rows = await readFromCursor()
+            let rows = await cursor.read()
             if (!rows || !rows.length) {
                 log(`finished cursor`)
                 await maybePurge(0)
@@ -658,10 +640,7 @@ export async function dbImage(storeIp: string, storePort: number, storeToken: st
         log.err(`error parsing sql cursor : ${err}`)
     }
 
-    await new Promise(resolve => {
-        cursor.close(resolve)
-    })
-
+    await cursor.close()
     client.end()
 }
 
@@ -670,46 +649,22 @@ export async function exifExtract(storeIp: string, storePort: number, storeToken
 
     log(`store ready`)
 
-    const { Client } = require('pg')
-
-    const client = new Client({
+    const dbOptions = {
         user: 'postgres',
         host: databaseHost,
         database: 'postgres',
         password: databasePassword,
         port: 5432,
-    })
-    client.connect()
+    }
 
-    const client2 = new Client({
-        user: 'postgres',
-        host: databaseHost,
-        database: 'postgres',
-        password: databasePassword,
-        port: 5432,
-    })
-    client2.connect()
+    const client = await DbHelpers.createClient(dbOptions)
+    const client2 = await DbHelpers.createClient(dbOptions)
 
     log(`connected to database`)
 
-    const Cursor = require('pg-cursor')
-
     const query = `select distinct sha from objects where size > 65635 and mimeType = 'image/jpeg';`
 
-    const cursor = client.query(new Cursor(query))
-
-    const readFromCursor: () => Promise<any[]> = async () => {
-        return new Promise((resolve, reject) => {
-            cursor.read(100, function (err, rows) {
-                if (err) {
-                    reject(err)
-                    return
-                }
-
-                resolve(rows)
-            })
-        })
-    }
+    const cursor = await DbHelpers.createCursor(client, query)
 
     let nbRows = 0
     let nbRowsError = 0
@@ -719,7 +674,7 @@ export async function exifExtract(storeIp: string, storePort: number, storeToken
 
     try {
         while (true) {
-            let rows = await readFromCursor()
+            let rows = await cursor.read()
             if (!rows || !rows.length) {
                 log(`finished cursor`)
                 break
@@ -758,9 +713,7 @@ export async function exifExtract(storeIp: string, storePort: number, storeToken
 
     log(`processed ${nbRows} images`)
 
-    await new Promise(resolve => {
-        cursor.close(resolve)
-    })
+    await cursor.close()
 
     client.end()
     client2.end()

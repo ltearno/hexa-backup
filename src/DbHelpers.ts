@@ -1,6 +1,5 @@
 import * as MimeTypes from './mime-types'
 import * as Model from './Model'
-import { createClient } from 'http';
 
 function getFileMimeType(fileName: string) {
     let pos = fileName.lastIndexOf('.')
@@ -18,7 +17,7 @@ export async function createClient(options: {
     database: string
     user: string
     password: string
-    port?: string
+    port?: number
 }) {
     const { Client } = require('pg')
 
@@ -33,6 +32,36 @@ export async function createClient(options: {
     client.connect()
 
     return client
+}
+
+export interface DbCursor {
+    read(): Promise<any[]>
+    close(): Promise<any>
+}
+
+export async function createCursor(client: any, query: string): Promise<DbCursor> {
+    const Cursor = require('pg-cursor')
+
+    const cursor = client.query(new Cursor(query))
+
+    return Promise.resolve({
+        read: async () => {
+            return new Promise((resolve, reject) => {
+                cursor.read(100, function (err, rows) {
+                    if (err) {
+                        reject(err)
+                        return
+                    }
+
+                    resolve(rows)
+                })
+            })
+        },
+
+        close: () => new Promise(resolve => {
+            cursor.close(resolve)
+        })
+    })
 }
 
 export async function insertObject(client, file: Model.FileDescriptor) {

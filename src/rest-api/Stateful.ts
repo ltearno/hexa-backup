@@ -31,7 +31,7 @@ export class Stateful {
 
                 let sha = req.params.sha
 
-                const client = createSqlClient()
+                const client = await createSqlClient()
 
                 const query = `select distinct o.parentSha from object_parents o ${authorizedRefs !== null ?
                     `inner join object_sources os on o.parentSha=os.sha` :
@@ -66,7 +66,7 @@ export class Stateful {
 
                 let sha = req.params.sha
 
-                const client = createSqlClient()
+                const client = await createSqlClient()
 
                 const query = `select distinct o.name from objects o ${authorizedRefs !== null ?
                     `inner join object_sources os on o.parentSha=os.sha` :
@@ -101,7 +101,7 @@ export class Stateful {
 
                 let { name, mimeType, geoSearch, dateMin, dateMax } = req.body
 
-                const client = createSqlClient()
+                const client = await createSqlClient()
 
                 let query = `select o.sha, o.name from objects o ${authorizedRefs !== null ?
                     `inner join object_sources os on o.sha=os.sha` :
