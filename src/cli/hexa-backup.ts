@@ -7,8 +7,9 @@ import * as Commands from '../Commands'
 const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)
 
-function optionsWith(name: string, value: any) {
-    this[name] = value
+function optionsWith(model) {
+    for (let k in model)
+        this[k] = model[k]
     return this
 }
 
@@ -526,7 +527,7 @@ class CommandManager {
             if (spec.options) {
                 for (let k in spec.options)
                     if (spec.options[k] !== undefined)
-                        console.log(`  -${k}: ${typeof spec.options[k]}, by default ${JSON.stringify(spec.options[k])}`)
+                        console.log(`  -${k}: ${typeof spec.options[k]} = ${JSON.stringify(spec.options[k])}`)
                     else
                         console.log(`  -${k}`)
             }
