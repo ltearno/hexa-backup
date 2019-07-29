@@ -182,13 +182,15 @@ export class YoutubeDownload {
                         log(`starting youtube conversion ${url} on ${sourceId}`)
                         let result = await this.grabFromYoutube(url, sourceId)
                         log(`finished conversion (res:${JSON.stringify(result)})`)
+                        return result
                     }
                     catch (err) {
                         log.err(`sorry, failed conversion !`)
                         log.err(err)
+                        return null
                     }
                 },
-                null)
+                async (info, result, error) => { })
 
             res.send(JSON.stringify({ ok: `conversion pushed` }))
         })

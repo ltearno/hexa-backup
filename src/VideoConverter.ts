@@ -3,6 +3,7 @@ import { Queue, LoggerBuilder } from '@ltearno/hexa-js'
 import * as fs from 'fs'
 import * as path from 'path'
 import { spawn } from 'child_process'
+import * as BackgroundJobs from './BackgroundJobs'
 
 const log = LoggerBuilder.buildLogger('video-converter')
 
@@ -15,19 +16,16 @@ interface VideoConversion {
 export class VideoConverter {
     private videoCacheDir = '.hb-videocache'
     private videoConversions = new Map<string, VideoConversion>()
-    private videoConversionQueue = new Queue.Queue<VideoConversion>('video-conversions')
+    private backgroundJobs: BackgroundJobs.BackgroundJobClientApi
 
-    constructor(private store: HexaBackupStore) {
-    }
-
-    init() {
-        this.videoConversionLoop()
+    constructor(private store: HexaBackupStore, backgroundJobs: BackgroundJobs.BackgroundJobs) {
+        this.backgroundJobs = backgroundJobs.createClient(`video-converter`)
     }
 
     createSmallVideo(sha: string): Promise<string> {
         return new Promise(resolve => {
             if (this.videoConversions.has(sha)) {
-                log(`waiting for existing conversion ${sha}, ${this.videoConversionQueue.size()} in queue`)
+                log(`waiting for existing conversion ${sha}, ${this.videoConversions.size} in queue`)
                 let info = this.videoConversions.get(sha)
 
                 info.waiters.push(resolve)
@@ -46,10 +44,27 @@ export class VideoConverter {
                 result: null
             }
 
-            log(`waiting for conversion ${sha}, ${this.videoConversionQueue.size()} in queue`)
+            log(`waiting for conversion ${sha}, ${this.videoConversions.size} in queue`)
 
             this.videoConversions.set(sha, info)
-            this.videoConversionQueue.push(info)
+
+            this.backgroundJobs.addJob(info, `video conversion`, async () => {
+                try {
+                    log(`starting video conversion ${info.sha}`)
+                    info.result = await this.convertVideo(info.sha)
+                    log(`finished video conversion ${info.sha}`)
+                    info.waiters.forEach(w => w(info.result))
+                }
+                catch (err) {
+                    log.err(`sorry, failed video conversion !`)
+                    log.err(err)
+                    info.waiters.forEach(w => w(null))
+                }
+
+                this.videoConversions.delete(info.sha)
+            },
+                (info, result, error) => { }
+            )
 
             return
         })
@@ -110,30 +125,5 @@ export class VideoConverter {
                 resolve(null)
             }
         })
-    }
-
-    private async videoConversionLoop() {
-        const waiter = Queue.waitPopper(this.videoConversionQueue)
-
-        while (true) {
-            const info = await waiter()
-            if (!info) {
-                log(`finished video conversion loop`)
-                break
-            }
-            try {
-                log(`starting video conversion ${info.sha}, still ${this.videoConversionQueue.size()} in queue`)
-                info.result = await this.convertVideo(info.sha)
-                log(`finished video conversion ${info.sha}, still ${this.videoConversionQueue.size()} in queue`)
-                info.waiters.forEach(w => w(info.result))
-            }
-            catch (err) {
-                log.err(`sorry, failed video conversion !`)
-                log.err(err)
-                info.waiters.forEach(w => w(null))
-            }
-
-            this.videoConversions.delete(info.sha)
-        }
     }
 }

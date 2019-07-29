@@ -10,27 +10,27 @@ const log = LoggerBuilder.buildLogger('bkgnd-jobs')
 
 type JobBuilder = () => Promise<any>
 
-type JobWaiter = (result, error) => any | Promise<any>
+type JobWaiter<D, R> = (data: D, result: R, error) => any | Promise<any>
 
-interface Job {
+interface Job<D, R> {
     clientName: string
     id: string
-    extId: string
+    data: any
     name: string
     builder: JobBuilder
-    waiter: JobWaiter
+    waiter: JobWaiter<D, R>
 }
 
 const uuid = () => HashTools.hashStringSync(`${Date.now()}-${Math.random()}-${Math.random()}`)
 
 export interface BackgroundJobClientApi {
     // returns the job's internal id
-    addJob(extId: string, name: string, builder: JobBuilder, waiter: JobWaiter): string
+    addJob<D, R>(data: D, name: string, builder: JobBuilder, waiter: JobWaiter<D, R>): string
 }
 
 export class BackgroundJobs {
     private jobQueue = new Queue.Queue<string>('bkgnd-jobs')
-    private waitingJobs: Job[] = []
+    private waitingJobs: Job<any, any>[] = []
 
     constructor() {
         this.jobLoop()
@@ -64,7 +64,7 @@ export class BackgroundJobs {
 
             try {
                 if (info.waiter) {
-                    await info.waiter(result, error)
+                    await info.waiter(info.data, result, error)
                 }
             }
             catch (err) {
@@ -76,17 +76,17 @@ export class BackgroundJobs {
 
     createClient(clientName: string): BackgroundJobClientApi {
         return {
-            addJob: (extId, name, builder, waiter) => this.addJob(clientName, extId, name, builder, waiter)
+            addJob: (data, name, builder, waiter) => this.addJob(clientName, data, name, builder, waiter)
         }
     }
 
-    private addJob(clientName: string, extId: string, name: string, builder: JobBuilder, waiter: JobWaiter): string {
+    private addJob<D, R>(clientName: string, data: D, name: string, builder: JobBuilder, waiter: JobWaiter<D, R>): string {
         const id = uuid()
 
         const job = {
             clientName,
             id,
-            extId,
+            data,
             name,
             builder,
             waiter
