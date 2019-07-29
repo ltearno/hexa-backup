@@ -532,13 +532,26 @@ class CommandManager {
 
                 for (let k of inorder)
                     if (spec.options[k] !== undefined)
-                        console.log(`  -${k}: ${typeof spec.options[k]} = ${JSON.stringify(spec.options[k])}`)
+                        console.log(`  -${k.padEnd(25, " ")} ${typeof (spec.options[k] || '')} (default ${spec.options[k] === null ? '""' : JSON.stringify(spec.options[k])})`)
                     else
                         console.log(`  -${k}`)
             }
             console.log()
         }
         console.log()
+        console.log(`list of available verbs :`)
+
+        let pad = 18
+        let cs = 5
+        let s = '  '
+        for (let i = 0; i < this.commandSpecs.length; i++) {
+            s += this.commandSpecs[i].verbs[0].padEnd(pad)
+
+            if ((i + 1) % cs == 0 || (i == this.commandSpecs.length - 1)) {
+                console.log(s)
+                s = '  '
+            }
+        }
         console.log(`you can use "--debug" to activate debug traces`)
     }
 
