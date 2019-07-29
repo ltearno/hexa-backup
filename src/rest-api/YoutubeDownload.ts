@@ -50,7 +50,7 @@ export class YoutubeDownload {
     }
 
     updateYoutubeDl() {
-        return new Promise((resolve, reject) => {
+        return new Promise(resolve => {
             const child = spawn('youtube-dl', ['-U'])
 
             child.stdout.on('data', (data) => {
@@ -78,7 +78,7 @@ export class YoutubeDownload {
     }
 
     downloadYoutubeUrl(url: string, directory: string) {
-        return new Promise((resolve, reject) => {
+        return new Promise(resolve => {
             log(`downloading in directory ${directory}`)
             const child = spawn('youtube-dl', ['-x', '-i', '--no-progress', '--yes-playlist', '-f', 'bestaudio', url], {
                 cwd: directory
@@ -109,7 +109,7 @@ export class YoutubeDownload {
         })
     }
 
-    async grabFromYoutube(url, sourceId) {
+    async grabFromYoutube(url: string, sourceId: string) {
         log(`fetch youtube from url ${url} on source ${sourceId}`)
 
         await this.updateYoutubeDl()
@@ -197,7 +197,6 @@ export class YoutubeDownload {
 
             let request = req.body as YoutubeFetchRequest
 
-            // url sourceId
             let url = request.url
             let sourceId = userSourceId(user)
 
