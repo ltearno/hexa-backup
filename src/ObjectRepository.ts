@@ -254,38 +254,39 @@ export class ObjectRepository {
 
         let buffer = await FsTools.readFile(fd, offset, length)
 
+        await FsTools.closeFile(fd)
+
         return buffer
     }
 
     async validateSha(contentSha: string, contentSize: number) {
         if (contentSha == HashTools.EMPTY_PAYLOAD_SHA)
-            return Promise.resolve(true)
+            return true
 
-        return new Promise<boolean>(async (resolve, reject) => {
-            try {
-                let contentFileName = await this.contentFileName(contentSha)
-                let storedContentSha: string
-                if (this.shaCache)
-                    storedContentSha = await this.shaCache.hashFile(contentFileName)
-                else
-                    storedContentSha = await HashTools.hashFile(contentFileName)
+        try {
+            let contentFileName = await this.contentFileName(contentSha)
+            let storedContentSha: string
+            if (this.shaCache)
+                storedContentSha = await this.shaCache.hashFile(contentFileName)
+            else
+                storedContentSha = await HashTools.hashFile(contentFileName)
 
-                fs.stat(contentFileName, (err, stat) => {
-                    if (contentSize == stat.size && storedContentSha == contentSha) {
-                        resolve(true)
-                    }
-                    else {
-                        log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, stored sha (${stat.size} bytes) ${storedContentSha}`)
+            let stat = await FsTools.stat(contentFileName)
 
-                        fs.rename(contentFileName, contentFileName + '.bak', (err) => resolve(false))
-                    }
-                })
-            } catch (error) {
-                log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, error validating: '${error}'`)
-
-                resolve(false)
+            if (contentSize == stat.size && storedContentSha == contentSha) {
+                return true
             }
-        });
+            else {
+                log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, stored sha (${stat.size} bytes) ${storedContentSha}`)
+
+                fs.rename(contentFileName, contentFileName + '.bak', (err) => { })
+                return false
+            }
+        } catch (error) {
+            log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, error validating: '${error}'`)
+
+            return false
+        }
     }
 
     async autoComplete(shaStart: string): Promise<string> {
