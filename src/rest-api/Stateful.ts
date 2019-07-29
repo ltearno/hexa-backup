@@ -7,6 +7,7 @@ const log = LoggerBuilder.buildLogger('stateful-server')
 
 export class Stateful {
     constructor(private store: HexaBackupStore, private databaseParams: DbHelpers.DbParams) {
+        this.store.addCommitListener((commitSha, sourceId) => { })
     }
 
     addEnpointsToApp(app: any) {

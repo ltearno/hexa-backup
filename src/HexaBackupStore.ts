@@ -24,6 +24,8 @@ export interface IHexaBackupStore {
     stats(): Promise<any>
 }
 
+type CommitListener = (commitSha: string, clientId: string) => any
+
 export class HexaBackupStore implements IHexaBackupStore {
     private rootPath: string;
     private objectRepository: ObjectRepository;
@@ -32,6 +34,7 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     private sourceStateCache: { [key: string]: Model.SourceState } = {}
     private lastTimeSavedClientState = 0
+    private commitListeners: CommitListener[] = []
 
     constructor(rootPath: string) {
         this.rootPath = fsPath.resolve(rootPath)
@@ -63,6 +66,10 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     getShaFileName(sha: string) {
         return this.objectRepository.getShaFileName(sha)
+    }
+
+    addCommitListener(listener: CommitListener) {
+        this.commitListeners.push(listener)
     }
 
     /** Public remote interface */
@@ -127,6 +134,8 @@ export class HexaBackupStore implements IHexaBackupStore {
             clientState.currentCommitSha = commitSha
 
             log(`source ${sourceId} commited content : ${directoryDescriptorSha} in commit ${commitSha}`)
+
+            this.commitListeners.forEach(listener => listener(commitSha, sourceId))
         }
 
         await this.storeClientState(sourceId, clientState, true)
