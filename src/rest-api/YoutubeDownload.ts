@@ -1,23 +1,12 @@
 import { HexaBackupStore } from '../HexaBackupStore'
-import { Queue, LoggerBuilder, OrderedJson, HashTools } from '@ltearno/hexa-js'
+import { Queue, LoggerBuilder } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
-import * as Model from '../Model'
 import { spawn } from 'child_process'
 import * as fs from 'fs'
-import * as os from 'os'
 import * as fsPath from 'path'
-import { rejects } from 'assert';
+import * as Operations from '../Operations'
 
 const log = LoggerBuilder.buildLogger('plugins-youtube')
-
-/*
-youtube-dl -U
-
-youtube-dl -x --audio-format mp3 "https://www.youtube.com/watch?v=H3v9unphfi0"
-
-// system default tmp dir
-os.tmpdir()
-*/
 
 interface YoutubeFetchRequest {
     url: string
@@ -33,10 +22,10 @@ interface ConversionJob {
 }
 
 export class YoutubeDownload {
+    private conversionCacheDir = '.hb-youtubedlcache'
     private conversionQueue = new Queue.Queue<ConversionJob>('youtube-conversions')
 
-    constructor(private store: HexaBackupStore) {
-    }
+    constructor(private store: HexaBackupStore) { }
 
     private async conversionLoop() {
         const waiter = Queue.waitPopper(this.conversionQueue)
@@ -120,8 +109,6 @@ export class YoutubeDownload {
         })
     }
 
-    private conversionCacheDir = '.hb-youtubedlcache'
-
     async grabFromYoutube(url, sourceId) {
         log(`fetch youtube from url ${url} on source ${sourceId}`)
 
@@ -140,7 +127,7 @@ export class YoutubeDownload {
         }
 
         let fileNames = files.map(name => fsPath.join(directory, name))
-        let contents = []
+        let contents: { sha: string; path: string; size: number; }[] = []
 
         log(`files downloaded, now pushing ${fileNames.length} files to repo`)
 
@@ -148,58 +135,20 @@ export class YoutubeDownload {
             if (fileName.endsWith('.part'))
                 continue
 
-            let stats = fs.statSync(fileName)
-            let contentSha = await HashTools.hashFile(fileName)
-            let offset = await this.store.hasOneShaBytes(contentSha)
-
             log(`pushing ${fileName} to repo`)
-
-            const fd = fs.openSync(fileName, 'r')
-            if (!fd) {
-                log.err(`error reading`)
-                fs.closeSync(fd)
-                continue
-            }
-
-            while (offset < stats.size) {
-                const length = Math.min(1024 * 1024, stats.size - offset)
-                let buffer = Buffer.alloc(length)
-
-                let nbRead = fs.readSync(fd, buffer, 0, length, offset)
-                if (nbRead != length) {
-                    log.err(`inconsistent read`)
-                    break
-                }
-
-                await this.store.putShaBytes(contentSha, offset, buffer)
-
-                offset += length
-            }
-
-            fs.closeSync(fd)
-
-            let validated = await this.store.validateShaBytes(contentSha)
-            if (validated) {
-                contents.push({
-                    sha: contentSha,
-                    fileName,
-                    size: stats.size
-                })
-            }
-            else {
-                log.err(`cannot validate downloaded sha`)
-            }
+            let pushed = await Operations.pushLocalFileToStore(fileName, this.store)
+            if (pushed)
+                contents.push(pushed)
+            else
+                log.err(`failed to push ${fileName} to repository !`)
         }
 
         log(`committing changes`)
 
         fileNames.forEach(fileName => fs.unlinkSync(fileName))
-        //fs.rmdirSync(directory)
 
-        // fetch source state
-        let sourceState = await this.store.getSourceState(sourceId)
-        let commit = sourceState && sourceState.currentCommitSha && await this.store.getCommit(sourceState.currentCommitSha)
-        let currentDescriptor = commit && commit.directoryDescriptorSha && await this.store.getDirectoryDescriptor(commit.directoryDescriptorSha)
+        // fetch source current state
+        let currentDescriptor = await Operations.getSourceCurrentDirectoryDescriptor(sourceId, this.store)
         if (!currentDescriptor) {
             currentDescriptor = {
                 files: []
@@ -208,40 +157,28 @@ export class YoutubeDownload {
 
         // add item
         for (let content of contents) {
-            if (content.fileName.endsWith('.part'))
+            if (content.path.endsWith('.part'))
                 continue
 
             if (currentDescriptor.files.some(file => file.contentSha == content.sha)) {
-                log(`already uploaded ${content.sha} (${content.fileName}), skipped`)
+                log(`already uploaded ${content.sha} (${content.path}), skipped`)
                 continue
             }
 
             currentDescriptor.files.push({
                 contentSha: content.sha,
-                name: fsPath.basename(content.fileName),
+                name: fsPath.basename(content.path),
                 isDirectory: false,
                 lastWrite: Date.now(),
                 size: content.size
             })
         }
 
-        // store new directory descriptor
-        let stringified = OrderedJson.stringify(currentDescriptor)
-        let descriptorRaw = Buffer.from(stringified, 'utf8')
-        let descriptorSha = HashTools.hashStringSync(stringified)
+        let commitSha = await Operations.commitDirectoryDescriptor(sourceId, currentDescriptor, this.store)
+        if (!commitSha)
+            return { error: `failed to commit directory descriptor` }
 
-        if (!await this.store.hasOneShaBytes(descriptorSha)) {
-            log.dbg(`write directory descriptor after converting ${url} to ${descriptorSha}`)
-
-            await this.store.putShaBytes(descriptorSha, 0, descriptorRaw)
-            if (!await this.store.validateShaBytes(descriptorSha)) {
-                return { error: `cannot validate directory descriptor` }
-            }
-        }
-
-        // commit the changes
-        let commitSha = await this.store.registerNewCommit(sourceId, descriptorSha)
-        log(`went well, commit ${commitSha} with descriptor ${descriptorSha} descriptor ${descriptorSha}`)
+        log(`went well, commit ${commitSha}`)
 
         return { ok: `committed with commit ${commitSha}`, convertedFiles: contents }
     }

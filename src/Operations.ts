@@ -1,3 +1,4 @@
+import * as fs from 'fs'
 import * as ClientPeering from './ClientPeering'
 import * as Model from './Model'
 import { IHexaBackupStore } from './HexaBackupStore'
@@ -98,6 +99,62 @@ export async function pushDirectoryToSource(peering: ClientPeering.Peering, push
     }
 }
 
+export async function getSourceCurrentDirectoryDescriptor(sourceId: string, store: IHexaBackupStore) {
+    let sourceState = await store.getSourceState(sourceId)
+    if (!sourceState || !sourceState.currentCommitSha)
+        return null
+
+    let commit = await store.getCommit(sourceState.currentCommitSha)
+    if (!commit || !commit.directoryDescriptorSha)
+        return null
+
+    let descriptor = await store.getDirectoryDescriptor(commit.directoryDescriptorSha)
+    return descriptor
+}
+
+export async function pushLocalFileToStore(filePath: string, store: IHexaBackupStore): Promise<{ sha: string; path: string; size: number; }> {
+    let stats = fs.statSync(filePath)
+    let contentSha = await HashTools.hashFile(filePath)
+    let offset = await store.hasOneShaBytes(contentSha)
+
+    const fd = fs.openSync(filePath, 'r')
+    if (!fd) {
+        log.err(`error reading`)
+        fs.closeSync(fd)
+        return null
+    }
+
+    while (offset < stats.size) {
+        const length = Math.min(4 * 1024 * 1024, stats.size - offset)
+        let buffer = Buffer.alloc(length)
+
+        let nbRead = fs.readSync(fd, buffer, 0, length, offset)
+        if (nbRead != length) {
+            log.err(`inconsistent read`)
+            break
+        }
+
+        await store.putShaBytes(contentSha, offset, buffer)
+
+        offset += length
+    }
+
+    fs.closeSync(fd)
+
+    let validated = await store.validateShaBytes(contentSha)
+    if (validated) {
+        return {
+            sha: contentSha,
+            path: filePath,
+            size: stats.size
+        }
+    }
+    else {
+        log.err(`cannot validate downloaded sha`)
+        return null
+    }
+}
+
 export async function mergeDirectoryDescriptorToDestination(source: string, destination: string, recursive: boolean, store: IHexaBackupStore) {
     let parsedDestination = PathSpecHelpers.parseTargetSpec(destination)
     if (!parsedDestination) {
@@ -190,6 +247,15 @@ export async function mergeDirectoryDescriptorToDestination(source: string, dest
     let commitSha = await store.registerNewCommit(parsedDestination.sourceId, newRootDescriptorSha)
 
     log(`validated commit ${commitSha} on source ${parsedDestination.sourceId}`)
+}
+
+export async function commitDirectoryDescriptor(sourceId: string, descriptor: Model.DirectoryDescriptor, store: IHexaBackupStore): string {
+    let descriptorSha = await pushDirectoryDescriptor(descriptor, store)
+    if (!descriptorSha)
+        return null
+
+    let commitSha = await store.registerNewCommit(sourceId, descriptorSha)
+    return commitSha
 }
 
 export async function pushDirectoryDescriptor(descriptor: Model.DirectoryDescriptor, store: IHexaBackupStore): Promise<string> {
