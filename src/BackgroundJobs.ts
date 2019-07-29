@@ -26,10 +26,21 @@ export interface BackgroundJobClientApi {
 
 export class BackgroundJobs {
     private jobQueue = new Queue.Queue<string>('bkgnd-jobs')
+    private currentJob: Job<any, any> = null
     private waitingJobs: Job<any, any>[] = []
 
     constructor() {
         this.jobLoop()
+    }
+
+    addEnpointsToApp(app: any) {
+        app.get('/jobs', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+            res.send({
+                running: this.currentJob,
+                waiting: JSON.stringify(this.waitingJobs)
+            })
+        })
     }
 
     private async jobLoop() {
@@ -37,29 +48,35 @@ export class BackgroundJobs {
 
         while (true) {
             log(`waiting for job`)
-            const uuid = await waiter()
-            if (!uuid) {
-                log(`finished job loop`)
-                break
-            }
-
-            log(`preparing for job ${uuid}`)
-
-            const info = this.waitingJobs.shift()
-            if (uuid != info.id) {
-                log.err(`DISCREPANCIES DKJHGKJHGDZZ ${uuid} / ${info.id}`)
-            }
-
-            log(`beginning job ${info.name} - ${info.id} (still ${this.waitingJobs.length} in queue)`)
-            let result = undefined
-            let error = undefined
             try {
-                result = await info.builder()
+                const uuid = await waiter()
+                if (!uuid) {
+                    log(`finished job loop`)
+                    break
+                }
+
+                log(`preparing for job ${uuid}`)
+
+                const info = this.waitingJobs.shift()
+                if (uuid != info.id) {
+                    log.err(`DISCREPANCIES DKJHGKJHGDZZ ${uuid} / ${info.id}`)
+                }
+
+                log(`beginning job ${info.name} - ${info.id} (still ${this.waitingJobs.length} in queue)`)
+                let result = undefined
+                let error = undefined
+                try {
+                    result = await info.builder()
+                }
+                catch (err) {
+                    error = err
+                }
+                log(`finished job ${info.name}, id:${info.id}, result:${result}, err:${error}`)
             }
             catch (err) {
-                error = err
+                log(`error ${err}, quitting background jobs loop`)
+                break
             }
-            log(`finished job ${info.name}, id:${info.id}, result:${result}, err:${error}`)
         }
     }
 
