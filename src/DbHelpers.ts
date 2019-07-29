@@ -55,14 +55,19 @@ export async function createCursor(client: any, query: string): Promise<DbCursor
     return Promise.resolve({
         read: async (): Promise<any[]> => {
             return new Promise((resolve, reject) => {
-                cursor.read(100, function (err, rows) {
-                    if (err) {
-                        reject(err)
-                        return
-                    }
+                try {
+                    cursor.read(100, function (err, rows) {
+                        if (err) {
+                            reject(err)
+                            return
+                        }
 
-                    resolve(rows)
-                })
+                        resolve(rows)
+                    })
+                }
+                catch (err) {
+                    reject(err)
+                }
             })
         },
 
