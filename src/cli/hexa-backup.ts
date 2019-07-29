@@ -7,34 +7,31 @@ import * as Commands from '../Commands'
 const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)
 
-class CliOptionsBuilder {
-    constructor(private raw = {}) { }
+function OptionsConstructor() {
+}
 
-    build() {
-        return this.raw
-    }
-
-    with(name: string, value: any) {
+OptionsConstructor.prototype = {
+    with: function (name: string, value: any) {
         this.raw[name] = value
         return this
-    }
+    },
 
-    withVerbose() {
+    withVerbose: function () {
         this.raw['verbose'] = false
 
         return this
-    }
+    },
 
-    withStore() {
+    withStore: function () {
         this.raw['storeIp'] = "localhost"
         this.raw['storePort'] = 5005
         this.raw['storeToken'] = null
         this.raw['insecure'] = false
 
         return this
-    }
+    },
 
-    withDatabase() {
+    withDatabase: function () {
         this.raw['database'] = 'postgres'
         this.raw['databaseHost'] = "localhost"
         this.raw['databasePort'] = 5432
@@ -45,8 +42,15 @@ class CliOptionsBuilder {
     }
 }
 
-function newOptions(base: any = {}) {
-    return new CliOptionsBuilder(base)
+interface Options {
+    with(name: string, value: any)
+    withVerbose()
+    withStore()
+    withDatabase()
+}
+
+function options(): Options {
+    return new OptionsConstructor()
 }
 
 function getVerboseParam(options) {
@@ -135,7 +139,7 @@ async function run() {
         {
             id: "refs",
             verbs: ["refs"],
-            options: newOptions()
+            options: options()
                 .withVerbose()
                 .withStore(),
             executor: async (options) => {
@@ -150,7 +154,7 @@ async function run() {
         {
             id: "sources",
             verbs: ["sources"],
-            options: newOptions()
+            options: options()
                 .withVerbose()
                 .withStore(),
             executor: async (options) => {
@@ -165,7 +169,7 @@ async function run() {
         {
             id: "stats",
             verbs: ["stats"],
-            options: newOptions()
+            options: options()
                 .withStore(),
             executor: async (options) => {
                 const storeParams = getStoreParams(options)
@@ -179,7 +183,7 @@ async function run() {
             id: "browse",
             verbs: ["browse"],
             options:
-                newOptions()
+                options()
                     .with('directory', '.')
                     .withVerbose(),
             executor: async (options) => {
@@ -194,7 +198,7 @@ async function run() {
         {
             id: "history",
             verbs: ["history"],
-            options: newOptions()
+            options: options()
                 .with('sourceId', defaultSourceId)
                 .withVerbose()
                 .withStore(),
@@ -211,7 +215,7 @@ async function run() {
         {
             id: "lsDirectoryStructure",
             verbs: ["ls", "!directoryDescriptorSha"],
-            options: newOptions()
+            options: options()
                 .with('recursive', false)
                 .withStore(),
             executor: async (options) => {
@@ -227,7 +231,7 @@ async function run() {
         {
             id: "normalize",
             verbs: ["normalize"],
-            options: newOptions()
+            options: options()
                 .with('sourceId', defaultSourceId)
                 .withStore(),
             executor: async (options) => {
@@ -242,7 +246,7 @@ async function run() {
         {
             id: "extract",
             verbs: ["extract", "!directoryDescriptorSha", "?prefix"],
-            options: newOptions()
+            options: options()
                 .with('destinationDirectory', '.')
                 .withStore(),
             executor: async (options) => {
@@ -259,7 +263,7 @@ async function run() {
         {
             id: "extractSha",
             verbs: ["extractSha", "!sha", "?file"],
-            options: newOptions()
+            options: options()
                 .withStore()
                 .with('file', 'h.out'),
             executor: async (options) => {
@@ -275,7 +279,7 @@ async function run() {
         {
             id: "push",
             verbs: ["push"],
-            options: newOptions()
+            options: options()
                 .with('sourceId', defaultSourceId)
                 .with('pushedDirectory', '.')
                 .with('estimateSize', false)
@@ -294,7 +298,7 @@ async function run() {
         {
             id: "pushStore",
             verbs: ["pushStore"],
-            options: newOptions()
+            options: options()
                 .with('storeDirectory', '.')
                 .with('estimateSize', false)
                 .withStore(),
@@ -311,7 +315,7 @@ async function run() {
         {
             id: "pull",
             verbs: ["pull", "?sourceId"],
-            options: newOptions()
+            options: options()
                 .with('storeDirectory', '.')
                 .with('force', false)
                 .withStore(),
@@ -345,13 +349,11 @@ async function run() {
         {
             id: "cp",
             verbs: ["cp", "!destination"],
-            options: newOptions({
-                sourceId: `${os.hostname()}-UPLOAD`,
-                pushedDirectory: '.',
-                recursive: false
-            })
-                .withStore()
-                .build(),
+            options: options()
+                .with('sourceId', `${os.hostname()}-UPLOAD`)
+                .with('pushedDirectory', '.')
+                .with('recursive', false)
+                .withStore(),
             executor: async (options) => {
                 const source = options['sourceId']
                 let pushedDirectory = fsPath.resolve(options['pushedDirectory'])
@@ -367,10 +369,10 @@ async function run() {
         {
             id: "merge",
             verbs: ["merge", "!source", "!destination"],
-            options: newOptions({
-                sourceId: defaultSourceId,
-                recursive: false
-            }).withStore().build(),
+            options: options()
+                .with('sourceId', defaultSourceId)
+                .with('recursive', false)
+                .withStore(),
             executor: async (options) => {
                 const source = options['source']
                 const destination = options['destination']
@@ -385,10 +387,9 @@ async function run() {
         {
             id: "dbpush",
             verbs: ["dbpush"],
-            options: newOptions()
+            options: options()
                 .withStore()
-                .withDatabase()
-                .build(),
+                .withDatabase(),
             executor: async (options) => {
                 const storeParams = getStoreParams(options)
                 const databaseParams = getDatabaseParams(options)
@@ -401,10 +402,9 @@ async function run() {
         {
             id: "dbimage",
             verbs: ["dbimage"],
-            options: newOptions()
+            options: options()
                 .withStore()
-                .withDatabase()
-                .build(),
+                .withDatabase(),
             executor: async (options) => {
                 const storeParams = getStoreParams(options)
                 const databaseParams = getDatabaseParams(options)
@@ -417,10 +417,9 @@ async function run() {
         {
             id: "exifextract",
             verbs: ["exifextract"],
-            options: newOptions({ sourceId: defaultSourceId })
+            options: options().with('sourceId', defaultSourceId)
                 .withStore()
-                .withDatabase()
-                .build(),
+                .withDatabase(),
             executor: async (options) => {
                 const storeIp = options['storeIp']
                 const storePort = options['storePort']
