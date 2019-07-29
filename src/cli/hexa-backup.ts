@@ -134,10 +134,6 @@ function parseArgs(args: string[], defaultParameters): { verbs: string[]; parame
     }
 }
 
-function addOption<T>(list: CommandSpec<any>[], option: CommandSpec<T>) {
-    list.push(option)
-}
-
 async function run() {
     let args = process.argv.slice(2)
     log(JSON.stringify(args))
@@ -158,7 +154,7 @@ async function run() {
 
     const commandSpecs: CommandSpec<any>[] = []
 
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "refs",
         verbs: ["refs"],
         options: options()
@@ -173,7 +169,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "sources",
         verbs: ["sources"],
         options: options()
@@ -188,7 +184,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "stats",
         verbs: ["stats"],
         options: options()
@@ -201,7 +197,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "browse",
         verbs: ["browse"],
         options:
@@ -217,7 +213,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "history",
         verbs: ["history"],
         options: options()
@@ -234,7 +230,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "lsDirectoryStructure",
         verbs: ["ls", "!directoryDescriptorSha"],
         options: options()
@@ -250,7 +246,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "normalize",
         verbs: ["normalize"],
         options: options()
@@ -265,7 +261,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "extract",
         verbs: ["extract", "!directoryDescriptorSha", "?prefix"],
         options: options()
@@ -282,7 +278,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "extractSha",
         verbs: ["extractSha", "!sha", "?file"],
         options: options()
@@ -298,7 +294,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "push",
         verbs: ["push"],
         options: options()
@@ -319,7 +315,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "pushStore",
         verbs: ["pushStore"],
         options: options()
@@ -338,7 +334,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "pull",
         verbs: ["pull", "?sourceId"],
         options: options()
@@ -358,7 +354,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "store",
         verbs: ["store"],
         options: {
@@ -374,7 +370,7 @@ async function run() {
             await Commands.store(directory, port, insecure)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "cp",
         verbs: ["cp", "!destination"],
         options: options()
@@ -396,7 +392,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "merge",
         verbs: ["merge", "!source", "!destination"],
         options: options()
@@ -416,7 +412,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "dbpush",
         verbs: ["dbpush"],
         options: options()
@@ -431,7 +427,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "dbimage",
         verbs: ["dbimage"],
         options: options()
@@ -446,7 +442,7 @@ async function run() {
             process.exit(0)
         }
     })
-    addOption(commandSpecs, {
+    commandSpecs.push({
         id: "exifextract",
         verbs: ["exifextract"],
         options: options()
