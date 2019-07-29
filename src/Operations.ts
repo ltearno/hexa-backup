@@ -82,20 +82,26 @@ export async function resolve(item: InMemoryFileDescriptor, store: IHexaBackupSt
 }
 
 export async function pushDirectoryToSource(peering: ClientPeering.Peering, pushedDirectory: string, sourceId: string) {
-    let store = peering.remoteStore
+    try {
+        let store = peering.remoteStore
 
-    log(`starting push`)
+        log(`starting push`)
 
-    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, true)
-    log(`directory descriptor  : ${directoryDescriptorSha}`)
+        let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, true)
+        log(`directory descriptor  : ${directoryDescriptorSha}`)
 
-    let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
+        let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
 
-    log(`finished push, commit : ${commitSha}`)
+        log(`finished push, commit : ${commitSha}`)
 
-    return {
-        directoryDescriptorSha,
-        commitSha
+        return {
+            directoryDescriptorSha,
+            commitSha
+        }
+    }
+    catch (err) {
+        log.err(`error pushing directory to source ${err}`)
+        return null
     }
 }
 

@@ -23,7 +23,7 @@ function optionsWithStore() {
     this['storeIp'] = "localhost"
     this['storePort'] = 5005
     this['storeToken'] = null
-    this['insecure'] = false
+    this['storeInsecure'] = false
 
     return this
 }
@@ -62,8 +62,8 @@ addToPrototype(optionsWithDatabase)
 interface Options {
     with<T, M>(this: T, model: M): T & M
     withVerbose<T>(this: T): T & { verbose: boolean }
-    withStore<T>(this: T): T & { host: string; port: number; token: string; insecure: boolean }
-    withDatabase<T>(this: T): T & { database: string; host: string; port: number; user: string; password: string }
+    withStore<T>(this: T): T & { storeIp: string; storePort: number; storeToken: string; storeInsecure: boolean }
+    withDatabase<T>(this: T): T & { database: string; databaseHost: string; databasePort: number; databaseUser: string; databasePassword: string }
 }
 
 function options(): Options {
@@ -78,7 +78,7 @@ function getSourceIdParam(options: { sourceId: string }) {
     return options['sourceId'] || null
 }
 
-function getStoreParams(options: { host: string; port: number; token: string; insecure: boolean; }) {
+function getStoreParams(options: { storeIp: string; storePort: number; storeToken: string; storeInsecure: boolean }) {
     return {
         host: options['storeIp'],
         port: options['storePort'],
@@ -87,7 +87,7 @@ function getStoreParams(options: { host: string; port: number; token: string; in
     }
 }
 
-function getDatabaseParams(options: { database: string; host: string; port: number; user: string; password: string }) {
+function getDatabaseParams(options: { database: string; databaseHost: string; databasePort: number; databaseUser: string; databasePassword: string }) {
     return {
         database: options['postgres'],
         host: options['databaseHost'],
@@ -525,7 +525,12 @@ class CommandManager {
                     return v
             }).join(' '))
             if (spec.options) {
+                let inorder = []
                 for (let k in spec.options)
+                    inorder.push(k)
+                inorder = inorder.sort()
+
+                for (let k of inorder)
                     if (spec.options[k] !== undefined)
                         console.log(`  -${k}: ${typeof spec.options[k]} = ${JSON.stringify(spec.options[k])}`)
                     else

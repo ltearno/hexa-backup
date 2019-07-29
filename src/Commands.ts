@@ -401,6 +401,10 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
     log(`  insecure: ${storeParams.insecure}`)
 
     const peering = await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, true)
+    if (!peering) {
+        log.err(`cannot connect to store`)
+        return
+    }
 
     let store = peering.remoteStore
 
@@ -864,6 +868,10 @@ export async function push(sourceId: string, pushedDirectory: string, storeParam
     log(`  estimateSize: ${estimateSize}`)
 
     const peering = await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, true)
+    if (!peering) {
+        log.err(`cannot connect to store`)
+        return
+    }
 
     await Operations.pushDirectoryToSource(peering, pushedDirectory, sourceId)
 }
@@ -877,6 +885,10 @@ export async function pushStore(directory: string, storeParams: StoreConnectionP
     log(`  estimateSize: ${estimateSize}`)
 
     const peering = await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, true)
+    if (!peering) {
+        log.err(`cannot connect to store`)
+        return
+    }
 
     log(`starting push`)
 
