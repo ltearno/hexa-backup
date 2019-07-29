@@ -31,8 +31,8 @@ export class Stateful {
                             log(`starting update indices`)
                             this.runAgainWhenFinished = false
                             await DbIndexation.updateObjectsIndex(this.store, this.databaseParams)
-                            await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, this.databaseParams)
-                            await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, this.databaseParams)
+                            //await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, this.databaseParams)
+                            //await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, this.databaseParams)
                             //await DbIndexation.updateExifIndex(this.store, this.databaseParams)
                             log(`indices updated`)
                         }
