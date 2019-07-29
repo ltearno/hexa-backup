@@ -662,7 +662,7 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
 
     log(`connected to database`)
 
-    let baseQuery = `from objects o left join object_exifs op on o.sha=op.sha where size > 65635 and mimeType = 'image/jpeg' and (op.sha is null or op.exif::text = '{}'::text)`
+    let baseQuery = `from objects o left join object_exifs op on o.sha=op.sha where size > 65635 and mimeType = 'image/jpeg' and (op.sha is null)`
 
     const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
     let rs = await DbHelpers.dbQuery(client, queryCount)
@@ -716,7 +716,7 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
         log.err(`error processing images : ${err}`)
     }
 
-    log(`processed ${nbRows} images`)
+    log(`processed ${nbRows}/${nbTotal} images with ${nbRowsError} errors`)
 
     await cursor.close()
 
