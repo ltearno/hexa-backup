@@ -149,6 +149,9 @@ export class Playlists {
             // add items
             let playlistDescriptor: Model.DirectoryDescriptor = JSON.parse(JSON.stringify(currentDescriptor))
             for (let item of request.items) {
+                if (currentDescriptor.files.some(f => f.contentSha == item.sha))
+                    continue
+                    
                 playlistDescriptor.files.push({
                     contentSha: item.sha,
                     name: item.name,
