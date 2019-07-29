@@ -5,17 +5,8 @@ import * as DbHelpers from '../DbHelpers'
 
 const log = LoggerBuilder.buildLogger('stateful-server')
 
-function createSqlClient() {
-    return DbHelpers.createClient({
-        user: 'postgres',
-        host: 'localhost',
-        database: 'postgres',
-        password: 'hexa-backup'
-    })
-}
-
 export class Stateful {
-    constructor(private store: HexaBackupStore) {
+    constructor(private store: HexaBackupStore, private databaseParams: DbHelpers.DbParams) {
     }
 
     addEnpointsToApp(app: any) {
@@ -31,7 +22,7 @@ export class Stateful {
 
                 let sha = req.params.sha
 
-                const client = await createSqlClient()
+                const client = await DbHelpers.createClient(this.databaseParams)
 
                 const query = `select distinct o.parentsha from object_parents o ${authorizedRefs !== null ?
                     `inner join object_sources os on o.parentsha=os.sha` :
@@ -66,7 +57,7 @@ export class Stateful {
 
                 let sha = req.params.sha
 
-                const client = await createSqlClient()
+                const client = await DbHelpers.createClient(this.databaseParams)
 
                 const query = `select distinct o.name from objects o ${authorizedRefs !== null ?
                     `inner join object_sources os on o.parentsha=os.sha` :
@@ -101,7 +92,7 @@ export class Stateful {
 
                 let { name, mimeType, geoSearch, dateMin, dateMax } = req.body
 
-                const client = await createSqlClient()
+                const client = await DbHelpers.createClient(this.databaseParams)
 
                 let query = `select o.sha, o.name from objects o ${authorizedRefs !== null ?
                     `inner join object_sources os on o.sha=os.sha` :

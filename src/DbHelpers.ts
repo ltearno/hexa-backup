@@ -1,6 +1,14 @@
 import * as MimeTypes from './mime-types'
 import * as Model from './Model'
 
+export interface DbParams {
+    host: string
+    database: string
+    user: string
+    password: string
+    port: number
+}
+
 function getFileMimeType(fileName: string) {
     let pos = fileName.lastIndexOf('.')
     if (pos >= 0) {

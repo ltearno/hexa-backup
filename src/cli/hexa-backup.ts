@@ -357,17 +357,20 @@ async function run() {
     commandSpecs.push({
         id: "store",
         verbs: ["store"],
-        options: {
-            storePort: 5005,
-            storeDirectory: '.',
-            insecure: false
-        },
+        options: options()
+            .with({
+                storePort: 5005,
+                storeInsecure: false,
+                storeDirectory: '.',
+            })
+            .withDatabase(),
         executor: async (options) => {
             const port = options['storePort']
+            const insecure = !!options['storeInsecure']
             const directory = fsPath.resolve(options['storeDirectory'])
-            const insecure = !!options['insecure']
+            const databaseParams = getDatabaseParams(options)
 
-            await Commands.store(directory, port, insecure)
+            await Commands.store(directory, port, insecure, databaseParams)
         }
     })
     commandSpecs.push({

@@ -18,7 +18,15 @@ import * as YoutubeDownload from './rest-api/YoutubeDownload'
 
 const log = LoggerBuilder.buildLogger('web-server')
 
-export async function runStore(directory: string, port: number, insecure: boolean) {
+type DbParams = {
+    host: string
+    database: string
+    user: string
+    password: string
+    port: number
+}
+
+export async function runStore(directory: string, port: number, insecure: boolean, databaseParams: DbParams) {
     log(`preparing store and components in ${directory}`)
     let store = new HexaBackupStore(directory)
 
@@ -26,7 +34,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     const pluginsServer = new RestApiPlugins.Plugins(store)
     const rpcServer = new RestApiRpc.Rpc(store)
     const baseServer = new RestApiBase.Base(store)
-    const statefulServer = new RestApiStateful.Stateful(store)
+    const statefulServer = new RestApiStateful.Stateful(store, databaseParams)
     const miscServer = new Miscellanous.Miscellanous(store)
     const playlistServer = new RestApiPlaylists.Playlists(store)
     const youtubeDownloadServer = new YoutubeDownload.YoutubeDownload(store)

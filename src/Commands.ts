@@ -901,8 +901,8 @@ export async function pushStore(directory: string, storeParams: StoreConnectionP
     log(`TODO : push refs`)
 }
 
-export async function store(directory: string, port: number, insecure: boolean) {
-    return WebServer.runStore(directory, port, insecure)
+export async function store(directory: string, port: number, insecure: boolean, databaseParams: DbConnectionParams) {
+    return WebServer.runStore(directory, port, insecure, databaseParams)
 }
 
 export async function browse(directory: string, verbose: boolean) {
