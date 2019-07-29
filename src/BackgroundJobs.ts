@@ -36,11 +36,14 @@ export class BackgroundJobs {
         const waiter = Queue.waitPopper(this.jobQueue)
 
         while (true) {
+            log(`waiting for job`)
             const uuid = await waiter()
             if (!uuid) {
                 log(`finished job loop`)
                 break
             }
+
+            log(`preparing for job ${uuid}`)
 
             const info = this.waitingJobs.shift()
             if (uuid != info.id) {

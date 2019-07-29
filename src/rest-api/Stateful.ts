@@ -44,9 +44,6 @@ export class Stateful {
                     }
                 })
             }
-
-            // update indices !
-            //DbIndexation
         })
     }
 
