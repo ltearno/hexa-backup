@@ -2,12 +2,52 @@ import { HexaBackupStore } from '../HexaBackupStore'
 import { LoggerBuilder } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
 import * as DbHelpers from '../DbHelpers'
+import * as DbIndexation from '../DbIndexation'
+import * as BackgroundJobs from '../BackgroundJobs'
 
 const log = LoggerBuilder.buildLogger('stateful-server')
 
 export class Stateful {
-    constructor(private store: HexaBackupStore, private databaseParams: DbHelpers.DbParams) {
-        this.store.addCommitListener((commitSha, sourceId) => { })
+    private backgroundJobs: BackgroundJobs.BackgroundJobClientApi
+    private runningUpdate = false
+    private runAgainWhenFinished = false
+
+    constructor(private store: HexaBackupStore, private databaseParams: DbHelpers.DbParams, backgroundJobs: BackgroundJobs.BackgroundJobs) {
+        this.backgroundJobs = backgroundJobs.createClient(`stateful-server`)
+
+        this.store.addCommitListener((commitSha, sourceId) => {
+            log(`update indices after commit ${commitSha} on source ${sourceId}`)
+
+            if (this.runningUpdate) {
+                this.runAgainWhenFinished = true
+                log(`will be processed later`)
+            }
+            else {
+                this.runningUpdate = true
+
+                this.backgroundJobs.addJob(`update indices`, async () => {
+                    try {
+                        do {
+                            log(`starting update indices`)
+                            this.runAgainWhenFinished = false
+                            await DbIndexation.updateObjectsIndex(this.store, this.databaseParams)
+                            await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, this.databaseParams)
+                            await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, this.databaseParams)
+                            await DbIndexation.updateExifIndex(this.store, this.databaseParams)
+                            log(`indices updated`)
+                        }
+                        while (this.runAgainWhenFinished)
+                    }
+                    catch (err) {
+                        this.runningUpdate = false
+                        this.runAgainWhenFinished = false
+                    }
+                })
+            }
+
+            // update indices !
+            //DbIndexation
+        })
     }
 
     addEnpointsToApp(app: any) {

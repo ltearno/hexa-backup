@@ -38,6 +38,16 @@ function optionsWithDatabase() {
     return this
 }
 
+function optionsWithNoDatabase() {
+    this['database'] = null
+    this['databaseHost'] = null
+    this['databasePort'] = 5432
+    this['databaseUser'] = null
+    this['databasePassword'] = null
+
+    return this
+}
+
 function OptionsConstructor() {
 }
 
@@ -58,6 +68,7 @@ addToPrototype(optionsWith)
 addToPrototype(optionsWithVerbose)
 addToPrototype(optionsWithStore)
 addToPrototype(optionsWithDatabase)
+addToPrototype(optionsWithNoDatabase)
 
 interface Options {
     with<T, M>(this: T, model: M): T & M
@@ -88,6 +99,9 @@ function getStoreParams(options: { storeIp: string; storePort: number; storeToke
 }
 
 function getDatabaseParams(options: { database: string; databaseHost: string; databasePort: number; databaseUser: string; databasePassword: string }) {
+    if (!options.database || !options.databaseHost || !options.databasePort || !options.databaseUser || !options.databasePassword)
+        return null
+
     return {
         database: options['database'],
         host: options['databaseHost'],

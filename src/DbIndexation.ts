@@ -7,7 +7,7 @@ import * as Operations from './Operations'
 
 const log = LoggerBuilder.buildLogger('db-index')
 
-export async function dbPush(store: IHexaBackupStore, dbParams: DbConnectionParams) {
+export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbConnectionParams) {
     log(`store ready`)
 
     const client = await DbHelpers.createClient(dbParams)
@@ -70,7 +70,77 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
     }
 }
 
-export async function dbImage(sourceId: string, mimeType: string, store: IHexaBackupStore, databaseParams: DbConnectionParams) {
+export async function updateExifIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
+    log(`store ready`)
+
+    const client = await DbHelpers.createClient(databaseParams)
+    const client2 = await DbHelpers.createClient(databaseParams)
+
+    log(`connected to database`)
+
+    let baseQuery = `from objects o left join object_exifs op on o.sha=op.sha where size > 65635 and mimeType = 'image/jpeg' and (op.sha is null)`
+
+    const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
+    let rs = await DbHelpers.dbQuery(client, queryCount)
+    let nbTotal = rs.rows[0].total
+
+    const query = `select distinct o.sha ${baseQuery};`
+
+    const cursor = await DbHelpers.createCursor(client, query)
+
+    let nbRows = 0
+    let nbRowsError = 0
+    log.setStatus(() => [`processed ${nbRows}/${nbTotal} rows so far (${nbRowsError} errors)`])
+
+    let exifParserBuilder = require('exif-parser')
+
+    try {
+        while (true) {
+            let rows = await cursor.read()
+            if (!rows || !rows.length) {
+                log(`finished cursor`)
+                break
+            }
+            else {
+                for (let row of rows) {
+                    try {
+                        let sha = row['sha']
+                        log.dbg(`processing ${sha}`)
+                        let buffer = await store.readShaBytes(sha, 0, 65635)
+                        if (!buffer)
+                            throw `cannot read 65kb from sha ${sha}`
+
+                        let exifParser = exifParserBuilder.create(buffer)
+                        let exif = exifParser.parse()
+
+                        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
+                        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
+                        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+
+                        await DbHelpers.insertObjectExif(client2, sha, exif.tags)
+
+                        nbRows++
+                    }
+                    catch (err) {
+                        nbRowsError++
+                        log.err(`error processing image ${row['sha']} : ${err}`)
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        log.err(`error processing images : ${err}`)
+    }
+
+    log(`processed ${nbRows}/${nbTotal} images with ${nbRowsError} errors`)
+
+    await cursor.close()
+
+    client.end()
+    client2.end()
+}
+
+export async function updateMimeShaList(sourceId: string, mimeType: string, store: IHexaBackupStore, databaseParams: DbConnectionParams) {
     log(`store ready`)
 
     const client = await DbHelpers.createClient(databaseParams)
@@ -158,74 +228,4 @@ export async function dbImage(sourceId: string, mimeType: string, store: IHexaBa
 
     await cursor.close()
     client.end()
-}
-
-export async function exifExtract(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
-    log(`store ready`)
-
-    const client = await DbHelpers.createClient(databaseParams)
-    const client2 = await DbHelpers.createClient(databaseParams)
-
-    log(`connected to database`)
-
-    let baseQuery = `from objects o left join object_exifs op on o.sha=op.sha where size > 65635 and mimeType = 'image/jpeg' and (op.sha is null)`
-
-    const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
-    let rs = await DbHelpers.dbQuery(client, queryCount)
-    let nbTotal = rs.rows[0].total
-
-    const query = `select distinct o.sha ${baseQuery};`
-
-    const cursor = await DbHelpers.createCursor(client, query)
-
-    let nbRows = 0
-    let nbRowsError = 0
-    log.setStatus(() => [`processed ${nbRows}/${nbTotal} rows so far (${nbRowsError} errors)`])
-
-    let exifParserBuilder = require('exif-parser')
-
-    try {
-        while (true) {
-            let rows = await cursor.read()
-            if (!rows || !rows.length) {
-                log(`finished cursor`)
-                break
-            }
-            else {
-                for (let row of rows) {
-                    try {
-                        let sha = row['sha']
-                        log.dbg(`processing ${sha}`)
-                        let buffer = await store.readShaBytes(sha, 0, 65635)
-                        if (!buffer)
-                            throw `cannot read 65kb from sha ${sha}`
-
-                        let exifParser = exifParserBuilder.create(buffer)
-                        let exif = exifParser.parse()
-
-                        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
-                        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
-                        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
-
-                        await DbHelpers.insertObjectExif(client2, sha, exif.tags)
-
-                        nbRows++
-                    }
-                    catch (err) {
-                        nbRowsError++
-                        log.err(`error processing image ${row['sha']} : ${err}`)
-                    }
-                }
-            }
-        }
-    } catch (err) {
-        log.err(`error processing images : ${err}`)
-    }
-
-    log(`processed ${nbRows}/${nbTotal} images with ${nbRowsError} errors`)
-
-    await cursor.close()
-
-    client.end()
-    client2.end()
 }

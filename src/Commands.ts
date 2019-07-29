@@ -490,20 +490,20 @@ export async function pull(directory: string, sourceId: string, storeParams: Sto
 export async function dbPush(storeParams: StoreConnectionParams, dbParams: DbConnectionParams) {
     let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
 
-    await DbIndexation.dbPush(store, dbParams)
+    await DbIndexation.updateObjectsIndex(store, dbParams)
 }
 
 export async function dbImage(storeParams: StoreConnectionParams, databaseParams: DbConnectionParams) {
     let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
 
-    await DbIndexation.dbImage('PHOTOS', 'image', store, databaseParams)
-    await DbIndexation.dbImage('VIDEOS', 'video', store, databaseParams)
+    await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, databaseParams)
+    await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, databaseParams)
 }
 
 export async function exifExtract(storeParams: StoreConnectionParams, databaseParams: DbConnectionParams) {
     let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
 
-    await DbIndexation.exifExtract(store, databaseParams)
+    await DbIndexation.updateExifIndex(store, databaseParams)
 }
 
 export async function extractSha(storeParams: StoreConnectionParams, sha: string, destinationFile: string) {
