@@ -413,7 +413,10 @@ async function run() {
                 storePort: 5005,
                 storeToken: null,
                 insecure: false,
+                database: 'postgres',
                 databaseHost: "localhost",
+                databasePort: 5432,
+                databaseUser: 'postgres',
                 databasePassword: "hexa-backup"
             },
             executor: async (options) => {
@@ -421,10 +424,19 @@ async function run() {
                 const storePort = options['storePort']
                 const storeToken = options['storeToken']
                 const insecure = !!options['insecure']
+                const database = options['postgres']
                 const databaseHost = options['databaseHost']
+                const databasePort = options['databasePort']
+                const databaseUser = options['databaseUser']
                 const databasePassword = options['databasePassword']
 
-                await Commands.dbPush(storeIp, storePort, storeToken, insecure, databaseHost, databasePassword)
+                await Commands.dbPush(storeIp, storePort, storeToken, insecure, {
+                    host: databaseHost,
+                    port: databasePort,
+                    database: database,
+                    user: databaseUser,
+                    password: databasePassword
+                })
 
                 process.exit(0)
             }

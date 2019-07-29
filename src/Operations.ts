@@ -249,7 +249,7 @@ export async function mergeDirectoryDescriptorToDestination(source: string, dest
     log(`validated commit ${commitSha} on source ${parsedDestination.sourceId}`)
 }
 
-export async function commitDirectoryDescriptor(sourceId: string, descriptor: Model.DirectoryDescriptor, store: IHexaBackupStore): string {
+export async function commitDirectoryDescriptor(sourceId: string, descriptor: Model.DirectoryDescriptor, store: IHexaBackupStore): Promise<string> {
     let descriptorSha = await pushDirectoryDescriptor(descriptor, store)
     if (!descriptorSha)
         return null

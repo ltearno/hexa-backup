@@ -45,7 +45,7 @@ export async function createCursor(client: any, query: string): Promise<DbCursor
     const cursor = client.query(new Cursor(query))
 
     return Promise.resolve({
-        read: async () => {
+        read: async (): Promise<any[]> => {
             return new Promise((resolve, reject) => {
                 cursor.read(100, function (err, rows) {
                     if (err) {

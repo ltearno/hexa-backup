@@ -13,6 +13,14 @@ import * as DbHelpers from './DbHelpers'
 
 const log = LoggerBuilder.buildLogger('Commands')
 
+export interface DbConnectionParams {
+    host: string
+    database: string
+    user: string
+    password: string
+    port: number
+}
+
 interface TreeDirectoryInfo {
     files: Model.FileDescriptor[]
     name: string
@@ -468,17 +476,12 @@ export async function pull(directory: string, sourceId: string, storeIp: string,
     log(`pull done`)
 }
 
-export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, databaseHost: string, databasePassword: string) {
+export async function dbPush(storeIp: string, storePort: number, storeToken: string, insecure: boolean, dbParams: DbConnectionParams) {
     let store = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, insecure, false)).remoteStore
 
     log(`store ready`)
 
-    const client = await DbHelpers.createClient({
-        user: 'postgres',
-        host: databaseHost,
-        database: 'postgres',
-        password: databasePassword
-    })
+    const client = await DbHelpers.createClient(dbParams)
 
     let sources = await store.getSources()
     for (let source of sources) {
