@@ -89,6 +89,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     miscServer.addEnpointsToApp(app)
     playlistServer.addEnpointsToApp(app)
     youtubeDownloadServer.addEnpointsToApp(app)
+    backgroundJobs.addEnpointsToApp(app)
 
     let publicFileRoot = path.join(path.dirname(__dirname), 'static')
     log.dbg(`serving /public with ${publicFileRoot}`)
