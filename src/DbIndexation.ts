@@ -90,7 +90,6 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
 
     let nbRows = 0
     let nbRowsError = 0
-    log.setStatus(() => [`processed ${nbRows}/${nbTotal} rows so far (${nbRowsError} errors)`])
 
     let exifParserBuilder = require('exif-parser')
 
@@ -105,7 +104,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                 for (let row of rows) {
                     try {
                         let sha = row['sha']
-                        log.dbg(`processing ${sha}`)
+                        log.dbg(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
                         let buffer = await store.readShaBytes(sha, 0, 65635)
                         if (!buffer)
                             throw `cannot read 65kb from sha ${sha}`
