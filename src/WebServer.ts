@@ -37,7 +37,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     const pluginsServer = new RestApiPlugins.Plugins(store, backgroundJobs)
     const rpcServer = new RestApiRpc.Rpc(store)
     const baseServer = new RestApiBase.Base(store)
-    const statefulServer = new RestApiStateful.Stateful(store, databaseParams)
+    const statefulServer = new RestApiStateful.Stateful(store, databaseParams, backgroundJobs)
     const miscServer = new Miscellanous.Miscellanous(store)
     const playlistServer = new RestApiPlaylists.Playlists(store)
     const youtubeDownloadServer = new YoutubeDownload.YoutubeDownload(store, backgroundJobs)
