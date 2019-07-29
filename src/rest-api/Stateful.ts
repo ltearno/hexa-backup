@@ -98,7 +98,7 @@ export class Stateful {
                 const client = await DbHelpers.createClient(this.databaseParams)
 
                 const query = `select distinct o.name from objects o ${authorizedRefs !== null ?
-                    `inner join object_sources os on o.parentsha=os.sha` :
+                    `inner join object_parents op on op.sha=o.sha inner join object_sources os on op.parentsha=os.sha` :
                     ``} where ${authorizedRefs != null ?
                         `os.sourceId in (${authorizedRefs}) and` :
                         ''} o.sha = '${sha}' limit 500;`
