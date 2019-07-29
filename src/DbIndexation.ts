@@ -111,7 +111,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                     let buffer = await store.readShaBytes(sha, 0, 65635)
                     if (!buffer)
                         throw `cannot read 65kb from sha ${sha}`
-                    log(`read ${buffer.length} bytes`)
+                    //log(`read ${buffer.length} bytes`)
 
                     let exifParser = exifParserBuilder.create(buffer)
                     let exif = exifParser.parse()
@@ -120,16 +120,16 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                     log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
                     log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
 
-                    log(`inserting exif`)
+                    //log(`inserting exif`)
                     await DbHelpers.insertObjectExif(client2, sha, exif.tags)
-                    log(`inserted exif`)
+                    //log(`inserted exif`)
                 }
                 catch (err) {
                     nbRowsError++
                     log.err(`error processing image ${sha} : ${err}`)
                 }
 
-                log(`endp`)
+                //log(`endp`)
             }
         }
     } catch (err) {
