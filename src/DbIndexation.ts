@@ -107,9 +107,6 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                 if (!sha)
                     continue
 
-                if (sha.startsWith('bad076b'))
-                    continue
-
                 log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
                 try {
