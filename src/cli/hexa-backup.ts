@@ -7,76 +7,92 @@ import * as Commands from '../Commands'
 const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)
 
+function optionsWith(name: string, value: any) {
+    this[name] = value
+    return this
+}
+
+function optionsWithVerbose() {
+    this['verbose'] = false
+
+    return this
+}
+
+function optionsWithStore() {
+    this['storeIp'] = "localhost"
+    this['storePort'] = 5005
+    this['storeToken'] = null
+    this['insecure'] = false
+
+    return this
+}
+
+function optionsWithDatabase() {
+    this['database'] = 'postgres'
+    this['databaseHost'] = "localhost"
+    this['databasePort'] = 5432
+    this['databaseUser'] = 'postgres'
+    this['databasePassword'] = "hexa-backup"
+
+    return this
+}
+
 function OptionsConstructor() {
 }
 
-OptionsConstructor.prototype = {
-    with: function (name: string, value: any) {
-        this.raw[name] = value
-        return this
-    },
-
-    withVerbose: function () {
-        this.raw['verbose'] = false
-
-        return this
-    },
-
-    withStore: function () {
-        this.raw['storeIp'] = "localhost"
-        this.raw['storePort'] = 5005
-        this.raw['storeToken'] = null
-        this.raw['insecure'] = false
-
-        return this
-    },
-
-    withDatabase: function () {
-        this.raw['database'] = 'postgres'
-        this.raw['databaseHost'] = "localhost"
-        this.raw['databasePort'] = 5432
-        this.raw['databaseUser'] = 'postgres'
-        this.raw['databasePassword'] = "hexa-backup"
-
-        return this
-    }
+function addToPrototype(f: Function) {
+    let name = f.name
+    name = name.substr('options'.length)
+    name = name.substr(0, 1).toLowerCase() + name.substr(1)
+    Object.defineProperty(
+        OptionsConstructor.prototype,
+        name,
+        {
+            enumerable: false,
+            get: () => f
+        })
 }
 
+addToPrototype(optionsWith)
+addToPrototype(optionsWithVerbose)
+addToPrototype(optionsWithStore)
+addToPrototype(optionsWithDatabase)
+
 interface Options {
-    with(name: string, value: any)
-    withVerbose()
-    withStore()
-    withDatabase()
+    with<T, M>(this: T, model: M): T & M
+    withVerbose<T>(this: T): T & { verbose: boolean }
+    withStore<T>(this: T): T & { host: string; port: number; token: string; insecure: boolean }
+    withDatabase<T>(this: T): T & { database: string; host: string; port: number; user: string; password: string }
 }
 
 function options(): Options {
     return new OptionsConstructor()
 }
 
-function getVerboseParam(options) {
+function getVerboseParam(options: { verbose: boolean }) {
     return !!options['verbose']
 }
 
-function getSourceIdParam(options) {
-    return options['sourceId'] as string
+function getSourceIdParam(options: { sourceId: string }) {
+    return options['sourceId'] || null
 }
 
-function getStoreParams(options) {
+function getStoreParams(options: { host: string; port: number; token: string; insecure: boolean; }) {
     return {
-        host: options['storeIp'] as string,
-        port: options['storePort'] as number,
-        token: options['storeToken'] as string,
-        insecure: !!options['insecure'] as boolean
+        host: options['storeIp'],
+        port: options['storePort'],
+        token: options['storeToken'],
+        insecure: !!options['insecure']
     }
 }
 
-function getDatabaseParams(options) {
+function getDatabaseParams(options: { database: string; host: string; port: number; user: string; password: string }) {
     return {
-        database: options['postgres'] as string,
-        host: options['databaseHost'] as string,
-        port: options['databasePort'] as number,
-        user: options['databaseUser'] as string,
-        password: options['databasePassword'] as string
+        database: options['postgres'],
+        host: options['databaseHost'],
+        port: options['databasePort'],
+        user: options['databaseUser'],
+        password: options['databasePassword']
     }
 }
 
@@ -117,6 +133,10 @@ function parseArgs(args: string[], defaultParameters): { verbs: string[]; parame
     }
 }
 
+function addOption<T>(list: CommandSpec<any>[], option: CommandSpec<T>) {
+    list.push(option)
+}
+
 async function run() {
     let args = process.argv.slice(2)
     log(JSON.stringify(args))
@@ -135,305 +155,318 @@ async function run() {
 
     let defaultSourceId = `${os.hostname()}-${fsPath.basename(process.cwd())}`
 
-    let cmdManager = new CommandManager([
-        {
-            id: "refs",
-            verbs: ["refs"],
-            options: options()
-                .withVerbose()
-                .withStore(),
-            executor: async (options) => {
-                const storeParams = getStoreParams(options)
-                const verbose = getVerboseParam(options)
+    const commandSpecs: CommandSpec<any>[] = []
 
-                await Commands.refs(storeParams, verbose)
+    addOption(commandSpecs, {
+        id: "refs",
+        verbs: ["refs"],
+        options: options()
+            .withVerbose()
+            .withStore(),
+        executor: async (options) => {
+            const storeParams = getStoreParams(options)
+            const verbose = getVerboseParam(options)
 
-                process.exit(0)
-            }
-        },
-        {
-            id: "sources",
-            verbs: ["sources"],
-            options: options()
-                .withVerbose()
-                .withStore(),
-            executor: async (options) => {
-                const storeParams = getStoreParams(options)
-                const verbose = getVerboseParam(options)
+            await Commands.refs(storeParams, verbose)
 
-                await Commands.sources(storeParams, verbose)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "stats",
-            verbs: ["stats"],
-            options: options()
-                .withStore(),
-            executor: async (options) => {
-                const storeParams = getStoreParams(options)
-
-                await Commands.stats(storeParams)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "browse",
-            verbs: ["browse"],
-            options:
-                options()
-                    .with('directory', '.')
-                    .withVerbose(),
-            executor: async (options) => {
-                const directory = fsPath.resolve(options['directory'])
-                const verbose = getVerboseParam(options)
-
-                await Commands.browse(directory, verbose)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "history",
-            verbs: ["history"],
-            options: options()
-                .with('sourceId', defaultSourceId)
-                .withVerbose()
-                .withStore(),
-            executor: async (options) => {
-                const storeParams = getStoreParams(options)
-                const sourceId = getSourceIdParam(options)
-                const verbose = getVerboseParam(options)
-
-                await Commands.history(sourceId, storeParams, verbose)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "lsDirectoryStructure",
-            verbs: ["ls", "!directoryDescriptorSha"],
-            options: options()
-                .with('recursive', false)
-                .withStore(),
-            executor: async (options) => {
-                const directoryDescriptorSha = options['directoryDescriptorSha']
-                const storeParams = getStoreParams(options)
-                const recursive = !!options['recursive']
-
-                await Commands.lsDirectoryStructure(storeParams, directoryDescriptorSha, recursive)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "normalize",
-            verbs: ["normalize"],
-            options: options()
-                .with('sourceId', defaultSourceId)
-                .withStore(),
-            executor: async (options) => {
-                const sourceId = options['sourceId']
-                const storeParams = getStoreParams(options)
-
-                await Commands.normalize(sourceId, storeParams)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "extract",
-            verbs: ["extract", "!directoryDescriptorSha", "?prefix"],
-            options: options()
-                .with('destinationDirectory', '.')
-                .withStore(),
-            executor: async (options) => {
-                const directoryDescriptorSha = options['directoryDescriptorSha']
-                const prefix = options['prefix'] || null
-                const storeParams = getStoreParams(options)
-                const destinationDirectory = options['destinationDirectory']
-
-                await Commands.extract(storeParams, directoryDescriptorSha, prefix, destinationDirectory)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "extractSha",
-            verbs: ["extractSha", "!sha", "?file"],
-            options: options()
-                .withStore()
-                .with('file', 'h.out'),
-            executor: async (options) => {
-                const sha = options['sha']
-                const file = options['file']
-                const storeParams = getStoreParams(options)
-
-                await Commands.extractSha(storeParams, sha, file)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "push",
-            verbs: ["push"],
-            options: options()
-                .with('sourceId', defaultSourceId)
-                .with('pushedDirectory', '.')
-                .with('estimateSize', false)
-                .withStore(),
-            executor: async (options) => {
-                const sourceId = options['sourceId']
-                const storeParams = getStoreParams(options)
-                const pushedDirectory = fsPath.resolve(options['pushedDirectory'])
-                const estimateSize = options['estimateSize']
-
-                await Commands.push(sourceId, pushedDirectory, storeParams, estimateSize)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "pushStore",
-            verbs: ["pushStore"],
-            options: options()
-                .with('storeDirectory', '.')
-                .with('estimateSize', false)
-                .withStore(),
-            executor: async (options) => {
-                const storeParams = getStoreParams(options)
-                const estimateSize = options['estimateSize']
-                const directory = fsPath.resolve(options['storeDirectory'])
-
-                await Commands.pushStore(directory, storeParams, estimateSize)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "pull",
-            verbs: ["pull", "?sourceId"],
-            options: options()
-                .with('storeDirectory', '.')
-                .with('force', false)
-                .withStore(),
-            executor: async (options) => {
-                const directory = fsPath.resolve(options['storeDirectory'])
-                const storeParams = getStoreParams(options)
-                const sourceId = options['sourceId']
-                const force = !!options['force']
-
-                await Commands.pull(directory, sourceId, storeParams, force)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "store",
-            verbs: ["store"],
-            options: {
-                storePort: 5005,
-                storeDirectory: '.',
-                insecure: false
-            },
-            executor: async (options) => {
-                const port = options['storePort']
-                const directory = fsPath.resolve(options['storeDirectory'])
-                const insecure = !!options['insecure']
-
-                await Commands.store(directory, port, insecure)
-            }
-        },
-        {
-            id: "cp",
-            verbs: ["cp", "!destination"],
-            options: options()
-                .with('sourceId', `${os.hostname()}-UPLOAD`)
-                .with('pushedDirectory', '.')
-                .with('recursive', false)
-                .withStore(),
-            executor: async (options) => {
-                const source = options['sourceId']
-                let pushedDirectory = fsPath.resolve(options['pushedDirectory'])
-                const destination = options['destination']
-                const storeParams = getStoreParams(options)
-                const recursive = !!options['recursive']
-
-                await Commands.copy(source, pushedDirectory, destination, recursive, storeParams)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "merge",
-            verbs: ["merge", "!source", "!destination"],
-            options: options()
-                .with('sourceId', defaultSourceId)
-                .with('recursive', false)
-                .withStore(),
-            executor: async (options) => {
-                const source = options['source']
-                const destination = options['destination']
-                const storeParams = getStoreParams(options)
-                const recursive = !!options['recursive']
-
-                await Commands.merge(source, destination, recursive, storeParams, false)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "dbpush",
-            verbs: ["dbpush"],
-            options: options()
-                .withStore()
-                .withDatabase(),
-            executor: async (options) => {
-                const storeParams = getStoreParams(options)
-                const databaseParams = getDatabaseParams(options)
-
-                await Commands.dbPush(storeParams, databaseParams)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "dbimage",
-            verbs: ["dbimage"],
-            options: options()
-                .withStore()
-                .withDatabase(),
-            executor: async (options) => {
-                const storeParams = getStoreParams(options)
-                const databaseParams = getDatabaseParams(options)
-
-                await Commands.dbImage(storeParams, databaseParams)
-
-                process.exit(0)
-            }
-        },
-        {
-            id: "exifextract",
-            verbs: ["exifextract"],
-            options: options().with('sourceId', defaultSourceId)
-                .withStore()
-                .withDatabase(),
-            executor: async (options) => {
-                const storeIp = options['storeIp']
-                const storePort = options['storePort']
-                const storeToken = options['storeToken']
-                const insecure = !!options['insecure']
-                const databaseHost = options['databaseHost']
-                const databasePassword = options['databasePassword']
-
-                await Commands.exifExtract(storeIp, storePort, storeToken, insecure, databaseHost, databasePassword)
-
-                process.exit(0)
-            }
+            process.exit(0)
         }
-    ])
+    })
+    addOption(commandSpecs, {
+        id: "sources",
+        verbs: ["sources"],
+        options: options()
+            .withVerbose()
+            .withStore(),
+        executor: async (options) => {
+            const storeParams = getStoreParams(options)
+            const verbose = getVerboseParam(options)
+
+            await Commands.sources(storeParams, verbose)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "stats",
+        verbs: ["stats"],
+        options: options()
+            .withStore(),
+        executor: async (options) => {
+            const storeParams = getStoreParams(options)
+
+            await Commands.stats(storeParams)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "browse",
+        verbs: ["browse"],
+        options:
+            options()
+                .with({ directory: '.' })
+                .withVerbose(),
+        executor: async (options) => {
+            const directory = fsPath.resolve(options['directory'])
+            const verbose = getVerboseParam(options)
+
+            await Commands.browse(directory, verbose)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "history",
+        verbs: ["history"],
+        options: options()
+            .with({ sourceId: defaultSourceId })
+            .withVerbose()
+            .withStore(),
+        executor: async (options) => {
+            const storeParams = getStoreParams(options)
+            const sourceId = getSourceIdParam(options)
+            const verbose = getVerboseParam(options)
+
+            await Commands.history(sourceId, storeParams, verbose)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "lsDirectoryStructure",
+        verbs: ["ls", "!directoryDescriptorSha"],
+        options: options()
+            .with({ recursive: false })
+            .withStore(),
+        executor: async (options) => {
+            const directoryDescriptorSha = options['directoryDescriptorSha']
+            const storeParams = getStoreParams(options)
+            const recursive = !!options['recursive']
+
+            await Commands.lsDirectoryStructure(storeParams, directoryDescriptorSha, recursive)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "normalize",
+        verbs: ["normalize"],
+        options: options()
+            .with({ sourceId: defaultSourceId })
+            .withStore(),
+        executor: async (options) => {
+            const sourceId = options['sourceId']
+            const storeParams = getStoreParams(options)
+
+            await Commands.normalize(sourceId, storeParams)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "extract",
+        verbs: ["extract", "!directoryDescriptorSha", "?prefix"],
+        options: options()
+            .with({ destinationDirectory: '.' })
+            .withStore(),
+        executor: async (options) => {
+            const directoryDescriptorSha = options['directoryDescriptorSha']
+            const prefix = options['prefix'] || null
+            const storeParams = getStoreParams(options)
+            const destinationDirectory = options['destinationDirectory']
+
+            await Commands.extract(storeParams, directoryDescriptorSha, prefix, destinationDirectory)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "extractSha",
+        verbs: ["extractSha", "!sha", "?file"],
+        options: options()
+            .withStore()
+            .with({ file: 'h.out' }),
+        executor: async (options) => {
+            const sha = options['sha']
+            const file = options['file']
+            const storeParams = getStoreParams(options)
+
+            await Commands.extractSha(storeParams, sha, file)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "push",
+        verbs: ["push"],
+        options: options()
+            .with({
+                sourceId: defaultSourceId,
+                pushedDirectory: '.',
+                estimateSize: false
+            })
+            .withStore(),
+        executor: async (options) => {
+            const sourceId = options['sourceId']
+            const storeParams = getStoreParams(options)
+            const pushedDirectory = fsPath.resolve(options['pushedDirectory'])
+            const estimateSize = options['estimateSize']
+
+            await Commands.push(sourceId, pushedDirectory, storeParams, estimateSize)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "pushStore",
+        verbs: ["pushStore"],
+        options: options()
+            .with({
+                storeDirectory: '.',
+                estimateSize: false
+            })
+            .withStore(),
+        executor: async (options) => {
+            const storeParams = getStoreParams(options)
+            const estimateSize = options['estimateSize']
+            const directory = fsPath.resolve(options['storeDirectory'])
+
+            await Commands.pushStore(directory, storeParams, estimateSize)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "pull",
+        verbs: ["pull", "?sourceId"],
+        options: options()
+            .with({
+                storeDirectory: '.',
+                force: false
+            })
+            .withStore(),
+        executor: async (options) => {
+            const directory = fsPath.resolve(options['storeDirectory'])
+            const storeParams = getStoreParams(options)
+            const sourceId = options['sourceId']
+            const force = !!options['force']
+
+            await Commands.pull(directory, sourceId, storeParams, force)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "store",
+        verbs: ["store"],
+        options: {
+            storePort: 5005,
+            storeDirectory: '.',
+            insecure: false
+        },
+        executor: async (options) => {
+            const port = options['storePort']
+            const directory = fsPath.resolve(options['storeDirectory'])
+            const insecure = !!options['insecure']
+
+            await Commands.store(directory, port, insecure)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "cp",
+        verbs: ["cp", "!destination"],
+        options: options()
+            .with({
+                sourceId: `${os.hostname()}-UPLOAD`,
+                pushedDirectory: '.',
+                recursive: false
+            })
+            .withStore(),
+        executor: async (options) => {
+            const source = options['sourceId']
+            let pushedDirectory = fsPath.resolve(options['pushedDirectory'])
+            const destination = options['destination']
+            const storeParams = getStoreParams(options)
+            const recursive = !!options['recursive']
+
+            await Commands.copy(source, pushedDirectory, destination, recursive, storeParams)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "merge",
+        verbs: ["merge", "!source", "!destination"],
+        options: options()
+            .with({
+                sourceId: defaultSourceId,
+                recursive: false
+            })
+            .withStore(),
+        executor: async (options) => {
+            const source = options['source']
+            const destination = options['destination']
+            const storeParams = getStoreParams(options)
+            const recursive = !!options['recursive']
+
+            await Commands.merge(source, destination, recursive, storeParams, false)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "dbpush",
+        verbs: ["dbpush"],
+        options: options()
+            .withStore()
+            .withDatabase(),
+        executor: async (options) => {
+            const storeParams = getStoreParams(options)
+            const databaseParams = getDatabaseParams(options)
+
+            await Commands.dbPush(storeParams, databaseParams)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "dbimage",
+        verbs: ["dbimage"],
+        options: options()
+            .withStore()
+            .withDatabase(),
+        executor: async (options) => {
+            const storeParams = getStoreParams(options)
+            const databaseParams = getDatabaseParams(options)
+
+            await Commands.dbImage(storeParams, databaseParams)
+
+            process.exit(0)
+        }
+    })
+    addOption(commandSpecs, {
+        id: "exifextract",
+        verbs: ["exifextract"],
+        options: options()
+            .with({ sourceId: defaultSourceId })
+            .withStore()
+            .withDatabase(),
+        executor: async (options) => {
+            const storeIp = options['storeIp']
+            const storePort = options['storePort']
+            const storeToken = options['storeToken']
+            const insecure = !!options['insecure']
+            const databaseHost = options['databaseHost']
+            const databasePassword = options['databasePassword']
+
+            await Commands.exifExtract(storeIp, storePort, storeToken, insecure, databaseHost, databasePassword)
+
+            process.exit(0)
+        }
+    })
+
+    let cmdManager = new CommandManager(commandSpecs)
 
     function parseAndProcess(args: string[]) {
         let parsed = parseArgs(args, defaultParameters)
@@ -464,15 +497,15 @@ async function run() {
     }
 }
 
-interface CommandSpec {
+interface CommandSpec<OPTIONS> {
     id: string;
     verbs: string[];
-    options: { [key: string]: any };
-    executor: (options: { [key: string]: any }) => void;
+    options: OPTIONS;
+    executor: (options: OPTIONS) => void;
 }
 
 class CommandManager {
-    constructor(private commandSpecs: CommandSpec[]) {
+    constructor(private commandSpecs: CommandSpec<any>[]) {
     }
 
     showHelp() {
@@ -492,8 +525,8 @@ class CommandManager {
             }).join(' '))
             if (spec.options) {
                 for (let k in spec.options)
-                    if (spec.options[k])
-                        console.log(`  -${k}: by default ${JSON.stringify(spec.options[k])}`)
+                    if (spec.options[k] !== undefined)
+                        console.log(`  -${k}: ${typeof spec.options[k]}, by default ${JSON.stringify(spec.options[k])}`)
                     else
                         console.log(`  -${k}`)
             }
