@@ -100,30 +100,34 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                 log(`finished cursor`)
                 break
             }
-            else {
-                for (let row of rows) {
-                    try {
-                        let sha = row['sha']
-                        log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
-                        let buffer = await store.readShaBytes(sha, 0, 65635)
-                        if (!buffer)
-                            throw `cannot read 65kb from sha ${sha}`
 
-                        let exifParser = exifParserBuilder.create(buffer)
-                        let exif = exifParser.parse()
+            for (let rowI in rows) {
+                let row = rows[rowI]
+                let sha = row['sha']
 
-                        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
-                        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
-                        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+                log(`processing ${sha} (${rowI + 1}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
-                        await DbHelpers.insertObjectExif(client2, sha, exif.tags)
+                try {
+                    let buffer = await store.readShaBytes(sha, 0, 65635)
+                    if (!buffer)
+                        throw `cannot read 65kb from sha ${sha}`
 
-                        nbRows++
-                    }
-                    catch (err) {
-                        nbRowsError++
-                        log.err(`error processing image ${row['sha']} : ${err}`)
-                    }
+                    let exifParser = exifParserBuilder.create(buffer)
+                    let exif = exifParser.parse()
+
+                    log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
+                    log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
+                    log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+
+                    log(`inserting exif`)
+                    await DbHelpers.insertObjectExif(client2, sha, exif.tags)
+                    log(`inserted exif`)
+
+                    nbRows++
+                }
+                catch (err) {
+                    nbRowsError++
+                    log.err(`error processing image ${sha} : ${err}`)
                 }
             }
         }
