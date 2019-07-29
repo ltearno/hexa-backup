@@ -233,48 +233,28 @@ export class ObjectRepository {
     }
 
     async readShaBytes(sha: string, offset: number, length: number): Promise<Buffer> {
-        return new Promise<Buffer>((resolve, reject) => {
-            if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
-                resolve(Buffer.alloc(0))
-                return
+        if (sha == HashTools.EMPTY_PAYLOAD_SHA)
+            return Buffer.alloc(0)
+
+        let contentFileName = await this.contentFileName(sha)
+
+        if (length <= 0) {
+            if (!fs.existsSync(contentFileName)) {
+                throw `content file does not exist`
             }
 
-            let contentFileName = this.contentFileNameSync(sha)
+            let stat = fs.lstatSync(contentFileName)
+            log.dbg(`read length is now ${stat.size}`)
+            length = stat.size
+        }
 
-            if (length <= 0) {
-                if (!fs.existsSync(contentFileName)) {
-                    reject(`content file does not exist`)
-                    return
-                }
+        log.dbg(`read bytes for ${sha} @${offset}, size=${length}`)
 
-                let stat = fs.lstatSync(contentFileName)
-                log.dbg(`read length is now ${stat.size}`)
-                length = stat.size
-            }
+        let fd = await FsTools.openFile(contentFileName, 'r')
 
-            log.dbg(`read bytes for ${sha} @${offset}, size=${length}`)
+        let buffer = await FsTools.readFile(fd, offset, length)
 
-            fs.open(contentFileName, 'r', (err, fd) => {
-                if (err) {
-                    log.err(`readShaBytes: opening ${contentFileName}, err='${err}'`)
-                    reject(err)
-                    return
-                }
-
-                let buffer = Buffer.alloc(length)
-                fs.read(fd, buffer, 0, length, offset, (err, read, buffer) => {
-                    fs.close(fd, (err) => {
-                        if (err) {
-                            log.err(`readShaBytes: closing ${contentFileName}, err='${err}'`)
-                            reject(err)
-                            return
-                        }
-
-                        resolve(buffer)
-                    });
-                });
-            });
-        });
+        return buffer
     }
 
     async validateSha(contentSha: string, contentSize: number) {
