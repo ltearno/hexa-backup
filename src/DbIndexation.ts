@@ -104,7 +104,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                 for (let row of rows) {
                     try {
                         let sha = row['sha']
-                        log.dbg(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
+                        log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
                         let buffer = await store.readShaBytes(sha, 0, 65635)
                         if (!buffer)
                             throw `cannot read 65kb from sha ${sha}`
