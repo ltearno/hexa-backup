@@ -33,8 +33,8 @@ export class Stateful {
 
                 const client = await createSqlClient()
 
-                const query = `select distinct o.parentSha from object_parents o ${authorizedRefs !== null ?
-                    `inner join object_sources os on o.parentSha=os.sha` :
+                const query = `select distinct o.parentsha from object_parents o ${authorizedRefs !== null ?
+                    `inner join object_sources os on o.parentsha=os.sha` :
                     ``} where ${authorizedRefs != null ?
                         `os.sourceId in (${authorizedRefs}) and` :
                         ''} o.sha = '${sha}' limit 500;`
@@ -69,7 +69,7 @@ export class Stateful {
                 const client = await createSqlClient()
 
                 const query = `select distinct o.name from objects o ${authorizedRefs !== null ?
-                    `inner join object_sources os on o.parentSha=os.sha` :
+                    `inner join object_sources os on o.parentsha=os.sha` :
                     ``} where ${authorizedRefs != null ?
                         `os.sourceId in (${authorizedRefs}) and` :
                         ''} o.sha = '${sha}' limit 500;`

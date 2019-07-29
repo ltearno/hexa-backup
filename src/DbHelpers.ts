@@ -22,11 +22,11 @@ export async function createClient(options: {
     const { Client } = require('pg')
 
     const client = new Client({
-        user: options.user,
         host: options.host,
-        database: options.database,
-        password: options.password,
         port: options.port || 5432,
+        database: options.database,
+        user: options.user,
+        password: options.password,
     })
 
     client.connect()
@@ -92,7 +92,7 @@ export async function insertObjectParent(client, sha: string, parentSha: string)
         return
 
     await dbQuery(client, {
-        text: 'INSERT INTO object_parents(sha, parentSha) VALUES($1, $2) ON CONFLICT DO NOTHING',
+        text: 'INSERT INTO object_parents(sha, parentsha) VALUES($1, $2) ON CONFLICT DO NOTHING',
         values: [sha, parentSha],
     })
 }

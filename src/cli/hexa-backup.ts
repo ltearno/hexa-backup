@@ -89,7 +89,7 @@ function getStoreParams(options: { storeIp: string; storePort: number; storeToke
 
 function getDatabaseParams(options: { database: string; databaseHost: string; databasePort: number; databaseUser: string; databasePassword: string }) {
     return {
-        database: options['postgres'],
+        database: options['database'],
         host: options['databaseHost'],
         port: options['databasePort'],
         user: options['databaseUser'],
