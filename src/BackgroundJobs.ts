@@ -63,7 +63,9 @@ export class BackgroundJobs {
             }
 
             try {
-                await info.waiter(result, error)
+                if (info.waiter) {
+                    await info.waiter(result, error)
+                }
             }
             catch (err) {
                 log.err(`in job's waiter "${info.name}": ${err}`)

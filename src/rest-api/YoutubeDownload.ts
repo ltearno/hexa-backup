@@ -1,5 +1,5 @@
 import { HexaBackupStore } from '../HexaBackupStore'
-import { Queue, LoggerBuilder } from '@ltearno/hexa-js'
+import { LoggerBuilder } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
 import { spawn } from 'child_process'
 import * as fs from 'fs'
@@ -17,37 +17,12 @@ function userSourceId(user: string) {
     return `plugin-youtubedownload-${user}`
 }
 
-interface ConversionJob {
-    url: string
-    sourceId: string
-}
-
 export class YoutubeDownload {
     private conversionCacheDir = '.hb-youtubedlcache'
-    private conversionQueue = new Queue.Queue<ConversionJob>('youtube-conversions')
+    private backgroundJobs: BackgroundJobs.BackgroundJobClientApi
 
-    constructor(private store: HexaBackupStore, private backgroundJobs: BackgroundJobs.BackgroundJobs) { }
-
-    private async conversionLoop() {
-        const waiter = Queue.waitPopper(this.conversionQueue)
-
-        while (true) {
-            const info = await waiter()
-            if (!info) {
-                log(`finished conversion loop`)
-                break
-            }
-
-            try {
-                log(`starting youtube conversion ${info.url} on ${info.sourceId}, still ${this.conversionQueue.size()} in queue`)
-                let result = await this.grabFromYoutube(info.url, info.sourceId)
-                log(`finished conversion (res:${JSON.stringify(result)})`)
-            }
-            catch (err) {
-                log.err(`sorry, failed conversion !`)
-                log.err(err)
-            }
-        }
+    constructor(private store: HexaBackupStore, backgroundJobs: BackgroundJobs.BackgroundJobs) {
+        this.backgroundJobs = backgroundJobs.createClient(`youtube-dl`)
     }
 
     updateYoutubeDl() {
@@ -185,8 +160,6 @@ export class YoutubeDownload {
     }
 
     addEnpointsToApp(app: any) {
-        this.conversionLoop()
-
         app.post('/plugins/youtube/fetch', async (req, res) => {
             res.set('Content-Type', 'application/json')
 
@@ -201,7 +174,21 @@ export class YoutubeDownload {
             let url = request.url
             let sourceId = userSourceId(user)
 
-            this.conversionQueue.push({ url, sourceId })
+            this.backgroundJobs.addJob(
+                null,
+                `youtube-dl`,
+                async () => {
+                    try {
+                        log(`starting youtube conversion ${url} on ${sourceId}`)
+                        let result = await this.grabFromYoutube(url, sourceId)
+                        log(`finished conversion (res:${JSON.stringify(result)})`)
+                    }
+                    catch (err) {
+                        log.err(`sorry, failed conversion !`)
+                        log.err(err)
+                    }
+                },
+                null)
 
             res.send(JSON.stringify({ ok: `conversion pushed` }))
         })
