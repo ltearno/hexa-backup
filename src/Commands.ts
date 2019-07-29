@@ -662,11 +662,13 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
 
     log(`connected to database`)
 
-    const queryCount = `select count(distinct sha) as total from objects where size > 65635 and mimeType = 'image/jpeg';`
+    let baseQuery = `from objects o left join object_exifs op on o.sha=op.sha where size > 65635 and mimeType = 'image/jpeg' and (op.sha is null or op.exif::text = '{}'::text)`
+
+    const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
     let rs = await DbHelpers.dbQuery(client, queryCount)
     let nbTotal = rs.rows[0].total
 
-    const query = `select distinct sha from objects where size > 65635 and mimeType = 'image/jpeg';`
+    const query = `select distinct o.sha ${baseQuery};`
 
     const cursor = await DbHelpers.createCursor(client, query)
 
@@ -687,21 +689,19 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
                 for (let row of rows) {
                     try {
                         let sha = row['sha']
-                        if (!await DbHelpers.hasObjectExif(client2, sha)) {
-                            log.dbg(`processing ${sha}`)
-                            let buffer = await store.readShaBytes(sha, 0, 65635)
-                            if (!buffer)
-                                throw `cannot read 65kb from sha ${sha}`
+                        log.dbg(`processing ${sha}`)
+                        let buffer = await store.readShaBytes(sha, 0, 65635)
+                        if (!buffer)
+                            throw `cannot read 65kb from sha ${sha}`
 
-                            let exifParser = exifParserBuilder.create(buffer)
-                            let exif = exifParser.parse()
+                        let exifParser = exifParserBuilder.create(buffer)
+                        let exif = exifParser.parse()
 
-                            log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
-                            log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
-                            log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+                        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
+                        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
+                        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
 
-                            await DbHelpers.insertObjectExif(client2, sha, exif.tags)
-                        }
+                        await DbHelpers.insertObjectExif(client2, sha, exif.tags)
 
                         nbRows++
                     }
