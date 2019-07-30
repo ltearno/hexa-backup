@@ -204,15 +204,12 @@ export class HexaBackupStore implements IHexaBackupStore {
 
         this.sourceStateCache[sourceId] = sourceState;
 
-        return new Promise<void>(async (resolve, reject) => {
-            let now = Date.now();
-            if (force || (now - this.lastTimeSavedClientState > 2000)) {
-                this.lastTimeSavedClientState = now;
+        let now = Date.now()
+        if (force || (now - this.lastTimeSavedClientState > 2000)) {
+            this.lastTimeSavedClientState = now
 
-                let clientStateReferenceName = `client_${sourceId}`;
-                await this.referenceRepository.put(clientStateReferenceName, sourceState);
-            }
-            resolve();
-        });
+            let clientStateReferenceName = `client_${sourceId}`
+            await this.referenceRepository.put(clientStateReferenceName, sourceState)
+        }
     }
 }
