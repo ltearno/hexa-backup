@@ -366,7 +366,7 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
     let sourceLength = await sourceStore.hasOneShaBytes(sha)
     let targetLength = await destinationStore.hasOneShaBytes(sha)
     if (sourceLength == targetLength) {
-        log(`already have sha ${sha}`)
+        log.dbg(`already have sha ${sha}`)
         return true
     }
 
@@ -400,13 +400,13 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
 }
 
 async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, directoryDescriptorSha: string) {
-    log(`pulling directory descriptor ${directoryDescriptorSha}`)
+    log.dbg(`pulling directory descriptor ${directoryDescriptorSha}`)
 
     let sourceLength = await sourceStore.hasOneShaBytes(directoryDescriptorSha)
     let targetLength = await destinationStore.hasOneShaBytes(directoryDescriptorSha)
 
     if (sourceLength == targetLength) {
-        log(`already have directoryDescriptor`)
+        log.dbg(`already have directoryDescriptor`)
         return true
     }
 
@@ -478,14 +478,14 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
     }
 
     while (currentCommitSha) {
-        log(`pulling commit ${currentCommitSha}`)
-
         let sourceLength = await sourceStore.hasOneShaBytes(currentCommitSha)
         let targetLength = await destinationStore.hasOneShaBytes(currentCommitSha)
         if (sourceLength == targetLength) {
             log.dbg(`already have commit ${currentCommitSha}`)
             break
         }
+
+        log(`pulling commit ${currentCommitSha}`)
 
         let commit = await sourceStore.getCommit(currentCommitSha)
 
