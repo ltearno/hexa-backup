@@ -7,7 +7,7 @@ import * as BackgroundJobs from '../BackgroundJobs'
 
 const log = LoggerBuilder.buildLogger('stateful-server')
 
-const SQL_RESULT_LIMIT = 50
+const SQL_RESULT_LIMIT = 100
 
 export class Stateful {
     private backgroundJobs: BackgroundJobs.BackgroundJobClientApi
@@ -197,7 +197,7 @@ export class Stateful {
                 res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items }))
             }
             catch (err) {
-                res.send(`{"error":"${err}"}`)
+                res.send(JSON.stringify({ error: err }))
             }
         })
     }
