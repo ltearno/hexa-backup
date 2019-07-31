@@ -7,6 +7,8 @@ import * as BackgroundJobs from '../BackgroundJobs'
 
 const log = LoggerBuilder.buildLogger('stateful-server')
 
+const SQL_RESULT_LIMIT = 50
+
 export class Stateful {
     private backgroundJobs: BackgroundJobs.BackgroundJobClientApi
     private runningUpdate = false
@@ -66,7 +68,7 @@ export class Stateful {
                     `inner join object_sources os on o.parentsha=os.sha` :
                     ``} where ${authorizedRefs != null ?
                         `os.sourceId in (${authorizedRefs}) and` :
-                        ''} o.sha = '${sha}' limit 500;`
+                        ''} o.sha = '${sha}' limit ${SQL_RESULT_LIMIT};`
 
                 log.dbg(`sql:${query}`)
 
@@ -101,7 +103,7 @@ export class Stateful {
                     `inner join object_parents op on op.sha=o.sha inner join object_sources os on op.parentsha=os.sha` :
                     ``} where ${authorizedRefs != null ?
                         `os.sourceId in (${authorizedRefs}) and` :
-                        ''} o.sha = '${sha}' limit 500;`
+                        ''} o.sha = '${sha}' limit ${SQL_RESULT_LIMIT};`
 
                 log.dbg(`sql:${query}`)
 
@@ -136,7 +138,7 @@ export class Stateful {
                     `inner join object_sources os on o.sha=os.sha` :
                     ``} where ${authorizedRefs != null ?
                         `os.sourceId in (${authorizedRefs}) and` :
-                        ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by o.sha, o.name order by similarity(o.name, '${name}') desc limit 500;`
+                        ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by o.sha, o.name order by similarity(o.name, '${name}') desc limit ${SQL_RESULT_LIMIT};`
 
                 log.dbg(`sql:${query}`)
 
@@ -184,7 +186,7 @@ export class Stateful {
                     `inner join object_sources os on o.sha=os.sha` :
                     ``}${geoSearchJoin} where ${authorizedRefs !== null ?
                         `os.sourceId in (${authorizedRefs})` :
-                        '1=1'}${nameWhere} and o.mimeType != 'application/directory' and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit 500;`
+                        '1=1'}${nameWhere} and o.mimeType != 'application/directory' and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit ${SQL_RESULT_LIMIT};`
 
                 log.dbg(`sql:${query}`)
 
