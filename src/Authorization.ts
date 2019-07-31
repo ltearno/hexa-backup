@@ -1,6 +1,14 @@
 import { IHexaBackupStore } from './HexaBackupStore'
+import { LoggerBuilder } from '@ltearno/hexa-js'
 
-// TODO if database is configured, use it (if not available, fail)
+const log = LoggerBuilder.buildLogger('hexa-backup')
+
+let authorizationDisabled = false
+
+export function disableAuthorization() {
+    log.wrn(`AUTHORIZATION AND ACL DISABLED, OPEN-BAR MODE !!!`)
+    authorizationDisabled = true
+}
 
 export function getUserFromRequest(request: any): string {
     return request.headers["x-authenticated-user"] || 'anonymous'
@@ -34,6 +42,9 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
         // TODO use ACLs in reference files
 
         let refs = await store.getRefs()
+
+        if (authorizationDisabled)
+            return refs
 
         switch (user) {
             case 'ltearno':

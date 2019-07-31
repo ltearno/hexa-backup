@@ -3,6 +3,7 @@ import fsPath = require('path')
 
 import { FsTools, LoggerBuilder } from '@ltearno/hexa-js'
 import * as Commands from '../Commands'
+import * as Authorization from '../Authorization'
 
 const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)
@@ -376,6 +377,7 @@ async function run() {
                 storePort: 5005,
                 storeInsecure: false,
                 storeDirectory: '.',
+                noacl: false
             })
             .withDatabase(),
         executor: async (options) => {
@@ -383,6 +385,9 @@ async function run() {
             const insecure = !!options['storeInsecure']
             const directory = fsPath.resolve(options['storeDirectory'])
             const databaseParams = getDatabaseParams(options)
+            const noacl = !!options['noacl']
+            if (noacl)
+                Authorization.disableAuthorization()
 
             await Commands.store(directory, port, insecure, databaseParams)
         }
