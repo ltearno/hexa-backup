@@ -134,23 +134,10 @@ export class Stateful {
 
                 const client = await DbHelpers.createClient(this.databaseParams)
 
-                let query = `select o.sha, o.name from objects o ${authorizedRefs !== null ?
-                    `inner join object_sources os on o.sha=os.sha` :
-                    ``} where ${authorizedRefs != null ?
-                        `os.sourceId in (${authorizedRefs}) and` :
-                        ''} (o.name % '${name}' or o.name ilike '%${name}%') and o.isDirectory group by o.sha, o.name order by similarity(o.name, '${name}') desc limit ${SQL_RESULT_LIMIT};`
-
-                log.dbg(`sql:${query}`)
-
-                let resultDirectories: any = name != '' ? await DbHelpers.dbQuery(client, query) : { rows: [] }
-                resultDirectories = resultDirectories.rows.map(row => ({
-                    sha: row.sha,
-                    name: row.name
-                }))
+                let whereConditions: string[] = []
 
                 let geoSearchSelect = ''
                 let geoSearchJoin = ''
-                let geoSearchWhere = ''
                 let geoSearchGroupBy = ''
                 if (mimeType && mimeType.startsWith('image') && geoSearch) {
                     let { nw, se } = geoSearch
@@ -161,37 +148,38 @@ export class Stateful {
 
                     geoSearchSelect = `, cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`
                     geoSearchJoin = ` inner join object_exifs oe on o.sha=oe.sha`
-                    geoSearchWhere = ` and cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`
+                    whereConditions.push(`cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`)
                     geoSearchGroupBy = `, cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`
                 }
 
-                let dateWhere = ''
-                if (dateMin) {
-                    dateWhere = ` and o.lastWrite>=${dateMin}`
-                }
-                if (dateMax) {
-                    dateWhere += ` and o.lastWrite<=${dateMax}`
-                }
+                if (dateMin)
+                    whereConditions.push(`o.lastWrite>=${dateMin}`)
+
+                if (dateMax)
+                    whereConditions.push(`o.lastWrite<=${dateMax}`)
+
+                if (authorizedRefs !== null)
+                    whereConditions.push(`os.sourceId in (${authorizedRefs})`)
 
                 let orderBy = ``
 
-                let nameWhere = ''
                 name = name.trim()
                 if (name != '') {
-                    nameWhere = ` and (o.name % '${name}' or o.name ilike '%${name}%')`
+                    whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
                     orderBy = `order by similarity(o.name, '${name}') desc`
                 }
 
-                query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite from objects o ${authorizedRefs !== null ?
+                whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
+
+                const query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite from objects o ${authorizedRefs !== null ?
                     `inner join object_sources os on o.sha=os.sha` :
-                    ``}${geoSearchJoin} where ${authorizedRefs !== null ?
-                        `os.sourceId in (${authorizedRefs})` :
-                        '1=1'}${nameWhere} and o.mimeType != 'application/directory' and o.mimeType like '${mimeType}'${geoSearchWhere}${dateWhere} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit ${SQL_RESULT_LIMIT};`
+                    ``}${geoSearchJoin} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit ${SQL_RESULT_LIMIT};`
 
                 log.dbg(`sql:${query}`)
 
-                let resultFiles: any = await DbHelpers.dbQuery(client, query)
-                resultFiles = resultFiles.rows.map(row => ({
+                let queryResult: any = await DbHelpers.dbQuery(client, query)
+
+                const items = queryResult.rows.map(row => ({
                     sha: row.sha,
                     name: row.name,
                     mimeType: row.mimetype,
@@ -203,7 +191,10 @@ export class Stateful {
 
                 client.end()
 
-                res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles }))
+                const resultDirectories = items.filter(i => i.mimeType == 'application/directory').map(({ sha, name }) => ({ sha, name }))
+                const resultFiles = items.filter(i => i.mimeType != 'application/directory')
+
+                res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items }))
             }
             catch (err) {
                 res.send(`{"error":"${err}"}`)
