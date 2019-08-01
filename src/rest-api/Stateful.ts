@@ -158,11 +158,12 @@ export class Stateful {
                 if (dateMax)
                     whereConditions.push(`o.lastWrite<=${dateMax}`)
 
-                if (authorizedRefs !== null)
-                    whereConditions.push(`os.sourceId in (${authorizedRefs})`)
+                whereConditions.push(`os.sourceId in (${authorizedRefs})`)
 
                 let orderBy = ``
 
+                if (!name)
+                    name = ''
                 name = name.trim()
                 if (name != '') {
                     whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
@@ -171,9 +172,11 @@ export class Stateful {
 
                 whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
 
-                const query = `select o.sha, o.name, o.mimeType${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite from objects o ${authorizedRefs !== null ?
-                    `inner join object_sources os on o.sha=os.sha` :
-                    ``}${geoSearchJoin} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by o.sha, o.name, o.mimeType${geoSearchGroupBy} ${orderBy} limit ${SQL_RESULT_LIMIT};`
+                const query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
+                    from objects o inner join object_sources os on o.sha=os.sha${geoSearchJoin} 
+                    where ${whereConditions.map(c => `(${c})`).join(' and ')} 
+                    group by o.sha, o.name, o.mimeType${geoSearchGroupBy} 
+                    ${orderBy} limit ${SQL_RESULT_LIMIT};`
 
                 log.dbg(`sql:${query}`)
 
