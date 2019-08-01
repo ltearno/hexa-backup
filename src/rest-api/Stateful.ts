@@ -130,7 +130,7 @@ export class Stateful {
                     return
                 }
 
-                let { name, mimeType, geoSearch, dateMin, dateMax, limit } = req.body
+                let { name, mimeType, geoSearch, dateMin, dateMax, limit, noDirectory } = req.body
 
                 const client = await DbHelpers.createClient(this.databaseParams)
 
@@ -170,7 +170,10 @@ export class Stateful {
                     orderBy = `order by similarity(o.name, '${name}') desc`
                 }
 
-                whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
+                if (noDirectory)
+                    whereConditions.push(`o.mimeType like '${mimeType}'`)
+                else
+                    whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
 
                 if (!limit || limit > SQL_RESULT_LIMIT)
                     limit = SQL_RESULT_LIMIT
