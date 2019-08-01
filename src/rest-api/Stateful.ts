@@ -166,10 +166,10 @@ export class Stateful {
                 if (!name)
                     name = ''
                 name = name.trim()
-                if (name != '') {
+                //if (name != '') {
                     whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
                     orderBy = `order by similarity(o.name, '${name}') desc`
-                }
+                //}
 
                 whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
 
