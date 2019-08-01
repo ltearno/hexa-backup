@@ -123,7 +123,6 @@ export class Stateful {
         // todo should be moved in another program !
         app.post('/search', async (req, res) => {
             res.set('Content-Type', 'application/json')
-            let query = '-'
             try {
                 let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequestAsSql(req, this.store)
                 if (!authorizedRefs) {
@@ -131,7 +130,7 @@ export class Stateful {
                     return
                 }
 
-                let { name, mimeType, geoSearch, dateMin, dateMax } = req.body
+                let { name, mimeType, geoSearch, dateMin, dateMax, limit } = req.body
 
                 const client = await DbHelpers.createClient(this.databaseParams)
 
@@ -166,18 +165,21 @@ export class Stateful {
                 if (!name)
                     name = ''
                 name = name.trim()
-                //if (name != '') {
+                if (name != '') {
                     whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
                     orderBy = `order by similarity(o.name, '${name}') desc`
-                //}
+                }
 
                 whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
 
-                query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
+                if (!limit || limit > SQL_RESULT_LIMIT)
+                    limit = SQL_RESULT_LIMIT
+
+                const query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
                     from objects o inner join object_sources os on o.sha=os.sha${geoSearchJoin} 
                     where ${whereConditions.map(c => `(${c})`).join(' and ')} 
                     group by o.sha, o.name, o.mimeType${geoSearchGroupBy} 
-                    ${orderBy} limit ${SQL_RESULT_LIMIT};`
+                    ${orderBy} limit ${limit};`
 
                 log.dbg(`sql:${query}`)
 
@@ -201,7 +203,7 @@ export class Stateful {
                 res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items }))
             }
             catch (err) {
-                res.send(JSON.stringify({ error: err, query }))
+                res.send(JSON.stringify({ error: err }))
             }
         })
     }
