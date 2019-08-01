@@ -123,6 +123,7 @@ export class Stateful {
         // todo should be moved in another program !
         app.post('/search', async (req, res) => {
             res.set('Content-Type', 'application/json')
+            let query = '-'
             try {
                 let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequestAsSql(req, this.store)
                 if (!authorizedRefs) {
@@ -172,7 +173,7 @@ export class Stateful {
 
                 whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
 
-                const query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
+                query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
                     from objects o inner join object_sources os on o.sha=os.sha${geoSearchJoin} 
                     where ${whereConditions.map(c => `(${c})`).join(' and ')} 
                     group by o.sha, o.name, o.mimeType${geoSearchGroupBy} 
@@ -200,7 +201,7 @@ export class Stateful {
                 res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items }))
             }
             catch (err) {
-                res.send(JSON.stringify({ error: err }))
+                res.send(JSON.stringify({ error: err, query }))
             }
         })
     }
