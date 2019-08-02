@@ -118,9 +118,90 @@ export class Stateful {
             catch (err) {
                 res.send(`{"error":"${err}"}`)
             }
-        });
+        })
 
-        // todo should be moved in another program !
+        app.get('/sha/:sha/info', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+
+            let sha = req.params.sha
+            if (sha == null || sha == 'null') {
+                res.send(JSON.stringify({ error: `input validation (sha is ${sha})` }))
+                return
+            }
+
+            let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequestAsSql(req, this.store)
+            if (!authorizedRefs) {
+                res.send(JSON.stringify({ error: `you are not authorized, sorry` }))
+                return
+            }
+
+            const client = await DbHelpers.createClient(this.databaseParams)
+            if (!client) {
+                res.send(JSON.stringify({ error: `not connected to stateful storage (db)` }))
+                return
+            }
+
+            const info = {
+                sha,
+                names: [],
+                mimeTypes: [],
+                writeDates: [],
+                sizes: [],
+                parents: [],
+                sources: [],
+                exifs: []
+            }
+
+            let queryResult: any = await DbHelpers.dbQuery(client, {
+                text: `select * from objects where sha=$1`,
+                values: [sha]
+            })
+
+            queryResult.rows.forEach(row => {
+                if (!info.names.includes(row.name))
+                    info.names.push(row.name)
+                if (!info.mimeTypes.includes(row.mimetype))
+                    info.mimeTypes.push(row.mimetype)
+                if (!info.writeDates.includes(row.lastwrite))
+                    info.writeDates.push(row.lastwrite)
+                if (!info.sizes.includes(row.size))
+                    info.sizes.push(row.size)
+            })
+
+            queryResult = await DbHelpers.dbQuery(client, {
+                text: `select * from object_parents where sha=$1`,
+                values: [sha]
+            })
+
+            queryResult.rows.forEach(row => {
+                if (!info.parents.includes(row.parentsha))
+                    info.parents.push(row.parentsha)
+            })
+
+            queryResult = await DbHelpers.dbQuery(client, {
+                text: `select * from object_sources where sha=$1`,
+                values: [sha]
+            })
+
+            queryResult.rows.forEach(row => {
+                if (!info.sources.includes(row.sourceid))
+                    info.sources.push(row.sourceid)
+            })
+
+            queryResult = await DbHelpers.dbQuery(client, {
+                text: `select * from object_exifs where sha=$1`,
+                values: [sha]
+            })
+
+            queryResult.rows.forEach(row => {
+                info.exifs.push(row.exif)
+            })
+
+            client.end()
+
+            res.send(JSON.stringify(info))
+        })
+
         app.post('/search', async (req, res) => {
             let query = '-'
             res.set('Content-Type', 'application/json')

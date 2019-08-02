@@ -55,7 +55,7 @@ export class Base {
 
         let sha = req.params.sha
         if (sha == null || sha == 'null') {
-            res.send(`{"error":"input validation (sha is ${sha})"}`)
+            res.send(JSON.stringify({ error: `input validation (sha is ${sha})` }))
             return
         }
 
