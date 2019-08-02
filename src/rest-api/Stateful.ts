@@ -149,53 +149,74 @@ export class Stateful {
                 sizes: [],
                 parents: [],
                 sources: [],
-                exifs: []
+                exifs: [],
+                errors: []
             }
 
-            let queryResult: any = await DbHelpers.dbQuery(client, {
-                text: `select * from objects where sha=$1`,
-                values: [sha]
-            })
+            try {
+                let queryResult: any = await DbHelpers.dbQuery(client, {
+                    text: `select * from objects where sha=$1`,
+                    values: [sha]
+                })
 
-            queryResult.rows.forEach(row => {
-                if (!info.names.includes(row.name))
-                    info.names.push(row.name)
-                if (!info.mimeTypes.includes(row.mimetype))
-                    info.mimeTypes.push(row.mimetype)
-                if (!info.writeDates.includes(row.lastwrite))
-                    info.writeDates.push(row.lastwrite)
-                if (!info.sizes.includes(row.size))
-                    info.sizes.push(row.size)
-            })
+                queryResult.rows.forEach(row => {
+                    if (!info.names.includes(row.name))
+                        info.names.push(row.name)
+                    if (!info.mimeTypes.includes(row.mimetype))
+                        info.mimeTypes.push(row.mimetype)
+                    if (!info.writeDates.includes(row.lastwrite))
+                        info.writeDates.push(row.lastwrite)
+                    if (!info.sizes.includes(row.size))
+                        info.sizes.push(row.size)
+                })
+            }
+            catch (err) {
+                info.errors.push(err)
+            }
 
-            queryResult = await DbHelpers.dbQuery(client, {
-                text: `select * from object_parents where sha=$1`,
-                values: [sha]
-            })
+            try {
+                let queryResult = await DbHelpers.dbQuery(client, {
+                    text: `select * from object_parents where sha=$1`,
+                    values: [sha]
+                })
 
-            queryResult.rows.forEach(row => {
-                if (!info.parents.includes(row.parentsha))
-                    info.parents.push(row.parentsha)
-            })
+                queryResult.rows.forEach(row => {
+                    if (!info.parents.includes(row.parentsha))
+                        info.parents.push(row.parentsha)
+                })
+            }
+            catch (err) {
+                info.errors.push(err)
+            }
 
-            queryResult = await DbHelpers.dbQuery(client, {
-                text: `select * from object_sources where sha=$1`,
-                values: [sha]
-            })
+            try {
+                let queryResult = await DbHelpers.dbQuery(client, {
+                    text: `select * from object_sources where sha=$1`,
+                    values: [sha]
+                })
 
-            queryResult.rows.forEach(row => {
-                if (!info.sources.includes(row.sourceid))
-                    info.sources.push(row.sourceid)
-            })
+                queryResult.rows.forEach(row => {
+                    if (!info.sources.includes(row.sourceid))
+                        info.sources.push(row.sourceid)
+                })
+            }
+            catch (err) {
+                info.errors.push(err)
+            }
 
-            queryResult = await DbHelpers.dbQuery(client, {
-                text: `select * from object_exifs where sha=$1`,
-                values: [sha]
-            })
+            try {
+                let queryResult = await DbHelpers.dbQuery(client, {
+                    text: `select * from object_exifs where sha=$1`,
+                    values: [sha]
+                })
 
-            queryResult.rows.forEach(row => {
-                info.exifs.push(row.exif)
-            })
+                queryResult.rows.forEach(row => {
+                    info.exifs.push(row.exif)
+                })
+            }
+            catch (err) {
+                info.errors.push(err)
+            }
 
             client.end()
 
