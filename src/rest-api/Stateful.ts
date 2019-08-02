@@ -194,7 +194,7 @@ export class Stateful {
                     from objects o inner join object_sources os on o.sha=os.sha${geoSearchJoin} 
                     where ${whereConditions.map(c => `(${c})`).join(' and ')} 
                     group by o.sha, o.name, o.mimeType${geoSearchGroupBy} 
-                    ${orderBy} limit ${offset}, ${limit};`
+                    ${orderBy} limit ${offset} offset ${limit};`
 
                 log.dbg(`sql:${query}`)
 
