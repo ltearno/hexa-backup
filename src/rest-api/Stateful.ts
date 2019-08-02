@@ -192,11 +192,7 @@ export class Stateful {
                 if (!limit || limit < 1 || limit > SQL_RESULT_LIMIT)
                     limit = SQL_RESULT_LIMIT
 
-                query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
-                    from objects o inner join object_sources os on o.sha=os.sha ${geoSearchJoin} 
-                    where ${whereConditions.map(c => `(${c})`).join(' and ')} 
-                    group by o.sha, o.name, o.mimeType ${geoSearchGroupBy} 
-                    ${orderBy} limit ${limit} offset ${offset};`
+                query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite from objects o inner join object_sources os on o.sha=os.sha ${geoSearchJoin} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by o.sha, o.name, o.mimeType ${geoSearchGroupBy} ${orderBy} limit ${limit} offset ${offset};`
 
                 log.dbg(`sql:${query}`)
 
