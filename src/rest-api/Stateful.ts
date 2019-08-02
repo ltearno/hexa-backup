@@ -183,18 +183,19 @@ export class Stateful {
                 else
                     whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
 
-                if (!offset)
-                    offset = 0
+                if (!offset || offset < 0)
+                    offset = 1
                 else
                     offset = Math.floor(offset * 1)
-                if (!limit || limit > SQL_RESULT_LIMIT)
+
+                if (!limit || limit < 1 || limit > SQL_RESULT_LIMIT)
                     limit = SQL_RESULT_LIMIT
 
                 const query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
                     from objects o inner join object_sources os on o.sha=os.sha${geoSearchJoin} 
                     where ${whereConditions.map(c => `(${c})`).join(' and ')} 
                     group by o.sha, o.name, o.mimeType${geoSearchGroupBy} 
-                    ${orderBy} limit ${offset} offset ${limit};`
+                    ${orderBy} limit ${limit} offset ${offset};`
 
                 log.dbg(`sql:${query}`)
 
