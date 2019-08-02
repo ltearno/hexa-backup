@@ -130,7 +130,15 @@ export class Stateful {
                     return
                 }
 
-                let { name, mimeType, geoSearch, dateMin, dateMax, limit, noDirectory } = req.body
+                let { name,
+                    mimeType,
+                    geoSearch,
+                    dateMin,
+                    dateMax,
+                    offset,
+                    limit,
+                    noDirectory
+                } = req.body
 
                 const client = await DbHelpers.createClient(this.databaseParams)
 
@@ -175,6 +183,10 @@ export class Stateful {
                 else
                     whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
 
+                if (!offset)
+                    offset = 0
+                else
+                    offset = Math.floor(offset * 1)
                 if (!limit || limit > SQL_RESULT_LIMIT)
                     limit = SQL_RESULT_LIMIT
 
@@ -182,7 +194,7 @@ export class Stateful {
                     from objects o inner join object_sources os on o.sha=os.sha${geoSearchJoin} 
                     where ${whereConditions.map(c => `(${c})`).join(' and ')} 
                     group by o.sha, o.name, o.mimeType${geoSearchGroupBy} 
-                    ${orderBy} limit ${limit};`
+                    ${orderBy} limit ${offset}, ${limit};`
 
                 log.dbg(`sql:${query}`)
 
