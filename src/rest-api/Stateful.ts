@@ -122,6 +122,7 @@ export class Stateful {
 
         // todo should be moved in another program !
         app.post('/search', async (req, res) => {
+            let query = '-'
             res.set('Content-Type', 'application/json')
             try {
                 let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequestAsSql(req, this.store)
@@ -191,11 +192,12 @@ export class Stateful {
                 if (!limit || limit < 1 || limit > SQL_RESULT_LIMIT)
                     limit = SQL_RESULT_LIMIT
 
-                const query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
-                    from objects o inner join object_sources os on o.sha=os.sha${geoSearchJoin} 
+                query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite 
+                    from objects o inner join object_sources os on o.sha=os.sha ${geoSearchJoin} 
                     where ${whereConditions.map(c => `(${c})`).join(' and ')} 
-                    group by o.sha, o.name, o.mimeType${geoSearchGroupBy} 
-                    ${orderBy} limit ${limit} offset ${offset};`
+                    group by o.sha, o.name, o.mimeType ${geoSearchGroupBy} 
+                    ${orderBy} limit
+                    ${limit} offset ${offset};`
 
                 log.dbg(`sql:${query}`)
 
@@ -219,7 +221,7 @@ export class Stateful {
                 res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items }))
             }
             catch (err) {
-                res.send(JSON.stringify({ error: err }))
+                res.send(JSON.stringify({ error: err, query }))
             }
         })
     }
