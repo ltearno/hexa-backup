@@ -72,6 +72,8 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
     }
 }
 
+let musicMetadata: any = null
+
 export async function updateAudioIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
     log(`starting update of audio index`)
 
@@ -112,9 +114,11 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                 log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
                 try {
-                    const musicMetadata = require('music-metadata')
-                    if (!musicMetadata)
-                        throw `cannot require/load module 'music-metadata'`
+                    if (!musicMetadata) {
+                        musicMetadata = require('music-metadata')
+                        if (!musicMetadata)
+                            throw `cannot require/load module 'music-metadata'`
+                    }
 
                     let fileName = store.getShaFileName(sha)
                     if (!fs.existsSync(fileName))
@@ -126,7 +130,7 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
 
                     log(`parsing audio metadata '${mimeType}' : ${sha} at ${fileName}`)
 
-                    let metadata = await MusicMetadata.parseBuffer(buffer, mimeType)
+                    let metadata = await musicMetadata.parseBuffer(buffer)//, mimeType)
                     if (!metadata)
                         throw `no metadata for ${sha}`
 
