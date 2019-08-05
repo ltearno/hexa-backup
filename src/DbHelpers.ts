@@ -114,10 +114,14 @@ export async function insertObjectAudioTags(client, sha: string, tags: object, f
     if (!sha || !tags)
         return
 
-    await dbQuery(client, {
+    /*await dbQuery(client, {
         text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2) ON CONFLICT DO ${forceUpdate ? 'UPDATE' : 'NOTHING'};`,
         values: [sha, JSON.stringify(tags)],
-    })
+    })*/
+
+    let q = `INSERT INTO object_audio_tags(sha, tags) VALUES('${sha}', '${JSON.stringify(tags)}') ON CONFLICT DO ${forceUpdate ? 'UPDATE' : 'NOTHING'};`
+    console.log(`SQLQUERY: ${q}`)
+    await dbQuery(client, q)
 }
 
 export async function removeObjectAudioTags(client, sha: string) {
