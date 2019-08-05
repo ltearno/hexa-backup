@@ -115,7 +115,7 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                 let stage = `init`
 
                 try {
-                    await DbHelpers.insertObjectAudioTags(client2, sha, {}, true)
+                    await DbHelpers.insertObjectAudioTags(client2, sha, {}, false)
 
                     if (!musicMetadata) {
                         stage = `requiring module`
@@ -211,7 +211,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
 
                 try {
                     // insert an empty object in case the job stales, so it does not come up again...
-                    await DbHelpers.insertObjectExif(client2, sha, {}, true)
+                    await DbHelpers.insertObjectExif(client2, sha, {}, false)
 
                     let buffer = await store.readShaBytes(sha, 0, 65635)
                     if (!buffer)
