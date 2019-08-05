@@ -126,6 +126,8 @@ export async function updateAudioIndex(store: IHexaBackupStore, databaseParams: 
                     metadata = musicMetadata.orderTags(metadata)
 
                     log(`audio metadata ${JSON.stringify(metadata)}`)
+
+                    break
                 }
                 catch (err) {
                     nbRowsError++
