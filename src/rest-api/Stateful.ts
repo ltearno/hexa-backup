@@ -301,7 +301,7 @@ export class Stateful {
                     name = ''
                 name = name.trim()
                 if (name != '') {
-                    whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.tags#>>'{common,title}' % '${name}'`)
+                    whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.tags#>>'{common,title}' LIKE '%${name}%'`)
                     orderBy = `order by similarity(o.name, '${name}') desc`
                 }
 
