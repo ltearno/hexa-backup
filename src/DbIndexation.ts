@@ -144,7 +144,7 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                     stage = `conforming metadata`
                     metadata = JSON.parse(JSON.stringify(metadata))
 
-                    console.log(`metadata`, metadata)
+                    log(`metadata: ${JSON.stringify(metadata)}`)
 
                     stage = `database insert`
                     await DbHelpers.insertObjectAudioTags(client2, sha, metadata, true)
