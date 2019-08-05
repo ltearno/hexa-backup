@@ -302,8 +302,8 @@ export class Stateful {
                 name = name.trim()
                 if (name != '') {
                     if (mimeType && mimeType.startsWith('audio/')){
-                        whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.footprints ilike '%${name}%'`)
-                        orderBy = `order by max(similarity(o.name, '${name}'), similarity(ot.footprints, '${name}')) desc`
+                        whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.footprint ilike '%${name}%'`)
+                        orderBy = `order by max(similarity(o.name, '${name}'), similarity(ot.footprint, '${name}')) desc`
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
