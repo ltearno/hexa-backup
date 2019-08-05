@@ -1,5 +1,5 @@
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import { IHexaBackupStore } from "./HexaBackupStore"
+import { IHexaBackupStore, HexaBackupStore } from "./HexaBackupStore"
 import { DbConnectionParams } from "./Commands"
 import * as DbHelpers from './DbHelpers'
 import * as Model from './Model'
@@ -71,7 +71,7 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
     }
 }
 
-export async function updateAudioIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
+export async function updateAudioIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
     log(`starting update of audio index`)
 
     const client = await DbHelpers.createClient(databaseParams)
@@ -117,11 +117,9 @@ export async function updateAudioIndex(store: IHexaBackupStore, databaseParams: 
                     if (!musicMetadata)
                         throw `cannot require/load module 'music-metadata'`
 
-                    let buffer = await store.readShaBytes(sha, 0, 65635)
-                    if (!buffer)
-                        throw `cannot read 65kb from sha ${sha}`
+                    let fileName = store.getShaFileName(sha)
 
-                    let metadata = await MusicMetadata.parseBuffer(buffer, mimeType)
+                    let metadata = await MusicMetadata.parseFile(fileName)
                     metadata = JSON.parse(JSON.stringify(metadata))
 
                     await DbHelpers.insertObjectAudioTags(client2, sha, metadata, true)
