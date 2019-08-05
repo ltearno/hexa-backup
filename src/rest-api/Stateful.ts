@@ -307,6 +307,7 @@ export class Stateful {
                         whereConditions.push(`of.footprint ilike '%${name}%'`)
                         orders.push(`order by similarity(of.footprint, '${name}') desc`)
                         selects.push(`similarity(of.footprint, '${name}') as score`)
+                        groups.push(`of.footprint`)
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
