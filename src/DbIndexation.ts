@@ -149,7 +149,7 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
         // if mimeType is audio/ => add artist, album and title
         if (mimeType && mimeType.startsWith('audio/')) {
             let rs = await DbHelpers.dbQuery(client, {
-                text: `select tags#>>'{common,artist}' as artist, tags#>>'{common,album}' as album, tags#>>'{common,title}' as title from object_audio_tags where sha=$1`,
+                text: `select tags#>>'{common,artist}' as artist, tags#>>'{common,album}' as album, tags#>>'{common,title}' as title, tags#>'{common,genre}'->>0 as genre from object_audio_tags where sha=$1`,
                 values: [sha]
             })
             for (let row of rs.rows) {
@@ -159,6 +159,8 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
                     footprints.push(row.album)
                 if (!footprints.includes(row.title))
                     footprints.push(row.title)
+                if (!footprints.includes(row.genre))
+                    footprints.push(row.genre)
             }
         }
 
