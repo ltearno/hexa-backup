@@ -138,7 +138,7 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
 
         // select all names of sha
         let rs = await DbHelpers.dbQuery(client, {
-            text: `select o.name from objects where sha=$1`,
+            text: `select name from objects where sha=$1`,
             values: [sha]
         })
         for (let row of rs.rows) {
