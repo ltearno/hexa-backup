@@ -119,11 +119,17 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                         throw `cannot require/load module 'music-metadata'`
 
                     let fileName = store.getShaFileName(sha)
-                    if (!fs.existsSync(fileName)) {
+                    if (!fs.existsSync(fileName))
                         throw `file does not exists: ${fileName}`
-                    }
 
-                    let metadata = await MusicMetadata.parseFile(fileName)
+                    let buffer = fs.readFileSync(fileName)
+                    if (!buffer)
+                        throw `cannot read file ${fileName}`
+
+                    let metadata = await MusicMetadata.parseBuffer(buffer, mimeType)
+                    if (!metadata)
+                        throw `no metadata for ${sha}`
+                        
                     metadata = JSON.parse(JSON.stringify(metadata))
 
                     await DbHelpers.insertObjectAudioTags(client2, sha, metadata, true)
