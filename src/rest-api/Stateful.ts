@@ -284,6 +284,7 @@ export class Stateful {
                     selects.push(`tags::json#>>'{common.title}' as title`)
                     selects.push(`tags::json#>>'{common.artist}' as artist`)
                     selects.push(`tags::json#>>'{common.album}' as album`)
+                    groups.push(`ot.tags`)
                 }
 
                 if (dateMin)
