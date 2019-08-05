@@ -281,10 +281,10 @@ export class Stateful {
                 }
                 else if (mimeType && mimeType.startsWith('audio/')) {
                     joins.push(`left join object_audio_tags ot on o.sha=ot.sha`)
-                    selects.push(`max(ot.tags#>>'{common,title}') as title`)
-                    selects.push(`max(ot.tags#>>'{common,artist}') as artist`)
-                    selects.push(`max(ot.tags#>>'{common,album}') as album`)
-                    groups.push(`ot.footprint`)
+                    //selects.push(`max(ot.tags#>>'{common,title}') as title`)
+                    //selects.push(`max(ot.tags#>>'{common,artist}') as artist`)
+                    //selects.push(`max(ot.tags#>>'{common,album}') as album`)
+                    //groups.push(`ot.footprint`)
                 }
 
                 if (dateMin)
