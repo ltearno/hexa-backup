@@ -115,14 +115,14 @@ export async function insertObjectAudioTags(client, sha: string, tags: object, f
         return
 
     await dbQuery(client, {
-        text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2) ON CONFLICT DO ${forceUpdate ? 'UPDATE' : 'NOTHING'}`,
+        text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2) ON CONFLICT DO ${forceUpdate ? 'UPDATE' : 'NOTHING'};`,
         values: [sha, JSON.stringify(tags)],
     })
 }
 
 export async function removeObjectAudioTags(client, sha: string) {
     await dbQuery(client, {
-        text: `DELETE FROM object_audio_tags WHERE sha=$1`,
+        text: `DELETE FROM object_audio_tags WHERE sha=$1;`,
         values: [sha]
     })
 }
@@ -132,14 +132,14 @@ export async function insertObjectExif(client, sha: string, exif: object, forceU
         return
 
     await dbQuery(client, {
-        text: `INSERT INTO object_exifs(sha, exif) VALUES($1, $2) ON CONFLICT DO ${forceUpdate ? 'UPDATE' : 'NOTHING'}`,
+        text: `INSERT INTO object_exifs(sha, exif) VALUES($1, $2) ON CONFLICT DO ${forceUpdate ? 'UPDATE' : 'NOTHING'};`,
         values: [sha, JSON.stringify(exif)],
     })
 }
 
 export async function removeObjectExif(client, sha: string) {
     await dbQuery(client, {
-        text: `DELETE FROM object_exifs WHERE sha=$1`,
+        text: `DELETE FROM object_exifs WHERE sha=$1;`,
         values: [sha]
     })
 }
