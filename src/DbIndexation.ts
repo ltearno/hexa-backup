@@ -213,7 +213,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
 
                 try {
                     // insert an empty object in case the job stales, so it does not come up again...
-                    await DbHelpers.insertObjectExif(client2, sha, {}, false)
+                    await DbHelpers.insertObjectExif(client2, sha, {})
 
                     let buffer = await store.readShaBytes(sha, 0, 65635)
                     if (!buffer)
@@ -226,7 +226,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                     log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
                     log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
 
-                    await DbHelpers.insertObjectExif(client2, sha, exif.tags, true)
+                    await DbHelpers.insertObjectExif(client2, sha, exif.tags)
                 }
                 catch (err) {
                     nbRowsError++
