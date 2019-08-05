@@ -292,7 +292,7 @@ export class Stateful {
                     groups.push(`cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`)
                 }
                 else if (mimeType && mimeType.startsWith('audio/')) {
-                    joins.push(`left join object_audio_tags ot on o.sha=ot.sha`)
+                    //joins.push(`left join object_audio_tags ot on o.sha=ot.sha`)
                     //selects.push(`max(ot.tags#>>'{common,title}') as title`)
                     //selects.push(`max(ot.tags#>>'{common,artist}') as artist`)
                     //selects.push(`max(ot.tags#>>'{common,album}') as album`)
