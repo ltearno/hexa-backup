@@ -124,6 +124,8 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                     if (!buffer || !buffer.length)
                         throw `cannot read file ${fileName}`
 
+                    log(`parsing audio metadata '${mimeType}' : ${sha} at ${fileName}`)
+
                     let metadata = await MusicMetadata.parseBuffer(buffer, mimeType)
                     if (!metadata)
                         throw `no metadata for ${sha}`
