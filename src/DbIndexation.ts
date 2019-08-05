@@ -112,35 +112,42 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                 let mimeType = row['mimetype']
 
                 log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
+                let stage = `init`
 
                 try {
                     if (!musicMetadata) {
+                        stage = `requiring module`
                         musicMetadata = require('music-metadata')
                         if (!musicMetadata)
                             throw `cannot require/load module 'music-metadata'`
                     }
 
+                    stage = `getShaFileName`
                     let fileName = store.getShaFileName(sha)
                     if (!fs.existsSync(fileName))
                         throw `file does not exists: ${fileName}`
 
+                    stage = `readShaFile`
                     let buffer = fs.readFileSync(fileName)
                     if (!buffer || !buffer.length)
                         throw `cannot read file ${fileName}`
 
                     log(`parsing audio metadata '${mimeType}' : ${sha} at ${fileName}`)
 
+                    stage = `parsing metadata`
                     let metadata = await musicMetadata.parseBuffer(buffer)//, mimeType)
                     if (!metadata)
                         throw `no metadata for ${sha}`
 
+                    stage = `conforming metadata`
                     metadata = JSON.parse(JSON.stringify(metadata))
 
+                    stage = `database insert`
                     await DbHelpers.insertObjectAudioTags(client2, sha, metadata, true)
                 }
                 catch (err) {
                     nbRowsError++
-                    log.err(`error processing ${sha} : ${err}`)
+                    log.err(`error processing (stage: ${stage}) ${sha} : ${err}`)
                 }
             }
         }
