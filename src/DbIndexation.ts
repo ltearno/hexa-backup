@@ -74,6 +74,71 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
 
 let musicMetadata: any = null
 
+async function synchronizeRecord(title: string, baseQuery: string, store: HexaBackupStore, databaseParams: DbConnectionParams, callback: (sha: string, row: any, store: HexaBackupStore, client: any) => Promise<any>) {
+    log(`starting update of index ${title}`)
+
+    const client = await DbHelpers.createClient(databaseParams)
+    const client2 = await DbHelpers.createClient(databaseParams)
+
+    log(`connected to database`)
+
+    const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
+    let rs = await DbHelpers.dbQuery(client, queryCount)
+    let nbTotal = rs.rows[0].total
+
+    let nbRows = 0
+    let nbRowsError = 0
+
+    const query = `select distinct o.sha, o.mimetype ${baseQuery};`
+
+    const cursor = await DbHelpers.createCursor(client, query)
+
+    try {
+        while (true) {
+            let rows = await cursor.read()
+            if (!rows || !rows.length) {
+                log(`finished cursor`)
+                break
+            }
+
+            for (let row of rows) {
+                nbRows++
+                let sha = row['sha']
+                if (!sha)
+                    continue
+
+                log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
+
+                try {
+                    await callback(sha, row, store, client2)
+                }
+                catch (err) {
+                    nbRowsError++
+                    log.err(`${title} error while processing ${sha} : ${err}`)
+                }
+            }
+        }
+    } catch (err) {
+        log.err(`error processing: ${err}`)
+    }
+
+    log(`processed ${nbRows}/${nbTotal} shas with ${nbRowsError} errors`)
+
+    await cursor.close()
+
+    client.end()
+    client2.end()
+
+    log(`finished index update ${title}`)
+}
+
+export async function updateFootprintIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
+    await synchronizeRecord(`footprints`, `from objects o left join object_audio_tags ot on o.sha=ot.sha where size > 65635 and mimeType LIKE 'audio/%' and (ot.sha is null)`, store, databaseParams, async (sha, row, store, client) => {
+        // select all names of sha
+        // if mimeType is audio/ => add artist, album and title
+    })
+}
+
 export async function updateAudioIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
     log(`starting update of audio index`)
 

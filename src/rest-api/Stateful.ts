@@ -28,30 +28,42 @@ export class Stateful {
                 this.runningUpdate = true
 
                 this.backgroundJobs.addJob(`update indices`, async () => {
-                    try {
-                        do {
-                            log(`starting update indices`)
-                            this.runAgainWhenFinished = false
-                            await DbIndexation.updateObjectsIndex(this.store, this.databaseParams)
-                            //await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, this.databaseParams)
-                            //await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, this.databaseParams)
-                            await DbIndexation.updateAudioIndex(this.store, this.databaseParams)
-                            await DbIndexation.updateExifIndex(this.store, this.databaseParams)
-                            log(`indices updated`)
-                        }
-                        while (this.runAgainWhenFinished)
-                        this.runningUpdate = false
-                    }
-                    catch (err) {
-                        this.runningUpdate = false
-                        this.runAgainWhenFinished = false
-                    }
+                    this.updateIndices()
                 })
             }
         })
     }
 
+    private async updateIndices() {
+        try {
+            do {
+                log(`starting update indices`)
+                this.runAgainWhenFinished = false
+                await DbIndexation.updateObjectsIndex(this.store, this.databaseParams)
+                //await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, this.databaseParams)
+                //await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, this.databaseParams)
+                await DbIndexation.updateAudioIndex(this.store, this.databaseParams)
+                await DbIndexation.updateExifIndex(this.store, this.databaseParams)
+                await DbIndexation.updateFootprintIndex(this.store, this.databaseParams)
+                log(`indices updated`)
+            }
+            while (this.runAgainWhenFinished)
+            this.runningUpdate = false
+        }
+        catch (err) {
+            this.runningUpdate = false
+            this.runAgainWhenFinished = false
+        }
+    }
+
     addEnpointsToApp(app: any) {
+        app.post('/indices/update', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+            res.send(JSON.stringify({ ok: true }))
+
+            this.updateIndices()
+        })
+
         app.get('/parents/:sha', async (req, res) => {
             res.set('Content-Type', 'application/json')
 
