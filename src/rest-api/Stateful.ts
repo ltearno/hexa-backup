@@ -275,9 +275,10 @@ export class Stateful {
                 const client = await DbHelpers.createClient(this.databaseParams)
 
                 let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'min(o.size) as size', 'min(o.lastWrite) as lastWrite']
-                let whereConditions: string[] = []
+                let whereConditions: string[] = [`os.sourceId in (${authorizedRefs})`]
                 let groups: string[] = ['o.sha', 'o.name', 'o.mimeType']
-                let joins: string[] = ['inner join object_sources os on o.sha=os.sha']
+                let froms: string[] = ['objects o', 'inner join object_sources os on o.sha=os.sha']
+                let orders: string[] = []
 
                 if (mimeType && mimeType.startsWith('image/') && geoSearch) {
                     let { nw, se } = geoSearch
@@ -287,34 +288,29 @@ export class Stateful {
                     let lngMax = Math.max(nw.lng, se.lng)
 
                     selects.push(`cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`)
-                    joins.push(`inner join object_exifs oe on o.sha=oe.sha`)
+                    froms.push(`inner join object_exifs oe on o.sha=oe.sha`)
                     whereConditions.push(`cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`)
                     groups.push(`cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`)
+
+                    if (dateMin)
+                        whereConditions.push(`o.lastWrite>=${dateMin}`)
+                    if (dateMax)
+                        whereConditions.push(`o.lastWrite<=${dateMax}`)
                 }
-
-                if (dateMin)
-                    whereConditions.push(`o.lastWrite>=${dateMin}`)
-
-                if (dateMax)
-                    whereConditions.push(`o.lastWrite<=${dateMax}`)
-
-                whereConditions.push(`os.sourceId in (${authorizedRefs})`)
-
-                let orderBy = ``
 
                 if (!name)
                     name = ''
                 name = name.trim()
                 if (name != '') {
                     if (mimeType && mimeType.startsWith('audio/')) {
-                        joins.push(`left join object_footprints of on o.sha=ot.sha`)
+                        froms.push(`left join object_footprints of on o.sha=ot.sha`)
                         whereConditions.push(`of.footprint ilike '%${name}%'`)
-                        orderBy = `order by similarity(of.footprint, '${name}') desc`
+                        orders.push(`order by similarity(of.footprint, '${name}') desc`)
                         selects.push(`similarity(of.footprint, '${name}') as score`)
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
-                        orderBy = `order by similarity(o.name, '${name}') desc`
+                        orders.push(`order by similarity(o.name, '${name}') desc`)
                         selects.push(`similarity(o.name, '${name}') as score`)
                     }
                 }
@@ -332,7 +328,7 @@ export class Stateful {
                 if (!limit || limit < 1 || limit > SQL_RESULT_LIMIT)
                     limit = SQL_RESULT_LIMIT
 
-                query = `select ${selects.join(', ')} from objects o ${joins.join(' ')} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by ${groups.join(', ')} ${orderBy} limit ${limit} offset ${offset};`
+                query = `select ${selects.join(', ')} from ${froms.join(' ')} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by ${groups.join(', ')} ${orders.join(', ')} limit ${limit} offset ${offset};`
 
                 log.dbg(`sql:${query}`)
 
@@ -342,14 +338,17 @@ export class Stateful {
                     sha: row.sha,
                     name: row.name,
                     mimeType: row.mimetype,
+                    score: row.score * 1,
+
                     lastWrite: row.lastwrite * 1,
                     size: row.size * 1,
+
                     lat: row.latitude * 1,
                     lng: row.longitude * 1,
+
                     title: row.title,
                     artist: row.artist,
                     album: row.album,
-                    score: row.score * 1,
                 }))
 
                 client.end()
