@@ -38,7 +38,7 @@ export class BackgroundJobs {
             res.set('Content-Type', 'application/json')
             res.send({
                 running: this.currentJob,
-                waiting: JSON.stringify(this.waitingJobs)
+                waiting: this.waitingJobs
             })
         })
     }
