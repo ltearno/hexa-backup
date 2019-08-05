@@ -70,6 +70,8 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
     }
 }
 
+let exifParserBuilder: any = null
+
 export async function updateExifIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
     log(`store ready`)
 
@@ -91,7 +93,8 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
     let nbRows = 0
     let nbRowsError = 0
 
-    let exifParserBuilder = require('exif-parser')
+    if (!exifParserBuilder)
+        exifParserBuilder = require('exif-parser')
 
     try {
         while (true) {
@@ -110,6 +113,9 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                 log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
                 try {
+                    // insert an empty object in case the job stales, so it does not come up again...
+                    await DbHelpers.insertObjectExif(client2, sha, {})
+
                     let buffer = await store.readShaBytes(sha, 0, 65635)
                     if (!buffer)
                         throw `cannot read 65kb from sha ${sha}`
