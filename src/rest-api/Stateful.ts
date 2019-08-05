@@ -314,15 +314,15 @@ export class Stateful {
                 name = name.trim()
                 if (name != '') {
                     if (mimeType && mimeType.startsWith('audio/')) {
-                        whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.footprint ilike '%${name}%'`)
-                        orderBy = `order by similarity(ot.footprint, '${name}'), similarity(o.name, '${name}') desc`
-                        selects.push(`similarity(o.name, '${name}') as name_similarity`)
-                        selects.push(`similarity(ot.footprint, '${name}') as footprint_similarity`)
+                        joins.push(`left join object_footprints ot on o.sha=ot.sha`)
+                        whereConditions.push(`ot.footprint ilike '%${name}%'`)
+                        orderBy = `order by similarity(ot.footprint, '${name}') desc`
+                        selects.push(`similarity(ot.footprint, '${name}') as score`)
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
                         orderBy = `order by similarity(o.name, '${name}') desc`
-                        selects.push(`similarity(o.name, '${name}') as name_similarity`)
+                        selects.push(`similarity(o.name, '${name}') as score`)
                     }
                 }
 
@@ -356,8 +356,7 @@ export class Stateful {
                     title: row.title,
                     artist: row.artist,
                     album: row.album,
-                    footprintSimilarity: row.footprint_similarity * 1,
-                    nameSimilarity: row.name_similarity * 1,
+                    score: row.score * 1,
                 }))
 
                 client.end()
