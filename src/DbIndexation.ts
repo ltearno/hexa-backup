@@ -134,17 +134,13 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                     if (!buffer || !buffer.length)
                         throw `cannot read file ${fileName}`
 
-                    log(`parsing audio metadata '${mimeType}' : ${sha} at ${fileName}`)
-
-                    stage = `parsing metadata`
+                    stage = `parsing metadata '${mimeType}' : ${sha} at ${fileName}`
                     let metadata = await musicMetadata.parseBuffer(buffer, mimeType)
                     if (!metadata)
                         throw `no metadata for ${sha}`
 
-                    stage = `conforming metadata`
+                    stage = `conforming metadata ${JSON.stringify(metadata)}`
                     metadata = JSON.parse(JSON.stringify(metadata))
-
-                    log(`metadata: ${JSON.stringify(metadata)}`)
 
                     stage = `database insert`
                     await DbHelpers.insertObjectAudioTags(client2, sha, metadata)
