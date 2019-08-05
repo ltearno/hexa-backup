@@ -282,9 +282,8 @@ export class Stateful {
                 else if (mimeType && mimeType.startsWith('audio/')) {
                     joins.push(`left join object_audio_tags ot on o.sha=ot.sha`)
                     selects.push(`max(ot.tags#>>'{common,title}') as title`)
-                    //selects.push(`ot.tags#>>'{common,artist}' as artist`)
-                    //selects.push(`ot.tags#>>'{common,album}' as album`)
-                    //groups.push(`ot.tags#>>'{common,title}', ot.tags#>>'{common,artist}', ot.tags#>>'{common,album}'`)
+                    selects.push(`max(ot.tags#>>'{common,artist}') as artist`)
+                    selects.push(`max(ot.tags#>>'{common,album}') as album`)
                     groups.push(`ot.footprint`)
                 }
 
