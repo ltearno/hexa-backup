@@ -152,6 +152,7 @@ export class Stateful {
                 parents: [],
                 sources: [],
                 exifs: [],
+                audioMetadata: [],
                 errors: []
             }
 
@@ -214,6 +215,20 @@ export class Stateful {
 
                 queryResult.rows.forEach(row => {
                     info.exifs.push(row.exif)
+                })
+            }
+            catch (err) {
+                info.errors.push(err)
+            }
+
+            try {
+                let queryResult = await DbHelpers.dbQuery(client, {
+                    text: `select * from object_audio_tags where sha=$1`,
+                    values: [sha]
+                })
+
+                queryResult.rows.forEach(row => {
+                    info.audioMetadata.push(row.tags)
                 })
             }
             catch (err) {
