@@ -126,7 +126,7 @@ export async function insertObjectAudioTags(client, sha: string, tags: object) {
     let footprint = footprints.join(' ')
 
     await dbQuery(client, {
-        text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2, $3) ON CONFLICT (sha) DO UPDATE SET tags=$2, footprint=$3;`,
+        text: `INSERT INTO object_audio_tags(sha, tags, footprint) VALUES($1, $2, $3) ON CONFLICT (sha) DO UPDATE SET tags=$2, footprint=$3;`,
         values: [sha, JSON.stringify(tags), footprint],
     })
 }
