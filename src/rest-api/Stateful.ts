@@ -301,9 +301,9 @@ export class Stateful {
                     name = ''
                 name = name.trim()
                 if (name != '') {
-                    if (mimeType && mimeType.startsWith('audio/'))
-                        whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.tags#>>'{common,title}' LIKE '%${name}%' or ot.tags#>>'{common,artist}' LIKE '%${name}%' or ot.tags#>>'{common,album}' LIKE '%${name}%'`)
-                    else
+                    //if (mimeType && mimeType.startsWith('audio/'))
+                    //    whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.tags#>>'{common,title}' LIKE '%${name}%' or ot.tags#>>'{common,artist}' LIKE '%${name}%' or ot.tags#>>'{common,album}' LIKE '%${name}%'`)
+                    //else
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
                     orderBy = `order by similarity(o.name, '${name}') desc`
                 }
