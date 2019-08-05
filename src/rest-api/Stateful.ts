@@ -285,6 +285,7 @@ export class Stateful {
                     //selects.push(`ot.tags#>>'{common,artist}' as artist`)
                     //selects.push(`ot.tags#>>'{common,album}' as album`)
                     //groups.push(`ot.tags#>>'{common,title}', ot.tags#>>'{common,artist}', ot.tags#>>'{common,album}'`)
+                    groups.push(`ot.footprint`)
                 }
 
                 if (dateMin)
@@ -301,9 +302,9 @@ export class Stateful {
                     name = ''
                 name = name.trim()
                 if (name != '') {
-                    if (mimeType && mimeType.startsWith('audio/')){
+                    if (mimeType && mimeType.startsWith('audio/')) {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.footprint ilike '%${name}%'`)
-                        orderBy = `order by max(similarity(o.name, '${name}'), similarity(ot.footprint, '${name}')) desc`
+                        orderBy = `order by similarity(ot.footprint, '${name}'), similarity(o.name, '${name}') desc`
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
