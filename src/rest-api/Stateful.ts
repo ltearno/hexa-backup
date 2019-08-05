@@ -39,6 +39,7 @@ export class Stateful {
                             log(`indices updated`)
                         }
                         while (this.runAgainWhenFinished)
+                        this.runningUpdate = false
                     }
                     catch (err) {
                         this.runningUpdate = false
