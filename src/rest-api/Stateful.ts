@@ -342,7 +342,7 @@ export class Stateful {
                 const resultDirectories = items.filter(i => i.mimeType == 'application/directory').map(({ sha, name }) => ({ sha, name }))
                 const resultFiles = items.filter(i => i.mimeType != 'application/directory')
 
-                res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items }))
+                res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items, query }))
             }
             catch (err) {
                 res.send(JSON.stringify({ error: err, query }))
