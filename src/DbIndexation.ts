@@ -70,6 +70,83 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
     }
 }
 
+let musicMetadata: any = null
+
+export async function updateAudioIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
+    log(`starting update of audio index`)
+
+    const client = await DbHelpers.createClient(databaseParams)
+    const client2 = await DbHelpers.createClient(databaseParams)
+
+    log(`connected to database`)
+
+    let baseQuery = `from objects o left join object_audio_tags ot on o.sha=ot.sha where size > 65635 and mimeType LIKE 'audio/%' and (ot.sha is null)`
+
+    const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
+    let rs = await DbHelpers.dbQuery(client, queryCount)
+    let nbTotal = rs.rows[0].total
+
+    let nbRows = 0
+    let nbRowsError = 0
+
+    const query = `select distinct o.sha, o.mimetype ${baseQuery};`
+
+    const cursor = await DbHelpers.createCursor(client, query)
+
+    try {
+        while (true) {
+            let rows = await cursor.read()
+            if (!rows || !rows.length) {
+                log(`finished cursor`)
+                break
+            }
+
+            for (let row of rows) {
+                nbRows++
+                let sha = row['sha']
+                if (!sha)
+                    continue
+
+                let mimeType = row['mimetype']
+
+                log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
+
+                try {
+                    if (!musicMetadata)
+                        musicMetadata = require('music-metadata')
+
+                    if (!musicMetadata)
+                        throw `cannot require/load module 'music-metadata'`
+
+                    let buffer = await store.readShaBytes(sha, 0, 65635)
+                    if (!buffer)
+                        throw `cannot read 65kb from sha ${sha}`
+
+                    let metadata = await musicMetadata.parseBuffer(buffer, mimeType)
+                    metadata = musicMetadata.orderTags(metadata)
+
+                    log(`audio metadata ${JSON.stringify(metadata)}`)
+                }
+                catch (err) {
+                    nbRowsError++
+                    log.err(`error processing ${sha} : ${err}`)
+                }
+            }
+        }
+    } catch (err) {
+        log.err(`error processing: ${err}`)
+    }
+
+    log(`processed ${nbRows}/${nbTotal} shas with ${nbRowsError} errors`)
+
+    await cursor.close()
+
+    client.end()
+    client2.end()
+
+    log(`finished audio index update`)
+}
+
 let exifParserBuilder: any = null
 
 export async function updateExifIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
@@ -119,7 +196,6 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                     let buffer = await store.readShaBytes(sha, 0, 65635)
                     if (!buffer)
                         throw `cannot read 65kb from sha ${sha}`
-                    //log(`read ${buffer.length} bytes`)
 
                     let exifParser = exifParserBuilder.create(buffer)
                     let exif = exifParser.parse()
@@ -128,9 +204,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                     log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
                     log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
 
-                    //log(`inserting exif`)
                     await DbHelpers.insertObjectExif(client2, sha, exif.tags)
-                    //log(`inserted exif`)
                 }
                 catch (err) {
                     nbRowsError++
