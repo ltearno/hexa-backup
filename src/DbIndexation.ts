@@ -4,6 +4,7 @@ import { DbConnectionParams } from "./Commands"
 import * as DbHelpers from './DbHelpers'
 import * as Model from './Model'
 import * as Operations from './Operations'
+import * as MusicMetadata from 'music-metadata'
 
 const log = LoggerBuilder.buildLogger('db-index')
 
@@ -70,8 +71,6 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
     }
 }
 
-let musicMetadata: any = null
-
 export async function updateAudioIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
     log(`starting update of audio index`)
 
@@ -112,9 +111,9 @@ export async function updateAudioIndex(store: IHexaBackupStore, databaseParams: 
                 log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
                 try {
-                    if (!musicMetadata)
-                        musicMetadata = require('music-metadata')
+                    await DbHelpers.insertObjectAudioTags(client2, sha, {}, true)
 
+                    const musicMetadata = require('music-metadata')
                     if (!musicMetadata)
                         throw `cannot require/load module 'music-metadata'`
 
@@ -122,12 +121,10 @@ export async function updateAudioIndex(store: IHexaBackupStore, databaseParams: 
                     if (!buffer)
                         throw `cannot read 65kb from sha ${sha}`
 
-                    let metadata = await musicMetadata.parseBuffer(buffer, mimeType)
-                    metadata = musicMetadata.orderTags(metadata)
+                    let metadata = await MusicMetadata.parseBuffer(buffer, mimeType)
+                    metadata = JSON.parse(JSON.stringify(metadata))
 
-                    log(`audio metadata ${JSON.stringify(metadata)}`)
-
-                    break
+                    await DbHelpers.insertObjectAudioTags(client2, sha, metadata, true)
                 }
                 catch (err) {
                     nbRowsError++
@@ -193,7 +190,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
 
                 try {
                     // insert an empty object in case the job stales, so it does not come up again...
-                    await DbHelpers.insertObjectExif(client2, sha, {})
+                    await DbHelpers.insertObjectExif(client2, sha, {}, true)
 
                     let buffer = await store.readShaBytes(sha, 0, 65635)
                     if (!buffer)
@@ -206,7 +203,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
                     log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
                     log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
 
-                    await DbHelpers.insertObjectExif(client2, sha, exif.tags)
+                    await DbHelpers.insertObjectExif(client2, sha, exif.tags, true)
                 }
                 catch (err) {
                     nbRowsError++
