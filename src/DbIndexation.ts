@@ -74,7 +74,7 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
 
 let musicMetadata: any = null
 
-async function synchronizeRecord(title: string, baseQuery: string, store: HexaBackupStore, databaseParams: DbConnectionParams, callback: (sha: string, row: any, store: HexaBackupStore, client: any) => Promise<any>) {
+async function synchronizeRecord(title: string, baseQuery: string, store: HexaBackupStore, databaseParams: DbConnectionParams, callback: (sha: string, mimeType: string, row: any, store: HexaBackupStore, client: any) => Promise<any>) {
     log(`starting update of index ${title}`)
 
     const client = await DbHelpers.createClient(databaseParams)
@@ -110,7 +110,7 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
                 log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
                 try {
-                    await callback(sha, row, store, client2)
+                    await callback(sha, row['mimetype'], row, store, client2)
                 }
                 catch (err) {
                     nbRowsError++
@@ -133,9 +133,38 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
 }
 
 export async function updateFootprintIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
-    await synchronizeRecord(`footprints`, `from objects o left join object_audio_tags ot on o.sha=ot.sha where size > 65635 and mimeType LIKE 'audio/%' and (ot.sha is null)`, store, databaseParams, async (sha, row, store, client) => {
+    await synchronizeRecord(`footprints`, `from objects o left join object_footprints of on o.sha=of.sha where size > 65635 and mimeType LIKE 'audio/%' and (of.sha is null)`, store, databaseParams, async (sha, mimeType, row, store, client) => {
+        let footprints = []
+
         // select all names of sha
+        let rs = await DbHelpers.dbQuery(client, {
+            text: `select o.name from objects where sha=$1`,
+            values: [sha]
+        })
+        for (let row of rs.rows) {
+            if (!footprints.includes(row.name))
+                footprints.push(row.name)
+        }
+
         // if mimeType is audio/ => add artist, album and title
+        if (mimeType && mimeType.startsWith('audio/')) {
+            let rs = await DbHelpers.dbQuery(client, {
+                text: `select tags#>>'{common,artist}' as artist, tags#>>'{common,album}' as album, tags#>>'{common,title}' as title from object_audio_tags where sha=$1`,
+                values: [sha]
+            })
+            for (let row of rs.rows) {
+                if (!footprints.includes(row.artist))
+                    footprints.push(row.artist)
+                if (!footprints.includes(row.album))
+                    footprints.push(row.album)
+                if (!footprints.includes(row.title))
+                    footprints.push(row.title)
+            }
+        }
+
+        if (footprints.length) {
+            await DbHelpers.insertObjectFootprint(client, sha, footprints.join(' '))
+        }
     })
 }
 

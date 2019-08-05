@@ -110,24 +110,23 @@ export async function insertObjectParent(client, sha: string, parentSha: string)
     })
 }
 
+export async function insertObjectFootprint(client, sha: string, footprint: string) {
+    if (!sha || !footprint)
+        return
+
+    await dbQuery(client, {
+        text: `INSERT INTO object_footprints(sha, footprint) VALUES($1, $2) ON CONFLICT (sha) DO UPDATE SET footprint=$2;`,
+        values: [sha, footprint],
+    })
+}
+
 export async function insertObjectAudioTags(client, sha: string, tags: object) {
     if (!sha || !tags)
         return
 
-    let footprints = []
-    if (tags['common']) {
-        if (tags['common']['artist'])
-            footprints.push(tags['common']['artist'])
-        if (tags['common']['album'])
-            footprints.push(tags['common']['album'])
-        if (tags['common']['title'])
-            footprints.push(tags['common']['title'])
-    }
-    let footprint = footprints.join(' ')
-
     await dbQuery(client, {
-        text: `INSERT INTO object_audio_tags(sha, tags, footprint) VALUES($1, $2, $3) ON CONFLICT (sha) DO UPDATE SET tags=$2, footprint=$3;`,
-        values: [sha, JSON.stringify(tags), footprint],
+        text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2) ON CONFLICT (sha) DO UPDATE SET tags=$2;`,
+        values: [sha, JSON.stringify(tags)],
     })
 }
 
