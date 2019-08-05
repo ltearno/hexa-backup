@@ -115,7 +115,7 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                 let stage = `init`
 
                 try {
-                    await DbHelpers.insertObjectAudioTags(client2, sha, {}, false)
+                    await DbHelpers.insertObjectAudioTags(client2, sha, {})
 
                     if (!musicMetadata) {
                         stage = `requiring module`
@@ -147,7 +147,7 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                     log(`metadata: ${JSON.stringify(metadata)}`)
 
                     stage = `database insert`
-                    await DbHelpers.insertObjectAudioTags(client2, sha, metadata, true)
+                    await DbHelpers.insertObjectAudioTags(client2, sha, metadata)
                 }
                 catch (err) {
                     nbRowsError++

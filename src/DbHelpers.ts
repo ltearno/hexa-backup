@@ -110,18 +110,14 @@ export async function insertObjectParent(client, sha: string, parentSha: string)
     })
 }
 
-export async function insertObjectAudioTags(client, sha: string, tags: object, forceUpdate: boolean) {
+export async function insertObjectAudioTags(client, sha: string, tags: object) {
     if (!sha || !tags)
         return
 
-    /*await dbQuery(client, {
-        text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2) ON CONFLICT DO ${forceUpdate ? 'UPDATE' : 'NOTHING'};`,
+    await dbQuery(client, {
+        text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2) ON CONFLICT (sha) DO UPDATE SET tags=$2;`,
         values: [sha, JSON.stringify(tags)],
-    })*/
-
-    let q = `INSERT INTO object_audio_tags(sha, tags) VALUES('${sha}', '${JSON.stringify(tags)}') ON CONFLICT (sha) DO UPDATE SET tags='${JSON.stringify(tags)}';`
-    console.log(`SQLQUERY: ${q}`)
-    await dbQuery(client, q)
+    })
 }
 
 export async function removeObjectAudioTags(client, sha: string) {
