@@ -5,6 +5,7 @@ import * as DbHelpers from './DbHelpers'
 import * as Model from './Model'
 import * as Operations from './Operations'
 import * as MusicMetadata from 'music-metadata'
+import * as fs from 'fs'
 
 const log = LoggerBuilder.buildLogger('db-index')
 
@@ -111,13 +112,16 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                 log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
 
                 try {
-                    await DbHelpers.insertObjectAudioTags(client2, sha, {}, true)
+                    //await DbHelpers.insertObjectAudioTags(client2, sha, {}, true)
 
                     const musicMetadata = require('music-metadata')
                     if (!musicMetadata)
                         throw `cannot require/load module 'music-metadata'`
 
                     let fileName = store.getShaFileName(sha)
+                    if (!fs.existsSync(fileName)) {
+                        throw `file does not exists: ${fileName}`
+                    }
 
                     let metadata = await MusicMetadata.parseFile(fileName)
                     metadata = JSON.parse(JSON.stringify(metadata))
