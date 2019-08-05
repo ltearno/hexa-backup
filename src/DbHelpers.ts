@@ -119,7 +119,7 @@ export async function insertObjectAudioTags(client, sha: string, tags: object, f
         values: [sha, JSON.stringify(tags)],
     })*/
 
-    let q = `INSERT INTO object_audio_tags(sha, tags) VALUES('${sha}', '${JSON.stringify(tags)}') ON CONFLICT DO ${forceUpdate ? 'UPDATE' : 'NOTHING'};`
+    let q = `INSERT INTO object_audio_tags(sha, tags) VALUES('${sha}', '${JSON.stringify(tags)}') ON CONFLICT (sha) DO UPDATE SET tags='${JSON.stringify(tags)}';`
     console.log(`SQLQUERY: ${q}`)
     await dbQuery(client, q)
 }
