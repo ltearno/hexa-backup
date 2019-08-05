@@ -303,7 +303,7 @@ export class Stateful {
                 name = name.trim()
                 if (name != '') {
                     if (mimeType && mimeType.startsWith('audio/')) {
-                        froms.push(`left join object_footprints of on o.sha=ot.sha`)
+                        froms.push(`left join object_footprints of on o.sha=of.sha`)
                         whereConditions.push(`of.footprint ilike '%${name}%'`)
                         orders.push(`order by similarity(of.footprint, '${name}') desc`)
                         selects.push(`similarity(of.footprint, '${name}') as score`)
