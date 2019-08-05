@@ -304,10 +304,13 @@ export class Stateful {
                     if (mimeType && mimeType.startsWith('audio/')) {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%' or ot.footprint ilike '%${name}%'`)
                         orderBy = `order by similarity(ot.footprint, '${name}'), similarity(o.name, '${name}') desc`
+                        selects.push(`similarity(o.name, '${name}') as name_similarity`)
+                        selects.push(`similarity(ot.footprint, '${name}') as footprint_similarity`)
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
                         orderBy = `order by similarity(o.name, '${name}') desc`
+                        selects.push(`similarity(o.name, '${name}') as name_similarity`)
                     }
                 }
 
@@ -340,7 +343,9 @@ export class Stateful {
                     lng: row.longitude * 1,
                     title: row.title,
                     artist: row.artist,
-                    album: row.album
+                    album: row.album,
+                    footprintSimilarity: row.footprint_similarity * 1,
+                    nameSimilarity: row.name_similarity * 1,
                 }))
 
                 client.end()
