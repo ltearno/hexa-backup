@@ -267,7 +267,7 @@ export class Stateful {
                 let groups: string[] = ['o.sha', 'o.name', 'o.mimeType']
                 let joins: string[] = ['inner join object_sources os on o.sha=os.sha']
 
-                if (mimeType && mimeType.startsWith('image') && geoSearch) {
+                if (mimeType && mimeType.startsWith('image/') && geoSearch) {
                     let { nw, se } = geoSearch
                     let latMin = Math.min(nw.lat, se.lat)
                     let latMax = Math.max(nw.lat, se.lat)
@@ -275,9 +275,15 @@ export class Stateful {
                     let lngMax = Math.max(nw.lng, se.lng)
 
                     selects.push(`cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`)
-                    joins.push(` inner join object_exifs oe on o.sha=oe.sha`)
+                    joins.push(`inner join object_exifs oe on o.sha=oe.sha`)
                     whereConditions.push(`cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`)
                     groups.push(`cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`)
+                }
+                else if (mimeType && mimeType.startsWith('audio/')) {
+                    joins.push(`left join object_audio_tags ot on o.sha=ot.sha`)
+                    selects.push(`tags::json#>>'{common.title}' as title`)
+                    selects.push(`tags::json#>>'{common.artist}' as artist`)
+                    selects.push(`tags::json#>>'{common.album}' as album`)
                 }
 
                 if (dateMin)
@@ -324,7 +330,10 @@ export class Stateful {
                     lastWrite: row.lastwrite * 1,
                     size: row.size * 1,
                     lat: row.latitude * 1,
-                    lng: row.longitude * 1
+                    lng: row.longitude * 1,
+                    title: row.title,
+                    artist: row.artist,
+                    album: row.album
                 }))
 
                 client.end()
