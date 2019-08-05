@@ -262,11 +262,11 @@ export class Stateful {
 
                 const client = await DbHelpers.createClient(this.databaseParams)
 
+                let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'min(o.size) as size', 'min(o.lastWrite) as lastWrite']
                 let whereConditions: string[] = []
+                let groups: string[] = ['o.sha', 'o.name', 'o.mimeType']
+                let joins: string[] = ['inner join object_sources os on o.sha=os.sha']
 
-                let geoSearchSelect = ''
-                let geoSearchJoin = ''
-                let geoSearchGroupBy = ''
                 if (mimeType && mimeType.startsWith('image') && geoSearch) {
                     let { nw, se } = geoSearch
                     let latMin = Math.min(nw.lat, se.lat)
@@ -274,10 +274,10 @@ export class Stateful {
                     let lngMin = Math.min(nw.lng, se.lng)
                     let lngMax = Math.max(nw.lng, se.lng)
 
-                    geoSearchSelect = `, cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`
-                    geoSearchJoin = ` inner join object_exifs oe on o.sha=oe.sha`
+                    selects.push(`cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`)
+                    joins.push(` inner join object_exifs oe on o.sha=oe.sha`)
                     whereConditions.push(`cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`)
-                    geoSearchGroupBy = `, cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`
+                    groups.push(`cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`)
                 }
 
                 if (dateMin)
@@ -311,7 +311,7 @@ export class Stateful {
                 if (!limit || limit < 1 || limit > SQL_RESULT_LIMIT)
                     limit = SQL_RESULT_LIMIT
 
-                query = `select o.sha, o.name, o.mimeType ${geoSearchSelect}, min(o.size) as size, min(o.lastWrite) as lastWrite from objects o inner join object_sources os on o.sha=os.sha ${geoSearchJoin} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by o.sha, o.name, o.mimeType ${geoSearchGroupBy} ${orderBy} limit ${limit} offset ${offset};`
+                query = `select ${selects.join(', ')} from objects o ${joins.join(' ')} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by ${groups.join(', ')} ${orderBy} limit ${limit} offset ${offset};`
 
                 log.dbg(`sql:${query}`)
 
