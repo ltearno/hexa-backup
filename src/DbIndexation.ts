@@ -115,6 +115,8 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                 let stage = `init`
 
                 try {
+                    await DbHelpers.insertObjectAudioTags(client2, sha, {}, true)
+
                     if (!musicMetadata) {
                         stage = `requiring module`
                         musicMetadata = require('music-metadata')
