@@ -151,7 +151,7 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
                 }
                 catch (err) {
                     nbRowsError++
-                    log.err(`error processing (stage: ${stage}) ${sha} : ${err}`)
+                    log.err(`${stage} error while processing ${sha} : ${err}`)
                 }
             }
         }
