@@ -281,10 +281,10 @@ export class Stateful {
                 }
                 else if (mimeType && mimeType.startsWith('audio/')) {
                     joins.push(`left join object_audio_tags ot on o.sha=ot.sha`)
-                    selects.push(`tags::json#>>'{common.title}' as title`)
-                    selects.push(`tags::json#>>'{common.artist}' as artist`)
-                    selects.push(`tags::json#>>'{common.album}' as album`)
-                    groups.push(`ot.tags`)
+                    selects.push(`ot.tags::json#>>'{common.title}' as title`)
+                    selects.push(`ot.tags::json#>>'{common.artist}' as artist`)
+                    selects.push(`ot.tags::json#>>'{common.album}' as album`)
+                    groups.push(`ot.tags::json#>>'{common.title}', ot.tags::json#>>'{common.artist}', ot.tags::json#>>'{common.album}'`)
                 }
 
                 if (dateMin)
