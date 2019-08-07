@@ -88,25 +88,20 @@ export class ObjectRepository {
     }
 
     async readPayload(sha: string) {
-        return new Promise<string>((resolve, reject) => {
-            if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
-                resolve('')
-                return
-            }
+        if (!sha)
+            return null
 
-            let contentFileName = this.contentFileNameSync(sha)
-            if (!fs.existsSync(contentFileName)) {
-                resolve(null)
-                return
-            }
+        if (sha == HashTools.EMPTY_PAYLOAD_SHA) {
+            return ''
+        }
 
-            try {
-                let content = fs.readFileSync(contentFileName, 'utf8')
-                resolve(content)
-            } catch (error) {
-                reject(error)
-            }
-        });
+        let contentFileName = this.contentFileNameSync(sha)
+        if (!fs.existsSync(contentFileName)) {
+            return null
+        }
+
+        let content = fs.readFileSync(contentFileName, 'utf8')
+        return content
     }
 
     async readObject(sha: string) {
