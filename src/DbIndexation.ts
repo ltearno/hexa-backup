@@ -57,18 +57,26 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
     log(`pushing ${directoryDescriptorSha} ${basePath}`)
 
     let dirDesc = await store.getDirectoryDescriptor(directoryDescriptorSha)
-    if (!dirDesc)
+    if (!dirDesc) {
+        log.err(`source '${sourceId}' cannot obtain directory descriptor for sha ${directoryDescriptorSha}`)
         return
+    }
 
     for (let file of dirDesc.files) {
-        await DbHelpers.insertObjectParent(client, file.contentSha, directoryDescriptorSha)
-        await DbHelpers.insertObjectSource(client, file.contentSha, sourceId)
-        await DbHelpers.insertObject(client, file)
+        if (!file.contentSha) {
+            if (!file.isDirectory)
+                log.wrn(`source '${sourceId}', an entry in ${directoryDescriptorSha} has no contentSha (entry: ${JSON.stringify(file)})`)
+            continue
+        }
 
         if (file.isDirectory) {
             let path = `${basePath}${file.name.replace('\\', '/')}/`
             await recPushDir(client, store, path, file.contentSha, sourceId)
         }
+
+        await DbHelpers.insertObjectParent(client, file.contentSha, directoryDescriptorSha)
+        await DbHelpers.insertObjectSource(client, file.contentSha, sourceId)
+        await DbHelpers.insertObject(client, file)
     }
 }
 
