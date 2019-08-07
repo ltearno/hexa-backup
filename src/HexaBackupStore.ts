@@ -182,7 +182,7 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     async getDirectoryDescriptor(sha: string): Promise<Model.DirectoryDescriptor> {
-        return await this.objectRepository.readObject(sha);
+        return await this.objectRepository.readObject(sha)
     }
 
     async autoCompleteSha(shaStart: string) {

@@ -1,5 +1,8 @@
+import { LoggerBuilder } from '@ltearno/hexa-js'
 import * as MimeTypes from './mime-types'
 import * as Model from './Model'
+
+const log = LoggerBuilder.buildLogger('db-helpers')
 
 export interface DbParams {
     host: string
@@ -81,8 +84,15 @@ export async function insertObject(client, file: Model.FileDescriptor) {
     if (!file)
         return
 
+    if (!file.contentSha) {
+        log.err(`no sha specified when inserting object ${JSON.stringify(file)}`)
+        return
+    }
+
     let fileName = file.name.replace('\\', '/')
     let mimeType = file.isDirectory ? 'application/directory' : getFileMimeType(fileName)
+
+    log.dbg(`insert object ${file.contentSha}`)
 
     await dbQuery(client, {
         text: 'INSERT INTO objects(sha, isDirectory, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING',
@@ -93,6 +103,8 @@ export async function insertObject(client, file: Model.FileDescriptor) {
 export async function insertObjectSource(client, sha: string, sourceId: string) {
     if (!sha)
         return
+
+    log.dbg(`insert object source ${sha} ${sourceId}`)
 
     await dbQuery(client, {
         text: 'INSERT INTO object_sources(sha, sourceId) VALUES($1, $2) ON CONFLICT DO NOTHING',
