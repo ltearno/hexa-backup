@@ -5,6 +5,27 @@ import { IHexaBackupStore } from './HexaBackupStore'
 import { HashTools, LoggerBuilder, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
 import * as PathSpecHelpers from './PathSpecHelpers'
 
+const KB = 1024
+const MB = 1024 * KB
+const GB = 1024 * MB
+const TB = 1024 * GB
+
+function friendlySize(size: number) {
+    if (size > 2 * TB)
+        return `${(size / TB).toFixed(1)} TBb (${size} bytes)`
+    if (size > 2 * GB)
+        return `${(size / GB).toFixed(1)} Gb (${size} bytes)`
+    if (size > 2 * MB)
+        return `${(size / MB).toFixed(1)} Mb (${size} bytes)`
+    if (size > 2 * KB)
+        return `${(size / KB).toFixed(1)} kb (${size} bytes)`
+    if (size > 1)
+        return `${size} bytes`
+    if (size == 1)
+        return `1 byte`
+    return `empty`
+}
+
 const log = LoggerBuilder.buildLogger('Operations')
 
 export function connectToRemoteSocket(host: string, port: number, token: string, insecure: boolean): Promise<NetworkApi.WebSocket> {
@@ -380,7 +401,7 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
     let offset = targetLength
     while (offset < sourceLength) {
         let len = Math.min(1024 * 1024 * 1, sourceLength - offset)
-        log(`transfer ${len}@${offset} bytes (${Math.floor(100 * offset / sourceLength)}%)...`)
+        log(`transfer ${friendlySize(len)}@${offset}, total size ${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength)}%)...`)
 
         let buffer = await sourceStore.readShaBytes(sha, offset, len)
         await destinationStore.putShaBytes(sha, offset, buffer)
