@@ -12,13 +12,13 @@ const TB = 1024 * GB
 
 function friendlySize(size: number) {
     if (size > 2 * TB)
-        return `${(size / TB).toFixed(1)} TBb (${size} bytes)`
+        return `${(size / TB).toFixed(1)} TBb`
     if (size > 2 * GB)
-        return `${(size / GB).toFixed(1)} Gb (${size} bytes)`
+        return `${(size / GB).toFixed(1)} Gb`
     if (size > 2 * MB)
-        return `${(size / MB).toFixed(1)} Mb (${size} bytes)`
+        return `${(size / MB).toFixed(1)} Mb`
     if (size > 2 * KB)
-        return `${(size / KB).toFixed(1)} kb (${size} bytes)`
+        return `${(size / KB).toFixed(1)} kb`
     if (size > 1)
         return `${size} bytes`
     if (size == 1)
@@ -401,7 +401,7 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
     let offset = targetLength
     while (offset < sourceLength) {
         let len = Math.min(1024 * 1024 * 1, sourceLength - offset)
-        log(`transfer ${friendlySize(len)}@${offset}, total size ${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength)}%)...`)
+        log(`transfer ${friendlySize(offset)}/${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength).toFixed(2)}%)...`)
 
         let buffer = await sourceStore.readShaBytes(sha, offset, len)
         await destinationStore.putShaBytes(sha, offset, buffer)
