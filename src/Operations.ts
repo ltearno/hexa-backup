@@ -398,13 +398,22 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
 
     log(`transferring sha ${sha}`)
 
+    let lastSentBytesAmount = 0
+    let lastSentBytesTime = 0
     let offset = targetLength
     while (offset < sourceLength) {
+        let speed = lastSentBytesTime != 0 ? (1000 * lastSentBytesAmount) / lastSentBytesTime : 0
+
+        lastSentBytesTime = Date.now()
+
         let len = Math.min(1024 * 1024 * 1, sourceLength - offset)
-        log(`transfer ${friendlySize(offset)}/${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength).toFixed(2)}%)...`)
+        log(`transfer ${friendlySize(offset)}/${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength).toFixed(2)}%, ${friendlySize(speed)}/s)...`)
 
         let buffer = await sourceStore.readShaBytes(sha, offset, len)
         await destinationStore.putShaBytes(sha, offset, buffer)
+
+        lastSentBytesTime = Date.now() - lastSentBytesTime
+        lastSentBytesAmount = len
 
         offset += len
     }
