@@ -9,5 +9,8 @@ run-image:
 run-image-as-daemon:
 	docker run -d --restart=always --name hexa-backup -p 5005:5005 -v /tmp/hexa-backup-store:/hexa-backup/store hexa-backup:latest
 
+run-postresql:
+	docker run -d --restart=always --name postgresql-hexa-backup -p 5432:5432 -e POSTGRES_PASSWORD=hexa-backup postgres
+
 gen-certs:
 	openssl req -new -x509 -sha256 -newkey rsa:2048 -nodes -keyout server.key -days 365 -out server.crt
