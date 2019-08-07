@@ -238,11 +238,11 @@ export class ObjectRepository {
 
         let contentFileName = await this.contentFileName(sha)
 
-        if (length <= 0) {
-            if (!fs.existsSync(contentFileName)) {
-                throw `content file does not exist`
-            }
+        if (!fs.existsSync(contentFileName)) {
+            throw `content file does not exist`
+        }
 
+        if (length <= 0) {
             let stat = fs.lstatSync(contentFileName)
             log.dbg(`read length is now ${stat.size}`)
             length = stat.size
