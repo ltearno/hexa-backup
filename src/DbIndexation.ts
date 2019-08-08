@@ -62,7 +62,17 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
         return
     }
 
+    log(`${dirDesc.files.length} files to push`)
+    let nextTimeLog = Date.now() + 1000 * 10
+    let nbPushed = 0
+
     for (let file of dirDesc.files) {
+        nbPushed++
+        if (Date.now() > nextTimeLog) {
+            log(`still indexing ${directoryDescriptorSha} ${basePath} (${nbPushed}/${dirDesc.files.length})`)
+            nextTimeLog = Date.now() + 1000 * 10
+        }
+
         if (!file.contentSha) {
             if (!file.isDirectory)
                 log.wrn(`source '${sourceId}', an entry in ${directoryDescriptorSha} has no contentSha (entry: ${JSON.stringify(file)})`)
