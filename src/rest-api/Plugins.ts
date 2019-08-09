@@ -57,8 +57,9 @@ export class Plugins {
                 }
             }
             catch (err) {
+                this.log(`error creating a thumbnail for sha ${sha} : ${err}`)
                 res.set('Content-Type', 'application/json')
-                res.send(`{"error":"missing sha ${sha}!"}`)
+                res.send(`{"error":"missing sha ${sha}"}`)
             }
         });
 
