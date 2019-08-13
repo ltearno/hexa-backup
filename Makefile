@@ -9,6 +9,16 @@ run-image:
 run-image-as-daemon:
 	docker run -d --restart=always --name hexa-backup -p 5005:5005 -v /tmp/hexa-backup-store:/hexa-backup/store hexa-backup:latest
 
+run-image-as-daemon-for-xps15:
+	docker run -d --restart=always --name hexa-backup \
+		-p 5005:5005 \
+		-v /media/arnaud/0a2b2256-7384-4a26-be2f-59e291a975f81/hexa-backup:/hexa-backup/store \
+		hexa-backup:latest \
+		-databaseHost localhost \
+		-databasePort 5432 \
+		-databaseUser postgres \
+		-databasePassword hexa-backup
+
 run-postresql:
 	docker run -d --restart=always --name postgresql-hexa-backup -p 5432:5432 -e POSTGRES_PASSWORD=hexa-backup postgres
 
