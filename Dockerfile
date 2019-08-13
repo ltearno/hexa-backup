@@ -31,6 +31,6 @@ WORKDIR /hexa-backup
 
 EXPOSE 5005
 
-CMD ["node", "target/cli/hexa-backup.js", "store", "-storeDirectory", "/hexa-backup/store"]
+ENTRYPOINT ["node", "target/cli/hexa-backup.js", "store", "-storeDirectory", "/hexa-backup/store"]
 
 # docker run -it --rm --name hexa-backup -p 5005:5005 -v $(pwd)/tmp/store:/hexa-backup/store hexa-backup:latest
