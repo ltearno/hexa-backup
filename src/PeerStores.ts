@@ -51,6 +51,7 @@ export class PeerStores {
     private schedule() {
         if (this.timeout)
             clearTimeout(this.timeout)
+        log(`waiting ${(this.delay / 1000).toFixed(0)} seconds before next`)
         this.timeout = setTimeout(() => this.scheduledTask(), this.delay)
     }
 

@@ -9,6 +9,10 @@ run-image:
 run-image-as-daemon:
 	docker run -d --restart=always --name hexa-backup -p 5005:5005 -v /tmp/hexa-backup-store:/hexa-backup/store hexa-backup:latest
 
+stop-and-remove-daemon:
+	docker stop hexa-backup
+	docker rm hexa-backup
+
 run-image-as-daemon-for-xps15:
 	docker run --name hexa-backup -d --restart=always \
 		--network=host \
