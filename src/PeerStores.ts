@@ -137,6 +137,7 @@ export class PeerStores {
                     token: peer.connection.token
                 },
                 force: !!peer.force,
+                push: !!peer.push,
                 sourceIds: peer.sourceIds
             })
 
