@@ -109,7 +109,7 @@ export class PeerStores {
                 for (let sourceId of sourceIds)
                     await Operations.pullSource(sourceStore, destinationStore, sourceId, peer.force)
 
-                log(`pull done`)
+                log(`transfer done`)
             }
         }
         catch (err) {
