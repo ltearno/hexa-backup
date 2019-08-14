@@ -2,12 +2,14 @@ FROM node:10 AS builder
 
 WORKDIR /hexa-backup
 
-ADD src ./src
 ADD package.json ./
 ADD tsconfig.json ./
 ADD yarn.lock ./
 
 RUN npm install
+
+ADD src ./src
+
 RUN ./node_modules/.bin/tsc || echo "yes"
 
 FROM node:10
