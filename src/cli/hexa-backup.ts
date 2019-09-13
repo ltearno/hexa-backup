@@ -150,6 +150,8 @@ function parseArgs(args: string[], defaultParameters): { verbs: string[]; parame
 }
 
 async function run() {
+    log(`= Hexa-Backup, welcome !`)
+    log(``)
     let args = process.argv.slice(2)
     log(JSON.stringify(args))
 
