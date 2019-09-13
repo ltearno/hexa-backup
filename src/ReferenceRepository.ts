@@ -82,7 +82,7 @@ export class ReferenceRepository {
                     resolve(state)
                 }
                 catch (error) {
-                    resolve(null)
+                    reject(error)
                 }
             }
             else {

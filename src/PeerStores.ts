@@ -35,16 +35,17 @@ export class PeerStores {
     }
 
     private async loadPeers() {
-        this.peers = await this.store.getReferenceRepository().getEx(`peers`, `peers`)
-        if (!this.peers) {
-            this.peers = []
-        }
-        else {
+        try {
+            this.peers = await this.store.getReferenceRepository().getEx(`peers`, `peers`) || []
             this.peers.forEach(peer => {
                 peer.push = !!peer.push
             })
 
             log(`loaded peers : ${JSON.stringify(this.peers)}`)
+        }
+        catch (error) {
+            log.err(`cannot load peers: ${error}`)
+            this.peers = []
         }
     }
 
