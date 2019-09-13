@@ -151,9 +151,8 @@ function parseArgs(args: string[], defaultParameters): { verbs: string[]; parame
 
 async function run() {
     log(`= Hexa-Backup, welcome !`)
-    log(``)
     let args = process.argv.slice(2)
-    log(JSON.stringify(args))
+    log(`command line arguments: ${JSON.stringify(args)}`)
 
     let defaultParameters = null
     const parametersFileName = '.hexa-backup.json'

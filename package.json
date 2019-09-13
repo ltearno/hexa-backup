@@ -21,10 +21,10 @@
     "pg": "7.9.0",
     "pg-cursor": "2.0.0",
     "sharp": "^0.23.0",
-    "ws": "^1.1.4"
+    "ws": "7.1.2"
   },
   "devDependencies": {
-    "@types/ws": "^3.2.0",
+    "@types/ws": "6.0.3",
     "typescript": "3.2.2"
   }
 }
