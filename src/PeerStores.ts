@@ -76,6 +76,9 @@ export class PeerStores {
                         if (parsedResponse && parsedResponse.token) {
                             log(`new token ${parsedResponse.token}`)
                             peer.connection.token = parsedResponse.token
+
+                            log(`store new token in peers`)
+                            await this.storePeers()
                         }
                     }
                 }
