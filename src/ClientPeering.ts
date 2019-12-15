@@ -31,7 +31,7 @@ interface ShaToSend {
 }
 
 export async function createClientPeeringFromWebSocket(storeIp: string, storePort: number, storeToken: string, insecure: boolean, withPush: boolean) {
-    log(`connecting to remote store ${storeIp}:${storePort}...`)
+    log(`connecting to remote store ${storeIp}:${storePort} (insecure=${insecure})...`)
 
     let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
     if (!ws) {

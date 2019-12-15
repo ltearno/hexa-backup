@@ -95,7 +95,7 @@ function getStoreParams(options: { storeIp: string; storePort: number; storeToke
         host: options['storeIp'],
         port: options['storePort'],
         token: options['storeToken'],
-        insecure: !!options['insecure']
+        insecure: !!options['storeInsecure']
     }
 }
 
