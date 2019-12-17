@@ -464,7 +464,12 @@ export async function extract(storeParams: StoreConnectionParams, directoryDescr
     destinationDirectory = path.resolve(destinationDirectory)
 
     console.log(`extracting ${directoryDescriptorSha} to ${destinationDirectory}, prefix='${prefix}'...`)
-    await extractDirectoryDescriptor(store, shaCache, directoryDescriptorSha, prefix, destinationDirectory)
+    let errors = []
+    await extractDirectoryDescriptor(store, shaCache, directoryDescriptorSha, prefix, destinationDirectory, errors)
+    if (errors.length) {
+        console.error(`here are the errors that occured during synchronization :`)
+        errors.forEach(msg => console.error(msg))
+    }
 }
 
 export async function pull(directory: string, sourceId: string, storeParams: StoreConnectionParams, forced: boolean) {
@@ -506,7 +511,7 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
     await DbIndexation.updateExifIndex(store, databaseParams)
 }
 
-export async function extractSha(storeParams: StoreConnectionParams, sha: string, destinationFile: string) {
+export async function extractSha(storeParams: StoreConnectionParams, sha: string, destinationFile: string, errors: string[]) {
     log('connecting to remote store...')
 
     let shaCache = new ShaCache.ShaCache('.hb-cache')
@@ -533,13 +538,12 @@ export async function extractSha(storeParams: StoreConnectionParams, sha: string
         name: path.basename(destinationFile),
         size: size
     }
-    await extractShaInternal(store, shaCache, fileDesc, path.dirname(destinationFile))
+    await extractShaInternal(store, shaCache, fileDesc, path.dirname(destinationFile), errors)
 
     console.log(`extracted ${sha} to ${destinationFile}, ${Tools.prettySize(size)}...`)
 }
 
-async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, fileDesc: Model.FileDescriptor, destinationDirectory: string) {
-
+async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, fileDesc: Model.FileDescriptor, destinationDirectory: string, errors: string[]) {
     let currentReadPosition = 0
     let displayResume = false
     let timer = setInterval(() => {
@@ -559,7 +563,7 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
             if (fileDesc.contentSha) {
                 clearInterval(timer)
                 timer = null
-                await extractDirectoryDescriptor(store, shaCache, fileDesc.contentSha, '', destinationFilePath)
+                await extractDirectoryDescriptor(store, shaCache, fileDesc.contentSha, '', destinationFilePath, errors)
             }
         }
         else {
@@ -604,7 +608,10 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
 
             let contentSha = await HashTools.hashFile(destinationFilePath)
             if (contentSha != fileDesc.contentSha) {
-                log.err(`${destinationFilePath} : extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`)
+                let message = `${destinationFilePath} : extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`
+                if (errors)
+                    errors.push(message)
+                log.err(message)
                 updateWriteTimestamp = false
             }
         }
@@ -625,10 +632,10 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
     }
 }
 
-async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, directoryDescriptorSha: string, prefix: string, destinationDirectory: string) {
+async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, directoryDescriptorSha: string, prefix: string, destinationDirectory: string, errors: string[]) {
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
 
-    console.log(`fetching directory ${destinationDirectory} (${directoryDescriptorSha.substring(0,5)}), ${getDirectoryDescriptorSummary(directoryDescriptor)}...`)
+    console.log(`fetching [${directoryDescriptorSha.substring(0, 5)}] ${destinationDirectory}, ${getDirectoryDescriptorSummary(directoryDescriptor)}...`)
 
     for (let k in directoryDescriptor.files) {
         let fileDesc = directoryDescriptor.files[k]
@@ -636,7 +643,7 @@ async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: Sha
         if (prefix && !fileDesc.name.startsWith(prefix))
             continue
 
-        await extractShaInternal(store, shaCache, fileDesc, destinationDirectory)
+        await extractShaInternal(store, shaCache, fileDesc, destinationDirectory, errors)
     }
 }
 

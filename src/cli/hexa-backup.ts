@@ -305,7 +305,7 @@ async function run() {
             const file = options['file']
             const storeParams = getStoreParams(options)
 
-            await Commands.extractSha(storeParams, sha, file)
+            await Commands.extractSha(storeParams, sha, file, null)
 
             process.exit(0)
         }
