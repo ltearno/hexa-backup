@@ -539,17 +539,18 @@ export async function extractSha(storeParams: StoreConnectionParams, sha: string
 }
 
 async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, fileDesc: Model.FileDescriptor, destinationDirectory: string) {
-    console.log(`fetching ${fileDesc.name} ${Tools.prettySize(fileDesc.size)}`)
 
     let currentReadPosition = 0
     let displayResume = false
     let timer = setInterval(() => {
         displayResume = true
+        console.log(`fetching ${fileDesc.name} to ${Tools.prettySize(fileDesc.size)}`)
         console.log(` ${Tools.prettySize(currentReadPosition)}`)
     }, 1000)
 
     try {
         let destinationFilePath = path.join(destinationDirectory, fileDesc.name)
+        let updateWriteTimestamp = true
 
         if (fileDesc.isDirectory) {
             if (!await FsTools.fileExists(destinationFilePath))
@@ -603,15 +604,18 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
 
             let contentSha = await HashTools.hashFile(destinationFilePath)
             if (contentSha != fileDesc.contentSha) {
-                log.err(`extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`)
+                log.err(`${destinationFilePath} : extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`)
+                updateWriteTimestamp = false
             }
         }
 
         if (displayResume)
-            console.log(`extracted ${fileDesc.name}`)
+            console.log(`extracted ${fileDesc.name} to ${destinationFilePath}`)
 
-        let lastWriteUnix = parseInt((fileDesc.lastWrite / 1000).toFixed(0))
-        fs.utimesSync(destinationFilePath, lastWriteUnix, lastWriteUnix)
+        if (updateWriteTimestamp) {
+            let lastWriteUnix = parseInt((fileDesc.lastWrite / 1000).toFixed(0))
+            fs.utimesSync(destinationFilePath, lastWriteUnix, lastWriteUnix)
+        }
     }
     catch (err) {
         log.err(`error ${err}`)
@@ -622,10 +626,9 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
 }
 
 async function extractDirectoryDescriptor(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, directoryDescriptorSha: string, prefix: string, destinationDirectory: string) {
-    console.log('getting directory descriptor...')
     let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
 
-    await showDirectoryDescriptorSummary(directoryDescriptor)
+    console.log(`fetching directory ${destinationDirectory} (${directoryDescriptorSha.substring(0,5)}), ${getDirectoryDescriptorSummary(directoryDescriptor)}...`)
 
     for (let k in directoryDescriptor.files) {
         let fileDesc = directoryDescriptor.files[k]
@@ -723,25 +726,26 @@ export async function browse(directory: string, verbose: boolean) {
     log(`finished, whole sha is ${wholeSha}`)
 }
 
-async function showDirectoryDescriptorSummary(directoryDescriptor: Model.DirectoryDescriptor) {
-    let totalSize = 0;
-    let nbFiles = 0;
-    let nbDirectories = 0;
+function getDirectoryDescriptorSummary(directoryDescriptor: Model.DirectoryDescriptor) {
+    let totalSize = 0
+    let nbFiles = 0
+    let nbDirectories = 0
+
     directoryDescriptor.files.forEach((fd) => {
         totalSize += fd.size
         if (fd.isDirectory)
             nbDirectories++
         else
             nbFiles++
-    });
+    })
 
-    console.log(`total ${Tools.prettySize(totalSize)} in ${nbFiles} files, ${nbDirectories} dirs`)
+    return `total ${Tools.prettySize(totalSize)} in ${nbFiles} files, ${nbDirectories} dirs`
 }
 
 async function showDirectoryDescriptor(directoryDescriptor: Model.DirectoryDescriptor, store: IHexaBackupStore, currentPath: string = '.', recursive: boolean = false) {
     console.log(``)
     console.log(`${currentPath}:`)
-    showDirectoryDescriptorSummary(directoryDescriptor)
+    console.log(getDirectoryDescriptorSummary(directoryDescriptor))
 
     for (let fd of directoryDescriptor.files) {
         let lastWrite = new Date(fd.lastWrite)
