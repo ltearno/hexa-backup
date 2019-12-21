@@ -608,7 +608,8 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
 
             let contentSha = await HashTools.hashFile(destinationFilePath)
             if (contentSha != fileDesc.contentSha) {
-                let message = `${destinationFilePath} : extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}`
+                let stat = await FsTools.lstat(destinationFilePath)
+                let message = `${destinationFilePath} : extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}, size ${stat.size}, orig size ${fileLength}, ts ${stat.mtime}, ts orig ts ${new Date(fileDesc.lastWrite)}`
                 if (errors)
                     errors.push(message)
                 log.err(message)
