@@ -544,18 +544,18 @@ export async function extractSha(storeParams: StoreConnectionParams, sha: string
 }
 
 async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.ShaCache, fileDesc: Model.FileDescriptor, destinationDirectory: string, errors: string[]) {
+    let destinationFilePath = "..."
+
     let currentReadPosition = 0
     let displayResume = false
     let timer = setInterval(() => {
         displayResume = true
-        console.log(`fetching ${fileDesc.name} to ${Tools.prettySize(fileDesc.size)}`)
-        console.log(` ${Tools.prettySize(currentReadPosition)}`)
+        console.log(`fetching ${fileDesc.name} to ${destinationFilePath} size : ${Tools.prettySize(fileDesc.size)} @  ${Tools.prettySize(currentReadPosition)}`)
     }, 1000)
 
     try {
-        let destinationFilePath = path.join(destinationDirectory, fileDesc.name)
-        let updateWriteTimestamp = true
-
+        destinationFilePath = path.join(destinationDirectory, fileDesc.name)
+        
         if (fileDesc.isDirectory) {
             if (!await FsTools.fileExists(destinationFilePath))
                 fs.mkdirSync(destinationFilePath)
@@ -567,14 +567,22 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
             }
         }
         else {
-            let fileLength = await store.hasOneShaBytes(fileDesc.contentSha)
-
             if (await FsTools.fileExists(destinationFilePath)) {
-                let stat = await FsTools.lstat(destinationFilePath)
-                currentReadPosition = stat.size
+                let contentSha = await shaCache.hashFile(destinationFilePath)
+                if (fileDesc.contentSha != contentSha) {
+                    let stat = await FsTools.lstat(destinationFilePath)
+                    let message = `${destinationFilePath} : already exist with a different sha ${contentSha} != ${fileDesc.contentSha}, size ${stat.size}, orig size ${fileDesc.size}, ts ${stat.mtime}, ts orig ts ${new Date(fileDesc.lastWrite)}`
+                    if (errors)
+                        errors.push(message)
+                    log.err(message)
+                }
+                else {
+                    log.dbg(`${destinationFilePath} : already extracted`)
+                }
             }
+            else {
+                let fileLength = await store.hasOneShaBytes(fileDesc.contentSha)
 
-            if (!(await FsTools.fileExists(destinationFilePath)) || fileDesc.contentSha != await shaCache.hashFile(destinationFilePath)) {
                 let fd = await FsTools.openFile(destinationFilePath, 'a')
 
                 const maxSize = 1024 * 100
@@ -601,29 +609,24 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
                 }
 
                 await FsTools.closeFile(fd)
-            }
-            else {
-                log.dbg(`already extracted ${destinationFilePath}`)
-            }
 
-            let contentSha = await HashTools.hashFile(destinationFilePath)
-            if (contentSha != fileDesc.contentSha) {
-                let stat = await FsTools.lstat(destinationFilePath)
-                let message = `${destinationFilePath} : extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}, size ${stat.size}, orig size ${fileLength}, ts ${stat.mtime}, ts orig ts ${new Date(fileDesc.lastWrite)}`
-                if (errors)
-                    errors.push(message)
-                log.err(message)
-                updateWriteTimestamp = false
+                let contentSha = await HashTools.hashFile(destinationFilePath)
+                if (contentSha != fileDesc.contentSha) {
+                    let stat = await FsTools.lstat(destinationFilePath)
+                    let message = `${destinationFilePath} : extracted file signature is inconsistent : ${contentSha} != ${fileDesc.contentSha}, size ${stat.size}, orig size ${fileLength}, ts ${stat.mtime}, ts orig ts ${new Date(fileDesc.lastWrite)}`
+                    if (errors)
+                        errors.push(message)
+                    log.err(message)
+                }
+                else {
+                    let lastWriteUnix = parseInt((fileDesc.lastWrite / 1000).toFixed(0))
+                    fs.utimesSync(destinationFilePath, lastWriteUnix, lastWriteUnix)
+                }
             }
         }
 
         if (displayResume)
             console.log(`extracted ${fileDesc.name} to ${destinationFilePath}`)
-
-        if (updateWriteTimestamp) {
-            let lastWriteUnix = parseInt((fileDesc.lastWrite / 1000).toFixed(0))
-            fs.utimesSync(destinationFilePath, lastWriteUnix, lastWriteUnix)
-        }
     }
     catch (err) {
         log.err(`error ${err}`)
