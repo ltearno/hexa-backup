@@ -68,7 +68,7 @@ export class PeerStores {
                 let accessToken = null
                 if (peer.connection.token) {
                     // request an access token from our id token
-                    let response = await RestTools.post(`https://home.lteconsulting.fr/auth`, JSON.stringify({ requestedType: "access_token" }), {
+                    let response = await RestTools.post(`https://home.lteconsulting.fr/auth`, null, {
                         Authorization: `Bearer ${peer.connection.token}`
                     })
 
