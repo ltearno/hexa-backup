@@ -23,13 +23,14 @@ export class PeerStores {
     private peers: Peer[] = []
     private peerIndex = 0
 
+    private firstDelay = 1000 * 10
     private delay = 1000 * 60 * 5
     private timeout: NodeJS.Timeout
 
     constructor(private store: HexaBackupStore) { }
 
     async init() {
-        this.schedule()
+        this.schedule(this.firstDelay)
 
         await this.loadPeers()
     }
@@ -49,11 +50,11 @@ export class PeerStores {
         }
     }
 
-    private schedule() {
+    private schedule(delay) {
         if (this.timeout)
             clearTimeout(this.timeout)
-        log(`waiting ${(this.delay / 1000).toFixed(0)} seconds before next`)
-        this.timeout = setTimeout(() => this.scheduledTask(), this.delay)
+        log(`waiting ${(delay / 1000).toFixed(0)} seconds before next`)
+        this.timeout = setTimeout(() => this.scheduledTask(), delay)
     }
 
     async scheduledTask() {
@@ -122,7 +123,7 @@ export class PeerStores {
             log.err(`error peer-stores scheduled task (${err})`)
         }
 
-        this.schedule()
+        this.schedule(this.delay)
     }
 
     addEnpointsToApp(app) {

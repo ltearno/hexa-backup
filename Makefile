@@ -17,6 +17,12 @@ run-image-as-daemon-for-xps15:
 	docker run --name hexa-backup -d --restart=always \
 		--network=host \
 		-v /media/arnaud/0a2b2256-7384-4a26-be2f-59e291a975f82/hexa-backup:/hexa-backup/store \
+		hexa-backup:latest
+
+run-image-as-daemon-for-xps15-with-database:
+	docker run --name hexa-backup -d --restart=always \
+		--network=host \
+		-v /media/arnaud/0a2b2256-7384-4a26-be2f-59e291a975f82/hexa-backup:/hexa-backup/store \
 		hexa-backup:latest \
 		-database postgres \
 		-databaseHost localhost \
