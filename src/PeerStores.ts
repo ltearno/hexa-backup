@@ -65,25 +65,26 @@ export class PeerStores {
 
                 let peer = this.peers[this.peerIndex]
 
+                let accessToken = null
                 if (peer.connection.token) {
-                    // try renew token
-                    let response = await RestTools.post(`https://home.lteconsulting.fr/auth`, JSON.stringify({ token: peer.connection.token }), {
+                    // request an access token from our id token
+                    let response = await RestTools.post(`https://home.lteconsulting.fr/auth`, JSON.stringify({ requestedType: "access_token" }), {
                         Authorization: `Bearer ${peer.connection.token}`
                     })
 
                     if (response.statusCode == 200) {
                         let parsedResponse = JSON.parse(response.body)
                         if (parsedResponse && parsedResponse.token) {
-                            log(`new token ${parsedResponse.token}`)
-                            peer.connection.token = parsedResponse.token
-
-                            log(`store new token in peers`)
-                            await this.storePeers()
+                            log(`received access token ${parsedResponse.token}`)
+                            accessToken = parsedResponse.token
                         }
                     }
                 }
+                if (!accessToken) {
+                    log(`no token will be used for remote connection`)
+                }
 
-                let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(peer.connection.ip, peer.connection.port, peer.connection.token, peer.connection.insecure, false)).remoteStore
+                let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(peer.connection.ip, peer.connection.port, accessToken, peer.connection.insecure, false)).remoteStore
                 if (!remoteStore) {
                     log.err(`cannot connect to remote store`)
                     return
