@@ -11,3 +11,5 @@ It goes hand in hand with other services for indexation, better UI, mp3 and medi
 sudo cp hexa-backup.service /etc/systemd/system/
 sudo systemctl start hexa-backup
 ```
+
+Updated
