@@ -46,47 +46,66 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
         if (authorizationDisabled)
             return refs
 
-        switch (user) {
-            case 'ltearno':
-                return refs
+        if (user == 'ltearno')
+            return refs
 
-            case 'ayoka':
-                return refs.filter(ref => {
-                    switch (ref) {
-                        case 'CLIENT_MUSIQUE':
-                        case 'CLIENT_PHOTOS':
-                        case 'CLIENT_VIDEOS':
-                        case 'CLIENT_FAMILLE':
-                            return true
-                        default:
-                            return false
-                    }
-                })
+        let authorizedRefs = new Set<string>()
 
-            case 'alice.gallas':
-                return refs.filter(ref => {
-                    switch (ref) {
-                        case 'CLIENT_POUR-MAMAN':
-                        case 'CLIENT_MUSIQUE':
-                        case 'CLIENT_FAMILLE':
-                            return true
-                        default:
-                            return false
-                    }
-                })
-
-            case 'famille':
-                return refs.filter(ref => {
-                    switch (ref) {
-                        case 'CLIENT_FAMILLE':
-                            return true
-                        default:
-                            return false
-                    }
-                })
+        const addFamille = () => {
+            authorizedRefs.add('CLIENT_MUSIQUE')
+            authorizedRefs.add('CLIENT_FAMILLE')
         }
 
-        return []
+        const addTribu = () => {
+            authorizedRefs.add('CLIENT_PHOTOS')
+            authorizedRefs.add('CLIENT_VIDEOS')
+        }
+
+        switch (user) {
+            case 'ayoka':
+                addFamille()
+                addTribu()
+                break
+
+            case 'alice.gallas':
+                authorizedRefs.add('CLIENT_POUR-MAMAN')
+                addFamille()
+                break
+
+            case 'papa':
+                addFamille()
+                break
+
+            case 'fx':
+                addFamille()
+                break
+
+            case 'rv':
+                addFamille()
+                break
+
+            case 'pat':
+                addFamille()
+                break
+
+            case 'famille':
+                addFamille()
+                break
+
+            case 'eveline':
+                addFamille()
+                break
+
+            case 'virginie':
+                addFamille()
+                break
+
+            case 'manou':
+                addFamille()
+                break
+        }
+
+        return refs.filter(ref => authorizedRefs.has(ref))
     }
     catch (err) {
         return []
