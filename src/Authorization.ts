@@ -56,7 +56,7 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
                         case 'CLIENT_MUSIQUE':
                         case 'CLIENT_PHOTOS':
                         case 'CLIENT_VIDEOS':
-                        case 'FAMILLE':
+                        case 'CLIENT_FAMILLE':
                             return true
                         default:
                             return false
@@ -68,7 +68,7 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
                     switch (ref) {
                         case 'CLIENT_POUR-MAMAN':
                         case 'CLIENT_MUSIQUE':
-                        case 'FAMILLE':
+                        case 'CLIENT_FAMILLE':
                             return true
                         default:
                             return false
@@ -78,7 +78,7 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
             case 'famille':
                 return refs.filter(ref => {
                     switch (ref) {
-                        case 'FAMILLE':
+                        case 'CLIENT_FAMILLE':
                             return true
                         default:
                             return false
