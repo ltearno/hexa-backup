@@ -51,8 +51,11 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
 
         let authorizedRefs = new Set<string>()
 
-        const addFamille = () => {
+        const addMusique = () => {
             authorizedRefs.add('CLIENT_MUSIQUE')
+        }
+
+        const addFamille = () => {
             authorizedRefs.add('CLIENT_FAMILLE')
         }
 
@@ -67,6 +70,7 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
 
         switch (user) {
             case 'ayoka':
+                addMusique()
                 addFamille()
                 addFamilleTournier()
                 addTribu()
@@ -74,26 +78,31 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
 
             case 'alice.gallas':
                 authorizedRefs.add('CLIENT_POUR-MAMAN')
+                addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
             case 'papa':
+                addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
             case 'fx':
+                addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
             case 'rv':
+                addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
             case 'pat':
+                addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
