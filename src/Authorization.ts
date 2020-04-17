@@ -56,6 +56,10 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
             authorizedRefs.add('CLIENT_FAMILLE')
         }
 
+        const addFamilleTournier = () => {
+            authorizedRefs.add('CLIENT_FAMILLE-TOURNIER')
+        }
+
         const addTribu = () => {
             authorizedRefs.add('CLIENT_PHOTOS')
             authorizedRefs.add('CLIENT_VIDEOS')
@@ -64,28 +68,34 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
         switch (user) {
             case 'ayoka':
                 addFamille()
+                addFamilleTournier()
                 addTribu()
                 break
 
             case 'alice.gallas':
                 authorizedRefs.add('CLIENT_POUR-MAMAN')
                 addFamille()
+                addFamilleTournier()
                 break
 
             case 'papa':
                 addFamille()
+                addFamilleTournier()
                 break
 
             case 'fx':
                 addFamille()
+                addFamilleTournier()
                 break
 
             case 'rv':
                 addFamille()
+                addFamilleTournier()
                 break
 
             case 'pat':
                 addFamille()
+                addFamilleTournier()
                 break
 
             case 'famille':
