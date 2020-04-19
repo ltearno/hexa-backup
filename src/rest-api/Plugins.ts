@@ -41,7 +41,7 @@ export class Plugins {
 
                     const sharp = require('sharp')
 
-                    out = await sharp(input).resize(150).toBuffer()
+                    out = await sharp(input).rotate().resize(150).toBuffer()
                     this.thumbnailCache.set(sha, out)
                     this.thumbnailCacheEntries.push(sha)
                 }
@@ -84,7 +84,7 @@ export class Plugins {
 
                     const sharp = require('sharp')
 
-                    out = await sharp(input).resize(1024).toBuffer()
+                    out = await sharp(input).rotate().resize(1024).toBuffer()
                     this.mediumCache.set(sha, out)
                     this.mediumCacheEntries.push(sha)
                 }
