@@ -42,8 +42,10 @@ export class Plugins {
                     const sharp = require('sharp')
 
                     out = await sharp(input).rotate().resize(150).toBuffer()
-                    this.thumbnailCache.set(sha, out)
-                    this.thumbnailCacheEntries.push(sha)
+                    if (!this.thumbnailCache.has(sha)) {
+                        this.thumbnailCache.set(sha, out)
+                        this.thumbnailCacheEntries.push(sha)
+                    }
                 }
 
                 res.set('ETag', sha)
@@ -85,8 +87,10 @@ export class Plugins {
                     const sharp = require('sharp')
 
                     out = await sharp(input).rotate().resize(1024).toBuffer()
-                    this.mediumCache.set(sha, out)
-                    this.mediumCacheEntries.push(sha)
+                    if (!this.mediumCache.has(sha)) {
+                        this.mediumCache.set(sha, out)
+                        this.mediumCacheEntries.push(sha)
+                    }
                 }
 
                 res.set('ETag', sha)
