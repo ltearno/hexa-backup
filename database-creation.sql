@@ -1,5 +1,4 @@
 CREATE EXTENSION pg_trgm;
-CREATE EXTENSION fuzzystrmatch;
 create table objects (sha char(64), isDirectory boolean, lastWrite bigint, size bigint, name text, mimeType text);
 alter table objects add constraint objects_unique primary key (sha, isDirectory, lastWrite, size, name, mimeType);
 CREATE INDEX trgm_idx_objects_name ON objects USING gin (name gin_trgm_ops);
