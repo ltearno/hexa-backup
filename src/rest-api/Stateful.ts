@@ -304,16 +304,17 @@ export class Stateful {
                 if (name != '') {
                     if (mimeType && mimeType.startsWith('audio/')) {
                         froms.push(`left join object_footprints of on o.sha=of.sha`)
-                        //whereConditions.push(`of.footprint ilike '%${name}%'`)
-                        //orders.push(`order by similarity(of.footprint, '${name}') desc`)
-                        orders.push(`order by similarity(METAPHONE(of.footprint,20), METAPHONE('${name}',20)) desc`)
-                        selects.push(`similarity(METAPHONE(of.footprint,20), METAPHONE('${name}',20)) as score`)
+                        //orders.push(`order by similarity(METAPHONE(of.footprint,20), METAPHONE('${name}',20)) desc`)
+                        //selects.push(`similarity(METAPHONE(of.footprint,20), METAPHONE('${name}',20)) as score`)
+                        orders.push(`order by similarity(of.footprint, '${name}') desc`)
+                        selects.push(`similarity(of.footprint, '${name}') as score`)
                         groups.push(`of.footprint`)
                     }
                     else {
-                        //whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
-                        orders.push(`order by similarity(METAPHONE(o.name,20), METAPHONE('${name}',20)) desc`)
-                        selects.push(`similarity(METAPHONE(o.name,20), METAPHONE('${name}',20)) as score`)
+                        //orders.push(`order by similarity(METAPHONE(o.name,20), METAPHONE('${name}',20)) desc`)
+                        //selects.push(`similarity(METAPHONE(o.name,20), METAPHONE('${name}',20)) as score`)
+                        orders.push(`order by similarity(o.name, '${name}') desc`)
+                        selects.push(`similarity(o.name, '${name}') as score`)
                     }
                 }
 
