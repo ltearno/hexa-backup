@@ -65,7 +65,7 @@ export class Plugins {
             }
         });
 
-        app.get('/sha/:sha/plugins/image/mediuma', async (req, res) => {
+        app.get('/sha/:sha/plugins/image/medium', async (req, res) => {
             let sha = req.params.sha
             if (sha == null || sha == 'null') {
                 res.set('Content-Type', 'application/json')
