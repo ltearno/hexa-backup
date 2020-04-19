@@ -274,8 +274,6 @@ export class Stateful {
 
                 const client = await DbHelpers.createClient(this.databaseParams)
 
-                await DbHelpers.dbQuery(client, "CREATE EXTENSION fuzzystrmatch;")
-
                 let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'min(o.size) as size', 'min(o.lastWrite) as lastWrite']
                 let whereConditions: string[] = [`os.sourceId in (${authorizedRefs})`]
                 let groups: string[] = ['o.sha', 'o.name', 'o.mimeType']
