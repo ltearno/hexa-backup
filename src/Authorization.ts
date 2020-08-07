@@ -40,6 +40,7 @@ export async function getAuthorizedRefs(user: string, store: IHexaBackupStore) {
 async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
     try {
         // TODO use ACLs in reference files
+        // instead of this fucking hardcoded database :
 
         let refs = await store.getRefs()
 
@@ -47,6 +48,8 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
             return refs
 
         if (user == 'ltearno')
+            return refs
+        if (user == 'ltearno@gmail.com')
             return refs
 
         let authorizedRefs = new Set<string>()
@@ -69,57 +72,45 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
         }
 
         switch (user) {
-            case 'ayoka':
+            case 'ayoka1008@gmail.com':
                 addMusique()
                 addFamille()
                 addFamilleTournier()
                 addTribu()
                 break
 
-            case 'alice.gallas':
+            case 'alice.gallas@free.fr':
                 authorizedRefs.add('CLIENT_POUR-MAMAN')
                 addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
-            case 'papa':
+            case 'pj.tournier@free.fr':
                 addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
-            case 'fx':
+            case 'fx.tournier@free.fr':
                 addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
-            case 'rv':
+            case 'tournier.rv@gmail.com':
                 addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
-            case 'pat':
+            case 'inthewakeofposeidon@hotmail.fr':
                 addMusique()
                 addFamille()
                 addFamilleTournier()
                 break
 
-            case 'famille':
-                addFamille()
-                break
-
-            case 'eveline':
-                addFamille()
-                break
-
-            case 'virginie':
-                addFamille()
-                break
-
-            case 'manou':
+            case 'pak.penelo@gmail.com.json':
                 addFamille()
                 break
         }
