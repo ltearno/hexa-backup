@@ -62,11 +62,11 @@ export class YoutubeDownload {
             })
 
             child.stdout.on('data', (data) => {
-                log(`${data}`)
+                log(`${data}`.trim())
             })
 
             child.stderr.on('data', (data) => {
-                log.err(`${data}`)
+                log.err(`${data}`.trim())
             })
 
             child.on('error', (err) => {
