@@ -30,11 +30,11 @@ export class YoutubeDownload {
             const child = spawn('youtube-dl', ['-U'])
 
             child.stdout.on('data', (data) => {
-                log(`${data}`)
+                log(`${data}`.trim())
             })
 
             child.stderr.on('data', (data) => {
-                log.err(`${data}`)
+                log.err(`${data}`.trim())
             })
 
             child.on('error', (err) => {
