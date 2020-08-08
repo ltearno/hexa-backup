@@ -56,6 +56,7 @@ async function getRawAuthorizedRefs(user: string, store: IHexaBackupStore) {
 
         const addMusique = () => {
             authorizedRefs.add('CLIENT_MUSIQUE')
+            authorizedRefs.add('CLIENT_PLUGIN-YOUTUBEDOWNLOAD-LTEARNO')
         }
 
         const addFamille = () => {
