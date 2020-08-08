@@ -149,9 +149,6 @@ export class Playlists {
             // add items
             let playlistDescriptor: Model.DirectoryDescriptor = JSON.parse(JSON.stringify(currentDescriptor))
             for (let item of request.items) {
-                if (currentDescriptor.files.some(f => f.contentSha == item.sha))
-                    continue
-                    
                 playlistDescriptor.files.push({
                     contentSha: item.sha,
                     name: item.name,
@@ -159,6 +156,22 @@ export class Playlists {
                     lastWrite: item.date,
                     size: 0
                 })
+            }
+
+            // optimize the descriptor (remove duplicates)
+            let oldFiles = playlistDescriptor.files
+            let seenStrings = new Set<string>()
+            playlistDescriptor.files = []
+            for (let i = oldFiles.length - 1; i >= 0; i--) {
+                let oldFile = oldFiles[i]
+
+                if (seenStrings.has(oldFile.contentSha) || seenStrings.has(oldFile.name))
+                    continue
+
+                seenStrings.add(oldFile.contentSha)
+                seenStrings.add(oldFile.name)
+
+                playlistDescriptor.files.unshift(oldFile)
             }
 
             // store new playlist directory descriptor
