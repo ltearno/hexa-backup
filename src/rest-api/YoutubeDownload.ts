@@ -57,7 +57,7 @@ export class YoutubeDownload {
         return new Promise(resolve => {
             log(`downloading in directory ${directory}`)
             //const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
-            const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio','--audio-format', 'best', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
+            const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'best', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
                 cwd: directory
             })
 
@@ -137,11 +137,6 @@ export class YoutubeDownload {
             if (content.path.endsWith('.part'))
                 continue
 
-            if (currentDescriptor.files.some(file => file.contentSha == content.sha)) {
-                log(`already uploaded ${content.sha} (${content.path}), skipped`)
-                continue
-            }
-
             currentDescriptor.files.push({
                 contentSha: content.sha,
                 name: fsPath.basename(content.path),
@@ -149,6 +144,22 @@ export class YoutubeDownload {
                 lastWrite: Date.now(),
                 size: content.size
             })
+        }
+
+        // optimize the descriptor (remove duplicates)
+        let oldFiles = currentDescriptor.files
+        let seenStrings = new Set<string>()
+        currentDescriptor.files = []
+        for (let i = oldFiles.length - 1; i >= 0; i--) {
+            let oldFile = oldFiles[i]
+
+            if (seenStrings.has(oldFile.contentSha) || seenStrings.has(oldFile.name))
+                continue
+
+            seenStrings.add(oldFile.contentSha)
+            seenStrings.add(oldFile.name)
+
+            currentDescriptor.files.unshift(oldFile)
         }
 
         let commitSha = await Operations.commitDirectoryDescriptor(sourceId, currentDescriptor, this.store)
