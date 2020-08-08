@@ -153,8 +153,10 @@ export class YoutubeDownload {
         for (let i = oldFiles.length - 1; i >= 0; i--) {
             let oldFile = oldFiles[i]
 
-            if (seenStrings.has(oldFile.contentSha) || seenStrings.has(oldFile.name))
+            if (seenStrings.has(oldFile.contentSha) || seenStrings.has(oldFile.name)) {
+                log(`removing ${oldFile.contentSha}: ${oldFile.name} because it is duplicate in the youtube dl playlist`)
                 continue
+            }
 
             seenStrings.add(oldFile.contentSha)
             seenStrings.add(oldFile.name)
