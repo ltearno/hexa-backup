@@ -50,7 +50,7 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
 
 async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string) {
     if (await DbHelpers.hasObjectSource(client, directoryDescriptorSha, sourceId)) {
-        log(`skipped ${directoryDescriptorSha} ${basePath}, already indexed`)
+        //log(`skipped ${directoryDescriptorSha} ${basePath}, already indexed`)
         return
     }
 
