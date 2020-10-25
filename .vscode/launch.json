@@ -13,7 +13,9 @@
                 "${workspaceFolder}/target/**/*.js"
             ],
             "args": [
-                "store"
+                "store",
+                "-storePort",
+                "5006"
             ]
         },
         {

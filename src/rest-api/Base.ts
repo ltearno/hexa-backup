@@ -1,5 +1,5 @@
 import { HexaBackupStore } from '../HexaBackupStore'
-import { LoggerBuilder } from '@ltearno/hexa-js'
+import { LoggerBuilder, HashTools } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
 
 const log = LoggerBuilder.buildLogger('base-server')
@@ -44,9 +44,17 @@ export class Base {
 
         app.get('/sha/:sha/content', (req, res) => this.serveShaContent(req, res))
 
+        app.post('/sha', async (req, res) => {
+            let bytes = req.body
+            let sha = HashTools.hashBytes(bytes)
+            let len = await this.store.putShaBytes(sha, 0, bytes)
+            res.set('Content-Type', 'application/json')
+            res.send(JSON.stringify({ sha, len }))
+        })
+
         // phantomName is just an easy way for a link to include the desired file name
         // if the browser wants to download the file (because of mimetype), the file
-        // will have the 'phantomName' instead of 'content
+        // will have the 'phantomName' instead of content's sha
         app.get('/sha/:sha/content/:phantomName', (req, res) => this.serveShaContent(req, res))
     }
 

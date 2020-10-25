@@ -47,9 +47,10 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
     log(`web initialisation, server uuid: ${store.getUuid()}`)
 
-    let app: any = express()
+    let app= express()
 
     app.use(bodyParser.json())
+    app.use(bodyParser.raw())
 
     app.use((_req, res, next) => {
         res.header("Access-Control-Allow-Origin", "*")
