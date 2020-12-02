@@ -58,13 +58,15 @@ export class PeerStores {
     }
 
     async scheduledTask() {
-        try {
-            await this.loadPeers()
+        await this.loadPeers()
 
+        try {
             if (this.peers.length) {
                 this.peerIndex = (this.peerIndex + 1) % this.peers.length
 
                 let peer = this.peers[this.peerIndex]
+
+                log(`starting peer sync for : ${JSON.stringify(peer)}`)
 
                 let accessToken = null
                 if (peer.connection.token) {
@@ -91,7 +93,7 @@ export class PeerStores {
                     return
                 }
 
-                log(`store ready`)
+                log(`remote store ${peer.connection.ip}:${peer.connection.port} ready for ${peer.push ? "pushing":"pulling"}`)
 
                 let sourceStore: IHexaBackupStore = remoteStore
                 let destinationStore: IHexaBackupStore = this.store
@@ -113,8 +115,16 @@ export class PeerStores {
                 else
                     sourceIds = await sourceStore.getSources()
 
-                for (let sourceId of sourceIds)
-                    await Operations.pullSource(sourceStore, destinationStore, sourceId, peer.force)
+                for (let i = 0; i < sourceIds.length; i++) {
+                    log.dbg(`processing source ${i + 1} of ${sourceIds.length}`)
+                    let sourceId = sourceIds[i]
+                    try {
+                        await Operations.pullSource(sourceStore, destinationStore, sourceId, peer.force)
+                    }
+                    catch (e) {
+                        log.err(`error peer-stores scheduled task when processing source ${sourceId}, skipping the source !!! Error: ${e}`)
+                    }
+                }
 
                 log(`transfer done`)
             }
