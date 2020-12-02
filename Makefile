@@ -30,6 +30,11 @@ run-image-as-daemon-for-xps15-with-database:
 		-databaseUser postgres \
 		-databasePassword hexa-backup
 
+run-image-as-sync-agent-for-xps15:
+	docker run --name hexa-backup -d --restart=always \
+		-v /media/arnaud/0a2b2256-7384-4a26-be2f-59e291a975f84/hexa-backup:/hexa-backup/store \
+		hexa-backup:latest
+
 run-postresql:
 	docker run -d --restart=always --name postgresql-hexa-backup -p 5432:5432 -e POSTGRES_PASSWORD=hexa-backup postgres
 
