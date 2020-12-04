@@ -511,6 +511,218 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
     await DbIndexation.updateExifIndex(store, databaseParams)
 }
 
+export async function checkStore(storeDirectory: string, sourceId: string, saviorStoreParams: StoreConnectionParams) {
+    let saviorStore = (await ClientPeering.createClientPeeringFromWebSocket(saviorStoreParams.host, saviorStoreParams.port, saviorStoreParams.token, saviorStoreParams.insecure, false)).remoteStore
+
+    let problems = []
+    let nbFiles = 0
+    let nbDirectories = 0
+    let status: any = {}
+    let lastProblems = ''
+    let seenShas = new Set<string>()
+    log.setStatus(() => {
+        let ps = JSON.stringify(problems, null, 2)
+        //if (ps != lastProblems) {
+        //    log(ps)
+        //    lastProblems = ps
+        //}
+        return [JSON.stringify(Object.keys(status).map(k => status[k]))]
+    })
+
+    function addError(e) {
+        problems.push(e)
+        status.nbProblems = `${problems.length} problems`
+        log.err(`${e.ctx.join('>')} ${e.description}`)
+    }
+
+    async function validateDirectoryDescriptor(directoryDescriptorSha: string, store: HexaBackupStore, sourceId: string, commitDepth: number, commitSha: string, level: number) {
+        status.nbDirectories = `${nbDirectories++} directories processed`
+        log.dbg(`validate directory descriptor ${directoryDescriptorSha}`)
+
+        let ctx: any[] = [
+            sourceId,
+            commitDepth,
+            commitSha,
+            level,
+            directoryDescriptorSha
+        ]
+
+        if (!directoryDescriptorSha) {
+            addError({
+                ctx,
+                description: `directoryDescriptorSha is null`
+            })
+            return
+        }
+
+        status.directoryDescriptor = `${directoryDescriptorSha} at level ${level}`
+        let directoryDescriptorOk = await store.validateShaBytes(directoryDescriptorSha)
+        if (!directoryDescriptorOk) {
+            addError({
+                ctx,
+                description: `directoryDescriptor not validated`
+            })
+        }
+        else {
+            let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
+            if (!directoryDescriptor) {
+                addError({
+                    ctx,
+                    description: `directoryDescriptor is null`
+                })
+            }
+            else {
+                let files = directoryDescriptor.files
+                if (!files) {
+                    addError({
+                        ctx,
+                        description: `files is null in directoryDescriptor`
+                    })
+                }
+                else {
+                    ctx.push('')
+                    ctx.push('')
+                    const ctxFileIdxIndex = ctx.length - 2
+                    const ctxFIleIndex = ctx.length - 1
+
+                    for (let fileIdx in files) {
+                        const file = files[fileIdx]
+
+                        ctx[ctxFileIdxIndex] = fileIdx
+                        ctx[ctxFIleIndex] = file.name
+
+                        if (!file.contentSha) {
+                            // directories were stored with zero size before...
+                            if (!file.isDirectory || file.size) {
+                                addError({
+                                    ctx,
+                                    description: `file references no contentSha (null) ${JSON.stringify(file)}`
+                                })
+                            }
+                            continue
+                        }
+
+                        if (!seenShas.has(file.contentSha)) {
+                            seenShas.add(file.contentSha)
+                            if (file.isDirectory) {
+                                await validateDirectoryDescriptor(file.contentSha, store, sourceId, commitDepth, commitSha, level + 1)
+                            }
+                            else {
+                                status.nbFiles = `${nbFiles++} files processed`
+                                let fileOk = await store.validateShaBytes(file.contentSha)
+                                if (!fileOk) {
+                                    let saviorIsHere = await saviorStore.hasOneShaBytes(file.contentSha)
+                                    if (saviorIsHere) {
+                                        log(`reading ${saviorIsHere} bytes of ${file.contentSha} from savior...`)
+                                        let content = await saviorStore.readShaBytes(file.contentSha, 0, saviorIsHere)
+                                        let put = await store.putShaBytes(file.contentSha, 0, content)
+                                        log(`storing ${content.length} bytes (${put})`)
+                                        fileOk = await store.validateShaBytes(file.contentSha)
+                                        log(`validation: ${fileOk}`)
+                                    }
+
+                                    if (fileOk) {
+                                        addError({
+                                            ctx,
+                                            description: `file was recovered (${saviorIsHere} bytes) ${JSON.stringify(file)}`
+                                        })
+                                    }
+                                    else {
+                                        addError({
+                                            ctx,
+                                            description: `file is not validated (but saviorIsHere = ${saviorIsHere}) ${JSON.stringify(file)}`
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    try {
+        log(`checking store ${storeDirectory}`)
+        log(`*** YOU CAN DELETE THE .hb-cache FILE IF YOU WANT TO CHECK EVERYTHING ***`)
+        let store = new HexaBackupStore(storeDirectory)
+
+        let sourceIds = []
+        if (!sourceId || sourceId == '*')
+            sourceIds.push(...await store.getSources())
+        else
+            sourceIds.push(sourceId)
+
+        for (let sourceId of sourceIds) {
+            log(`checking source ${sourceId}`)
+            const sourceState = await store.getSourceState(sourceId)
+            if (!sourceState) {
+                problems.push({
+                    sourceId,
+                    description: `cannot getSourceState(${sourceId})`
+                })
+                continue
+            }
+
+            let commitSha = sourceState.currentCommitSha
+            if (!commitSha) {
+                problems.push({
+                    sourceId,
+                    description: `source commit is null in source ${sourceId}`
+                })
+                continue
+            }
+
+            let commitDepth = -1
+            while (commitSha != null) {
+                commitDepth++
+                log.dbg(`validating commit ${commitDepth} ${commitSha}`)
+                status.commit = `validating commit ${commitDepth} ${commitSha}`
+
+                let commitOk = await store.validateShaBytes(commitSha)
+                if (!commitOk) {
+                    problems.push({
+                        sourceId,
+                        commitSha,
+                        description: `commit is not validated ${commitSha} in source ${sourceId}`
+                    })
+                    break
+                }
+
+                log.dbg(`checking commit ${commitSha}`)
+                let commit = await store.getCommit(commitSha)
+                if (!commit) {
+                    problems.push({
+                        sourceId,
+                        commitSha,
+                        description: `commit is null ${commitSha} in source ${sourceId}`
+                    })
+                    break
+                }
+
+                let directoryDescriptorSha = commit.directoryDescriptorSha
+
+                await validateDirectoryDescriptor(directoryDescriptorSha, store, sourceId, commitDepth, commitSha, 0)
+
+                commitSha = commit.parentSha
+            }
+        }
+    }
+    catch (e) {
+        log(`error ! ${e}`)
+        throw e
+    }
+
+    log(JSON.stringify(status, null, 2))
+
+    if (problems && problems.length) {
+        log.wrn(`check finished, here are the problems found : ${JSON.stringify(problems, null, 2)}`)
+    }
+    else {
+        log(`check finished, no problem found`)
+    }
+}
+
 export async function extractSha(storeParams: StoreConnectionParams, sha: string, destinationFile: string, errors: string[]) {
     log('connecting to remote store...')
 
@@ -555,7 +767,7 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
 
     try {
         destinationFilePath = path.join(destinationDirectory, fileDesc.name)
-        
+
         if (fileDesc.isDirectory) {
             if (!await FsTools.fileExists(destinationFilePath))
                 fs.mkdirSync(destinationFilePath)

@@ -481,6 +481,25 @@ async function run() {
             process.exit(0)
         }
     })
+    commandSpecs.push({
+        id: "check",
+        verbs: ["check"],
+        options: options()
+            .withStore()
+            .with({
+                storeDirectory: '.',
+                sourceId: '*'
+            }),
+        executor: async (options) => {
+            const storeDirectory = options.storeDirectory
+            const sourceId = options.sourceId
+            const saviorStoreParams = getStoreParams(options)
+
+            await Commands.checkStore(storeDirectory, sourceId, saviorStoreParams)
+
+            process.exit(0)
+        }
+    })
 
     let cmdManager = new CommandManager(commandSpecs)
 
