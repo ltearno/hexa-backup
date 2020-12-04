@@ -152,6 +152,12 @@ export class ObjectRepository {
     }
 
     async validateShaBytes(sha: string) {
+        if (!sha)
+            return null
+
+        if (sha == HashTools.EMPTY_PAYLOAD_SHA)
+            return true
+
         let openedFile = this.openedShaFiles.get(sha)
         if (openedFile) {
             this.openedShaFiles.delete(sha)
@@ -350,6 +356,9 @@ export class ObjectRepository {
     }
 
     private async contentFileName(sha: string) {
+        if (!sha)
+            return null
+
         let prefix = sha.substring(0, 2)
         let directory = fsPath.join(this.rootPath, prefix)
         if (!await FsTools.fileExists(directory))
