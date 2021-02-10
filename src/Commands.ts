@@ -517,16 +517,13 @@ export async function checkStore(storeDirectory: string, sourceId: string, savio
     let problems = []
     let nbFiles = 0
     let nbDirectories = 0
+    let nbBytes = 0
     let status: any = {}
-    let lastProblems = ''
     let seenShas = new Set<string>()
+    let ctx: any[] = []
+
     log.setStatus(() => {
-        let ps = JSON.stringify(problems, null, 2)
-        //if (ps != lastProblems) {
-        //    log(ps)
-        //    lastProblems = ps
-        //}
-        return [JSON.stringify(Object.keys(status).map(k => status[k]))]
+        return [ctx.join(' > '), JSON.stringify(Object.keys(status).map(k => status[k]))]
     })
 
     function addError(e) {
@@ -539,7 +536,7 @@ export async function checkStore(storeDirectory: string, sourceId: string, savio
         status.nbDirectories = `${nbDirectories++} directories processed`
         log.dbg(`validate directory descriptor ${directoryDescriptorSha}`)
 
-        let ctx: any[] = [
+        ctx = [
             sourceId,
             commitDepth,
             commitSha,
@@ -582,14 +579,18 @@ export async function checkStore(storeDirectory: string, sourceId: string, savio
                 else {
                     ctx.push('')
                     ctx.push('')
-                    const ctxFileIdxIndex = ctx.length - 2
-                    const ctxFIleIndex = ctx.length - 1
+                    ctx.push('')
+                    const ctxFileIdxIndex = ctx.length - 3
+                    const ctxFileNameIndex = ctx.length - 2
+                    const ctxFileSizeIndex = ctx.length - 1
 
                     for (let fileIdx in files) {
                         const file = files[fileIdx]
+                        nbBytes += file.size
 
                         ctx[ctxFileIdxIndex] = fileIdx
-                        ctx[ctxFIleIndex] = file.name
+                        ctx[ctxFileNameIndex] = file.name
+                        ctx[ctxFileSizeIndex] = file.size
 
                         if (!file.contentSha) {
                             // directories were stored with zero size before...
@@ -602,15 +603,16 @@ export async function checkStore(storeDirectory: string, sourceId: string, savio
                             continue
                         }
 
-                        if (!seenShas.has(file.contentSha)) {
-                            seenShas.add(file.contentSha)
-                            if (file.isDirectory) {
-                                await validateDirectoryDescriptor(file.contentSha, store, sourceId, commitDepth, commitSha, level + 1)
-                            }
-                            else {
-                                status.nbFiles = `${nbFiles++} files processed`
-                                let fileOk = await store.validateShaBytes(file.contentSha)
-                                if (!fileOk) {
+                        if (file.isDirectory) {
+                            await validateDirectoryDescriptor(file.contentSha, store, sourceId, commitDepth, commitSha, level + 1)
+                        }
+                        else {
+                            status.nbFiles = `${nbFiles++} files processed`
+                            status.nbBytes = `${nbBytes} bytes processed`
+                            let fileOk = await store.validateShaBytes(file.contentSha)
+                            if (!fileOk) {
+                                if (!seenShas.has(file.contentSha)) {
+                                    seenShas.add(file.contentSha)
                                     let saviorIsHere = await saviorStore.hasOneShaBytes(file.contentSha)
                                     if (saviorIsHere) {
                                         log(`reading ${saviorIsHere} bytes of ${file.contentSha} from savior...`)

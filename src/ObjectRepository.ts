@@ -321,7 +321,7 @@ export class ObjectRepository {
         // so we try if possible to insert new files in a deeper hierarchy
         let oldFilePath = fsPath.join(this.rootPath, prefix, sha)
         if (fs.existsSync(oldFilePath)) {
-            log.dbg(`sha ${sha} is at ${oldFilePath}`)
+            //log.dbg(`sha ${sha} is at ${oldFilePath}`)
             return oldFilePath
         }
 
@@ -331,7 +331,7 @@ export class ObjectRepository {
             fs.mkdirSync(directory2)
 
         let filePath = fsPath.join(this.rootPath, prefix, prefix2, sha)
-        log.dbg(`sha ${sha} is at ${filePath}`)
+        //log.dbg(`sha ${sha} is at ${filePath}`)
         return filePath
     }
 
@@ -349,7 +349,7 @@ export class ObjectRepository {
         // so we try if possible to insert new files in a deeper hierarchy
         let oldFilePath = fsPath.join(this.rootPath, prefix, sha)
         if (await FsTools.fileExists(oldFilePath)) {
-            log.dbg(`sha ${sha} is at ${oldFilePath}`)
+            //log.dbg(`sha ${sha} is at ${oldFilePath}`)
             return oldFilePath
         }
 
@@ -359,7 +359,7 @@ export class ObjectRepository {
             await FsTools.mkdir(directory2)
 
         let filePath = fsPath.join(this.rootPath, prefix, prefix2, sha)
-        log.dbg(`sha ${sha} is at ${filePath}`)
+        //log.dbg(`sha ${sha} is at ${filePath}`)
         return filePath
     }
 

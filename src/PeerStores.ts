@@ -132,8 +132,9 @@ export class PeerStores {
         catch (err) {
             log.err(`error peer-stores scheduled task (${err})`)
         }
-
-        this.schedule(this.delay)
+        finally {
+            this.schedule(this.delay)
+        }
     }
 
     addEnpointsToApp(app) {

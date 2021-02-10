@@ -87,7 +87,7 @@ export class Peering {
     // very experimental code
     private async startRpcLoops() {
         {
-            let rpcTxPusher = Queue.waitPusher(this.rpcTxIn, 20, 10)
+            let rpcTxPusher = Queue.waitPusher(this.rpcTxIn, 2000, 10)
 
             let rpcQueues: any[] = [{ queue: this.rpcCalls, listener: null }]
             if (this.withPush) {
@@ -138,19 +138,28 @@ export class Peering {
                 }
 
                 case RequestType.ShaBytes:
+                    log.dbg(`nop received (ShaBytes)`)
                     break
 
                 case RequestType.Call:
+                    const rpcResolver = this.rpcResolvers.get(request)
+                    const rpcRejecter = this.rpcRejecters.get(request)
+                    this.rpcResolvers.delete(request)
+                    this.rpcRejecters.delete(request)
+
                     if (reply.length == 1) {
-                        log.dbg(`rcv reply ${JSON.stringify(reply)} for request ${JSON.stringify(request)}`)
-                        this.rpcResolvers.get(request)(reply[0])
+                        //log.dbg(`rcv reply ${JSON.stringify(reply)} for request ${JSON.stringify(request)}`)
+                        log.dbg(`rcv reply for request ${JSON.stringify(request)}`)
+                        rpcResolver(reply[0])
                     }
                     else if (reply.length > 1) {
                         log(`exception received as a result ${JSON.stringify(reply[1])} call ${JSON.stringify(request)}`)
-                        this.rpcRejecters.get(request)(reply[1])
+                        rpcRejecter(reply[1])
                     }
-                    this.rpcResolvers.delete(request)
-                    this.rpcRejecters.delete(request)
+                    else {
+                        log.err(`uncomprehensible rpcItem !`)
+                    }
+                    
                     break
             }
         }
@@ -159,30 +168,28 @@ export class Peering {
     }
 
     private async callRpcOn(rpcCall: RpcCall, queue: Queue.Queue<RpcQuery>): Promise<any> {
-        await Queue.waitAndPush(queue, rpcCall, 10, 8)
-        //queue.push(rpcCall)
-
-        let result = new Promise((resolve, reject) => {
+        const result = new Promise((resolve, reject) => {
             this.rpcResolvers.set(rpcCall, resolve)
             this.rpcRejecters.set(rpcCall, reject)
         })
+
+        await Queue.waitAndPush(queue, rpcCall, 2000, 8)
 
         return result
     }
 
     private createProxy<T>(): T {
-        let me = this
-        return <T>new Proxy({}, {
-            get(_, propKey) {
+        return new Proxy(this, {
+            get(target, propKey) {
                 return (...args) => {
                     args = args.slice()
                     args.unshift(propKey)
                     args.unshift(RequestType.Call)
 
-                    return me.callRpcOn(args as RpcCall, me.rpcCalls)
+                    return target.callRpcOn(args as RpcCall, target.rpcCalls)
                 };
             }
-        });
+        }) as unknown as T;
     }
 
     async startPushLoop(pushedDirectory: string, pushDirectories: boolean) {

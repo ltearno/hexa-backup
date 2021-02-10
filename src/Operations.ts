@@ -384,55 +384,62 @@ async function saveInMemoryDirectoryDescriptor(inMemoryDescriptor: InMemoryDirec
 /** pulling */
 
 async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sha: string) {
-    let sourceLength = await sourceStore.hasOneShaBytes(sha)
-    let targetLength = await destinationStore.hasOneShaBytes(sha)
-    if (sourceLength == targetLength) {
-        log.dbg(`already have sha ${sha}`)
-        return true
-    }
-
-    if (sourceLength < targetLength) {
-        log.err(`error, transferring something smaller than what we have here ${sha}`)
-        return false
-    }
-
-    log(`transferring sha ${sha}`)
-
-    let lastSentBytesAmount = 0
-    let lastSentBytesTime = 0
-    let offset = targetLength
-    let lastPromise = null
-    while (offset < sourceLength) {
-        let speed = lastSentBytesTime != 0 ? (1000 * lastSentBytesAmount) / lastSentBytesTime : 0
-
-        lastSentBytesTime = Date.now()
-
-        let len = Math.min(1024 * 1024 * 2, sourceLength - offset)
-        log(`transfer ${friendlySize(offset)}/${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength).toFixed(2)}%, ${friendlySize(speed)}/s)...`)
-
-        let buffer = await sourceStore.readShaBytes(sha, offset, len)
-        if (lastPromise) {
-            await lastPromise
-            lastPromise = null
+    try {
+        let sourceLength = await sourceStore.hasOneShaBytes(sha)
+        let targetLength = await destinationStore.hasOneShaBytes(sha)
+        if (sourceLength == targetLength) {
+            log.dbg(`already have sha ${sha}`)
+            return true
         }
-        lastPromise = destinationStore.putShaBytes(sha, offset, buffer)
 
-        lastSentBytesTime = Date.now() - lastSentBytesTime
-        lastSentBytesAmount = len
+        if (sourceLength < targetLength) {
+            log.err(`error, transferring something smaller than what we have here ${sha}`)
+            return false
+        }
 
-        offset += len
+        log(`transferring sha ${sha}`)
+
+        let lastSentBytesAmount = 0
+        let lastSentBytesTime = 0
+        let offset = targetLength
+        let lastPromise = null
+        while (offset < sourceLength) {
+            let speed = lastSentBytesTime != 0 ? (1000 * lastSentBytesAmount) / lastSentBytesTime : 0
+
+            lastSentBytesTime = Date.now()
+
+            let len = Math.min(1024 * 1024 * 5, sourceLength - offset)
+            if (offset > 0) {
+                log(`transfer ${friendlySize(offset)}/${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength).toFixed(2)}%, ${friendlySize(speed)}/s)...`)
+            }
+
+            let buffer = await sourceStore.readShaBytes(sha, offset, len)
+            if (lastPromise) {
+                await lastPromise
+                lastPromise = null
+            }
+            lastPromise = destinationStore.putShaBytes(sha, offset, buffer)
+
+            lastSentBytesTime = Date.now() - lastSentBytesTime
+            lastSentBytesAmount = len
+
+            offset += len
+        }
+
+        await lastPromise
+
+        let ok = await destinationStore.validateShaBytes(sha)
+        if (ok) {
+            log(`transferred successfully sha ${sha}`)
+            return true
+        }
+        else {
+            log.err(`error transferring sha ${sha}`)
+            return false
+        }
     }
-
-    await lastPromise
-
-    let ok = await destinationStore.validateShaBytes(sha)
-    if (ok) {
-        log(`transferred successfully sha ${sha}`)
-        return true
-    }
-    else {
-        log.err(`error transferring sha ${sha}`)
-        return false
+    catch (e) {
+        log.err(`error pulling file ${e}`)
     }
 }
 
