@@ -75,7 +75,7 @@ export class ShaCache {
     }
 
     private async _writeFile(fd: number, buffer: Buffer, offset: number, length: number, position: number) {
-        return new Promise(resolve => {
+        return new Promise<void>(resolve => {
             fs.write(fd, buffer, offset, length, position, (err, written, buffer) => resolve())
         })
     }
@@ -142,7 +142,7 @@ export class ShaCache {
     }
 
     private putDb(key: string, value: CacheInfo) {
-        return new Promise((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
             this.db.put(key, JSON.stringify(value), err => {
                 if (err)
                     reject(err)

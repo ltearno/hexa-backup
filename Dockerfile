@@ -1,10 +1,9 @@
-FROM node:10 AS builder
+FROM node:11 AS builder
 
 WORKDIR /hexa-backup
 
 ADD package.json ./
 ADD tsconfig.json ./
-ADD yarn.lock ./
 
 RUN npm install
 

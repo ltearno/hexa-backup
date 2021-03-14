@@ -6,7 +6,7 @@ const DATE_DISPLAY_OPTIONS = {
     minute: '2-digit'
 }
 
-export const displayDate = (date: number | Date) => (typeof date === 'number' ? new Date(date) : date).toLocaleString('fr', DATE_DISPLAY_OPTIONS)
+export const displayDate = (date: number | Date) => (typeof date === 'number' ? new Date(date) : date).toLocaleString('fr', DATE_DISPLAY_OPTIONS as Intl.DateTimeFormatOptions)
 
 export function prettySize(size: number): string {
     if (size < 1024)
