@@ -1,4 +1,4 @@
-FROM node:11 AS builder
+FROM node:15-alpine AS builder
 
 WORKDIR /hexa-backup
 
@@ -11,7 +11,7 @@ ADD src ./src
 
 RUN ./node_modules/.bin/tsc || echo "yes"
 
-FROM node:10
+FROM node:15
 
 ARG UID=1000
 ARG GID=1000
