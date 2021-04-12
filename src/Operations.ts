@@ -416,6 +416,8 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
             lastPromise = null
         }
         lastPromise = destinationStore.putShaBytes(sha, offset, buffer)
+        await lastPromise
+        lastPromise = null
 
         lastSentBytesTime = Date.now() - lastSentBytesTime
         lastSentBytesAmount = len
