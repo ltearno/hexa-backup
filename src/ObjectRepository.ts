@@ -16,7 +16,8 @@ export interface ShaPoolDescriptor {
 }
 
 export class ObjectRepository {
-    private rootPath: string;
+    private rootPath: string
+    private openedShaFiles = new Map<string, number>()
 
     constructor(rootPath: string, private shaCache: ShaCache) {
         this.rootPath = fsPath.resolve(rootPath);
@@ -44,7 +45,7 @@ export class ObjectRepository {
         let buffer = Buffer.from(payload, 'utf8')
 
         if (await this.hasOneShaBytes(sha) != buffer.byteLength)
-            await this.putShaBytes(sha, 0, buffer);
+            await this.putShaBytes(sha, 0, buffer)
 
         return sha
     }
@@ -145,8 +146,6 @@ export class ObjectRepository {
         return res[sha]
     }
 
-    private openedShaFiles = new Map<string, number>()
-
     async validateShaBytes(sha: string) {
         let openedFile = this.openedShaFiles.get(sha)
         if (openedFile) {
@@ -163,7 +162,12 @@ export class ObjectRepository {
 
             if (sha != storedContentSha) {
                 log.err(`wrong storage bytes for sha ${sha}`)
-                fs.rename(contentFileName, contentFileName + '.bak', (err) => { })
+                try {
+                    fs.renameSync(contentFileName, contentFileName + '.bak')
+                }
+                catch (err) {
+                    log.err(`error when renaming to .bak file: ${err}`)
+                }
             }
 
             return sha == storedContentSha
@@ -181,12 +185,13 @@ export class ObjectRepository {
         try {
             log.dbg(`put bytes for ${sha} @${offset}, size=${data.byteLength}`)
 
-            let contentFileName = await this.contentFileName(sha)
-
             let fd = this.openedShaFiles.get(sha)
             if (!fd) {
+                let contentFileName = await this.contentFileName(sha)
                 fd = await FsTools.openFile(contentFileName, 'w')
                 this.openedShaFiles.set(sha, fd)
+
+                log.dbg(`onOpen, ${this.openedShaFiles.size} entries in this.openedShaFiles`)
             }
 
             await FsTools.writeFileBuffer(fd, offset, data)
@@ -274,7 +279,13 @@ export class ObjectRepository {
             else {
                 log.err(`validateSha: content sha (${contentSize} bytes) ${contentSha}, stored sha (${stat.size} bytes) ${storedContentSha}`)
 
-                fs.rename(contentFileName, contentFileName + '.bak', (err) => { })
+                try {
+                    fs.renameSync(contentFileName, contentFileName + '.bak')
+                }
+                catch (err) {
+                    log.err(`error when renaming to .bak file in validateSha(...): ${err}`)
+                }
+
                 return false
             }
         } catch (error) {
