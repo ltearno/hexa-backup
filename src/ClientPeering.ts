@@ -38,6 +38,7 @@ export async function createClientPeeringFromWebSocket(storeIp: string, storePor
         log(`connection impossible`)
         return
     }
+    ws.on('close', () => log(`connection to ${storeIp}:${storePort} (insecure=${insecure}) is closed`))
     log('connected')
 
     let peering = new Peering(ws, withPush)
@@ -78,6 +79,7 @@ export class Peering {
         transport.start()
 
         this.ws.on('close', () => {
+            log(`socket closed !`)
             this.rpcRxOut.push(null)
         })
 
