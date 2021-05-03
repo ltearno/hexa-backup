@@ -36,7 +36,7 @@ interface TreeDirectoryInfo {
 }
 
 export async function refs(storeParams: StoreConnectionParams, _verbose: boolean) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     console.log(`refs on store`)
     console.log()
@@ -55,7 +55,7 @@ export async function refs(storeParams: StoreConnectionParams, _verbose: boolean
 
 
 export async function sources(storeParams: StoreConnectionParams, verbose) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     console.log(`sources on store`)
 
@@ -117,7 +117,7 @@ export async function sources(storeParams: StoreConnectionParams, verbose) {
 }
 
 export async function stats(storeParams: StoreConnectionParams) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     console.log(`stats on store`)
 
@@ -134,7 +134,7 @@ export async function stats(storeParams: StoreConnectionParams) {
 
 
 export async function history(sourceId: string, storeParams: StoreConnectionParams, verbose: boolean) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     console.log(`history of ${sourceId} in store`)
     console.log()
@@ -248,7 +248,7 @@ async function loadTreeDirectoryInfoFromDirectoryDescriptor(_store: IHexaBackupS
 }
 
 export async function normalize(sourceId: string, storeParams: StoreConnectionParams) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     log(`normalize source ${sourceId}`)
 
@@ -400,7 +400,7 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
     log(`  server: ${storeParams.host}:${storeParams.port}`)
     log(`  insecure: ${storeParams.insecure}`)
 
-    const peering = await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, true)
+    const peering = await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)
     if (!peering) {
         log.err(`cannot connect to store`)
         return
@@ -416,7 +416,7 @@ export async function copy(sourceId: string, pushedDirectory: string, destinatio
 }
 
 export async function merge(sourceSpec: string, destination: string, recursive: boolean, storeParams: StoreConnectionParams, _verbose: boolean) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     let source = await parseSourceSpec(sourceSpec, store)
     if (!source) {
@@ -428,7 +428,7 @@ export async function merge(sourceSpec: string, destination: string, recursive: 
 }
 
 export async function lsDirectoryStructure(storeParams: StoreConnectionParams, directoryDescriptorSha: string, recursive: boolean) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     if (directoryDescriptorSha.length != 64) {
         let autocompleted = await store.autoCompleteSha(directoryDescriptorSha)
@@ -449,7 +449,7 @@ export async function extract(storeParams: StoreConnectionParams, directoryDescr
     let shaCache = new ShaCache.ShaCache('.hb-cache')
 
     log('connecting to remote store...')
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     if (directoryDescriptorSha.length != 64) {
         let autocompleted = await store.autoCompleteSha(directoryDescriptorSha)
@@ -473,7 +473,7 @@ export async function extract(storeParams: StoreConnectionParams, directoryDescr
 }
 
 export async function pull(directory: string, sourceId: string, storeParams: StoreConnectionParams, forced: boolean) {
-    let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     log(`store ready`)
     log(`transferring`)
@@ -493,20 +493,20 @@ export async function pull(directory: string, sourceId: string, storeParams: Sto
 }
 
 export async function dbPush(storeParams: StoreConnectionParams, dbParams: DbConnectionParams) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     await DbIndexation.updateObjectsIndex(store, dbParams)
 }
 
 export async function dbImage(storeParams: StoreConnectionParams, databaseParams: DbConnectionParams) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, databaseParams)
     await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, databaseParams)
 }
 
 export async function exifExtract(storeParams: StoreConnectionParams, databaseParams: DbConnectionParams) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     await DbIndexation.updateExifIndex(store, databaseParams)
 }
@@ -516,7 +516,7 @@ export async function extractSha(storeParams: StoreConnectionParams, sha: string
 
     let shaCache = new ShaCache.ShaCache('.hb-cache')
 
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, false)).remoteStore
+    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)).remoteStore
 
     if (sha.length != 64) {
         let autocompleted = await store.autoCompleteSha(sha)
@@ -660,7 +660,7 @@ export async function push(sourceId: string, pushedDirectory: string, storeParam
     log(`  insecure: ${storeParams.insecure}`)
     log(`  estimateSize: ${estimateSize}`)
 
-    const peering = await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure, true)
+    const peering = await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, storeParams.insecure)
     if (!peering) {
         log.err(`cannot connect to store`)
         return
@@ -702,7 +702,7 @@ export async function store(directory: string, port: number, insecure: boolean, 
 }
 
 export async function browse(directory: string, verbose: boolean) {
-    let queue = new Queue.Queue<Model.FileDescriptor>('filesanddirs')
+    let queue = new Queue.Queue<DirectoryBrowser.Entry>('filesanddirs')
     let shaCache = new ShaCache.ShaCache('.hb-cache')
     let browser = new DirectoryBrowser.DirectoryBrowser(directory, Queue.waitPusher(queue, 10, 5), shaCache)
 
@@ -713,14 +713,12 @@ export async function browse(directory: string, verbose: boolean) {
             let popper = Queue.waitPopper(queue)
 
             while (true) {
-                let item = await popper()
-                if (!item)
+                let entry = await popper()
+                if (!entry)
                     break
 
-                let entry = await browser.closeEntry(item.contentSha)
-
                 if (verbose) {
-                    if (entry.type == 'directory') {
+                    if (entry.model.isDirectory) {
                         log.dbg(`${entry.descriptorRaw}`)
                     }
                     else {

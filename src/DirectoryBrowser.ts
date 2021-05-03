@@ -6,24 +6,14 @@ import { ShaCache } from './ShaCache';
 
 const log = LoggerBuilder.buildLogger('directory-browser')
 
-export interface OpenedFileEntry {
-    type: 'file'
-    fullPath: string
-    size: number
+export interface Entry {
+    model: Model.FileDescriptor
+    fullPath?: string
+    directoryDescriptorRaw?: string
 }
-
-export interface OpenedDirectoryEntry {
-    type: 'directory'
-    descriptorRaw: string
-    size: number
-}
-
-export type OpenedEntry = OpenedDirectoryEntry | OpenedFileEntry
 
 export class DirectoryBrowser {
-    private openedEntries = new Map<string, OpenedEntry>()
-
-    constructor(private rootPath: string, private pusher: Queue.Pusher<Model.FileDescriptor>, private shaCache: ShaCache) {
+    constructor(private rootPath: string, private pusher: Queue.Pusher<Entry>, private shaCache: ShaCache) {
     }
 
     stats = {
@@ -46,12 +36,6 @@ export class DirectoryBrowser {
         this.pusher(null)
 
         return d.sha
-    }
-
-    closeEntry(sha: string): OpenedEntry {
-        let res = this.openedEntries.get(sha)
-        this.openedEntries.delete(sha)
-        return res
     }
 
     async walkDir(path: string, ignoreExpressions: any[]): Promise<{ descriptor: Model.DirectoryDescriptor; sha: string; size: number }> {
@@ -142,7 +126,7 @@ export class DirectoryBrowser {
 
                             const fullPath = element.name
                             let fileSha = await this.shaCache.hashFile(fullPath)
-                            let entry = {
+                            let model = {
                                 name: fsPath.basename(element.name),
                                 isDirectory: false,
                                 lastWrite: element.lastWrite,
@@ -153,10 +137,9 @@ export class DirectoryBrowser {
                             this.stats.timeHashing += Date.now() - startTime
                             this.stats.bytesHashed += element.size
 
-                            directoryDescriptor.files.push(entry)
+                            directoryDescriptor.files.push(model)
 
-                            this.openedEntries.set(fileSha, { type: 'file', fullPath, size: element.size })
-                            await this.pusher(entry)
+                            await this.pusher({ model, fullPath })
                         }
                     }
                     catch (error) {
@@ -171,15 +154,16 @@ export class DirectoryBrowser {
             let directoryDescriptorRaw = OrderedJson.stringify(directoryDescriptor)
             let directoryDescriptorSha = await HashTools.hashString(directoryDescriptorRaw)
 
-            this.openedEntries.set(directoryDescriptorSha, { type: 'directory', descriptorRaw: directoryDescriptorRaw, size: Buffer.from(directoryDescriptorRaw, 'utf8').length })
-
             let stat = fs.statSync(path)
             await this.pusher({
-                name: '',
-                isDirectory: true,
-                lastWrite: stat.mtime.getTime(),
-                contentSha: directoryDescriptorSha,
-                size: directoryDescriptorRaw.length
+                model: {
+                    name: '',
+                    isDirectory: true,
+                    lastWrite: stat.mtime.getTime(),
+                    contentSha: directoryDescriptorSha,
+                    size: directoryDescriptorRaw.length
+                },
+                directoryDescriptorRaw
             })
 
             return {
