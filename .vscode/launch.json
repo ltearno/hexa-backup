@@ -13,7 +13,9 @@
                 "${workspaceFolder}/target/**/*.js"
             ],
             "args": [
-                "store"
+                "store",
+                "-storeDirectory",
+                "/mnt/data/arnaud/hexa-backup"
             ]
         },
         {

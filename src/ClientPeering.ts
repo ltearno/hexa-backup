@@ -159,13 +159,12 @@ export class Peering {
     }
 
     private async callRpcOn(rpcCall: RpcCall, queue: Queue.Queue<RpcQuery>): Promise<any> {
-        await Queue.waitAndPush(queue, rpcCall, 10, 8)
-        //queue.push(rpcCall)
-
         let result = new Promise((resolve, reject) => {
             this.rpcResolvers.set(rpcCall, resolve)
             this.rpcRejecters.set(rpcCall, reject)
         })
+
+        await Queue.waitAndPush(queue, rpcCall, 10, 8)
 
         return result
     }
@@ -239,6 +238,7 @@ export class Peering {
         })
 
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
+        
         let directoryBrowser = new DirectoryBrowser.DirectoryBrowser(
             pushedDirectory,
             Queue.waitPusher(this.fileInfos, 20, 15),

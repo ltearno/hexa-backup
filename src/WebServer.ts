@@ -75,25 +75,30 @@ export async function runStore(directory: string, port: number, insecure: boolea
         server = https.createServer({ key, cert }, app)
     }
 
-    server.listen(port)
-    log(`listening ${insecure ? 'HTTP' : 'HTTPS'} on ${port}`)
+    try {
+        server.listen(port)
+        log(`listening ${insecure ? 'HTTP' : 'HTTPS'} on ${port}`)
 
-    require('express-ws')(app, server)
+        require('express-ws')(app, server)
 
-    pluginsServer.addEnpointsToApp(app)
-    metadataServer.addEnpointsToApp(app)
-    peerStores.addEnpointsToApp(app)
-    rpcServer.addEnpointsToApp(app)
-    baseServer.addEnpointsToApp(app)
-    statefulServer.addEnpointsToApp(app)
-    miscServer.addEnpointsToApp(app)
-    playlistServer.addEnpointsToApp(app)
-    youtubeDownloadServer.addEnpointsToApp(app)
-    backgroundJobs.addEnpointsToApp(app)
+        pluginsServer.addEnpointsToApp(app)
+        metadataServer.addEnpointsToApp(app)
+        peerStores.addEnpointsToApp(app)
+        rpcServer.addEnpointsToApp(app)
+        baseServer.addEnpointsToApp(app)
+        statefulServer.addEnpointsToApp(app)
+        miscServer.addEnpointsToApp(app)
+        playlistServer.addEnpointsToApp(app)
+        youtubeDownloadServer.addEnpointsToApp(app)
+        backgroundJobs.addEnpointsToApp(app)
 
-    let publicFileRoot = path.join(path.dirname(__dirname), 'static')
-    log.dbg(`serving /public with ${publicFileRoot}`)
-    app.use('/public', express.static(publicFileRoot))
+        let publicFileRoot = path.join(path.dirname(__dirname), 'static')
+        log.dbg(`serving /public with ${publicFileRoot}`)
+        app.use('/public', express.static(publicFileRoot))
 
-    log(`ready on port ${port} !`)
+        log(`ready on port ${port} !`)
+    }
+    catch (err) {
+        log.err(`error in main: ${err}`)
+    }
 }

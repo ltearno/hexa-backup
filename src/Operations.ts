@@ -289,7 +289,7 @@ export async function pushDirectoryDescriptor(descriptor: Model.DirectoryDescrip
     let stringified = OrderedJson.stringify(descriptor)
 
     let content = Buffer.from(stringified, 'utf8')
-    let sha = HashTools.hashStringSync(stringified)
+    let sha = await HashTools.hashString(stringified)
 
     let len = await store.hasOneShaBytes(sha)
     if (len != content.length) {
@@ -396,7 +396,7 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
         return false
     }
 
-    log(`transferring sha ${sha}`)
+    log(`transferring sha ${sha}, ${friendlySize(sourceLength - targetLength)} of ${friendlySize(sourceLength)}`)
 
     let lastSentBytesAmount = 0
     let lastSentBytesTime = 0
@@ -408,7 +408,8 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
         lastSentBytesTime = Date.now()
 
         let len = Math.min(1024 * 1024 * 2, sourceLength - offset)
-        log(`transfer ${friendlySize(offset)}/${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength).toFixed(2)}%, ${friendlySize(speed)}/s)...`)
+        if (offset)
+            log(`transfer ${friendlySize(offset)}/${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength).toFixed(2)}%, ${friendlySize(speed)}/s)...`)
 
         let buffer = await sourceStore.readShaBytes(sha, offset, len)
         if (lastPromise) {
@@ -416,8 +417,8 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
             lastPromise = null
         }
         lastPromise = destinationStore.putShaBytes(sha, offset, buffer)
-        await lastPromise
-        lastPromise = null
+        //await lastPromise
+        //lastPromise = null
 
         lastSentBytesTime = Date.now() - lastSentBytesTime
         lastSentBytesAmount = len
@@ -439,8 +440,6 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
 }
 
 async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, directoryDescriptorSha: string) {
-    log.dbg(`pulling directory descriptor ${directoryDescriptorSha}`)
-
     let sourceLength = await sourceStore.hasOneShaBytes(directoryDescriptorSha)
     let targetLength = await destinationStore.hasOneShaBytes(directoryDescriptorSha)
 
@@ -448,6 +447,8 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
         log.dbg(`already have directoryDescriptor`)
         return true
     }
+
+    log(`pulling directory descriptor ${directoryDescriptorSha} (${friendlySize(sourceLength - targetLength)})`)
 
     let directoryDescriptor = await sourceStore.getDirectoryDescriptor(directoryDescriptorSha)
 
@@ -516,6 +517,8 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
         }
     }
 
+    let errors = []
+
     while (currentCommitSha) {
         let sourceLength = await sourceStore.hasOneShaBytes(currentCommitSha)
         let targetLength = await destinationStore.hasOneShaBytes(currentCommitSha)
@@ -524,21 +527,24 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
             break
         }
 
-        log(`pulling commit ${currentCommitSha}`)
+        log(`pulling commit ${currentCommitSha} (${friendlySize(sourceLength - targetLength)})`)
 
         let commit = await sourceStore.getCommit(currentCommitSha)
 
         let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, commit.directoryDescriptorSha)
         if (!ok) {
-            log.err(`error pulling directory descriptor ${commit.directoryDescriptorSha}`)
-            return false
+            let err = `error pulling directory descriptor ${commit.directoryDescriptorSha}`
+            errors.push(err)
+            log.err(err)
         }
-
-        // copy commit
-        ok = await pullFile(sourceStore, destinationStore, currentCommitSha)
-        if (!ok) {
-            log.err(`failed to copy commit ${currentCommitSha}`)
-            return false
+        else {
+            // copy commit
+            ok = await pullFile(sourceStore, destinationStore, currentCommitSha)
+            if (!ok) {
+                let err = `failed to copy commit ${currentCommitSha}`
+                errors.push(err)
+                log.err(err)
+            }
         }
 
         currentCommitSha = commit.parentSha
@@ -546,6 +552,12 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
 
     log.dbg(`      copy state : ${JSON.stringify(sourceState)}`)
     await destinationStore.setClientState(sourceId, sourceState)
+
+    if (errors.length) {
+        log.err(`encountered errors while pulling source:`)
+        errors.forEach(err => log.err(err))
+        return false
+    }
 
     return true
 }
