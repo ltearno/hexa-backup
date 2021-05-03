@@ -238,7 +238,7 @@ export class Peering {
         })
 
         let shaCache = new ShaCache.ShaCache(path.join(pushedDirectory, '.hb-cache'))
-        
+
         let directoryBrowser = new DirectoryBrowser.DirectoryBrowser(
             pushedDirectory,
             Queue.waitPusher(this.fileInfos, 20, 15),
@@ -250,7 +250,6 @@ export class Peering {
             (async () => {
                 isBrowsing = true
                 directoryDescriptorSha = await directoryBrowser.start()
-                this.fileInfos.push(null)
                 log.dbg(`done directory browsing`)
                 isBrowsing = false
             })()

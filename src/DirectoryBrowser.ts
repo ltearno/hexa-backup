@@ -42,6 +42,9 @@ export class DirectoryBrowser {
         ]
 
         let d = await this.walkDir(this.rootPath, ignoreExpressions)
+
+        this.pusher(null)
+
         return d.sha
     }
 
