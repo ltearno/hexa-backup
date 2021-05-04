@@ -11,6 +11,7 @@ export interface Peer {
         ip: string
         port: number
         token: string
+        headers?: { [name: string]: string }
         insecure: boolean
     }
 
@@ -85,7 +86,9 @@ export class PeerStores {
                     log(`no token will be used for remote connection`)
                 }
 
-                let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(peer.connection.ip, peer.connection.port, accessToken, peer.connection.insecure, false)).remoteStore
+                let headers = peer.connection.headers || null
+
+                let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(peer.connection.ip, peer.connection.port, accessToken, headers, peer.connection.insecure)).remoteStore
                 if (!remoteStore) {
                     log.err(`cannot connect to remote store`)
                     return

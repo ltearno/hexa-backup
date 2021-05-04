@@ -28,12 +28,15 @@ function friendlySize(size: number) {
 
 const log = LoggerBuilder.buildLogger('Operations')
 
-export function connectToRemoteSocket(host: string, port: number, token: string, insecure: boolean): Promise<NetworkApi.WebSocket> {
+export function connectToRemoteSocket(host: string, port: number, token: string, headers: { [name: string]: string }, insecure: boolean): Promise<NetworkApi.WebSocket> {
     return new Promise((resolve, reject) => {
         let network = new NetworkApiNodeImpl.NetworkApiNodeImpl()
         let url = `${insecure ? 'ws' : 'wss'}://${host}:${port}/hexa-backup`
         log(`connecting to ${url}`)
-        let ws = network.createClientWebSocket(url, token ? { Authorization: `Bearer ${token}` } : null)
+        headers = headers ? JSON.parse(JSON.stringify(headers)) : {}
+        if (token)
+            headers["Authorization"] = `Bearer ${token}`
+        let ws = network.createClientWebSocket(url, headers)
         let opened = false
 
         ws.on('open', () => {
@@ -471,7 +474,7 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
         return true
     }
     else {
-        log.err(`failed to sync ! ${directoryDescriptorSha} / ${pushedSha}`)
+        log.err(`failed to sync ! fetched ${directoryDescriptorSha} serializes to ${pushedSha}, probably an encoding error...`)
         return false
     }
 }
@@ -554,7 +557,7 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
     await destinationStore.setClientState(sourceId, sourceState)
 
     if (errors.length) {
-        log.err(`encountered errors while pulling source:`)
+        log.err(`encountered errors while pulling source ${sourceId}:`)
         errors.forEach(err => log.err(err))
         return false
     }

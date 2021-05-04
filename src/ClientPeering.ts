@@ -18,10 +18,10 @@ const log = LoggerBuilder.buildLogger('ClientPeering')
  * But this splits Commands.ts into two files, which is more practical...
  */
 
-export async function createClientPeeringFromWebSocket(storeIp: string, storePort: number, storeToken: string, insecure: boolean) {
+export async function createClientPeeringFromWebSocket(storeIp: string, storePort: number, storeToken: string, headers: { [name: string]: string }, insecure: boolean) {
     log(`connecting to remote store ${storeIp}:${storePort} (insecure=${insecure})...`)
 
-    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, insecure)
+    let ws = await Operations.connectToRemoteSocket(storeIp, storePort, storeToken, headers, insecure)
     if (!ws) {
         log(`connection impossible`)
         return

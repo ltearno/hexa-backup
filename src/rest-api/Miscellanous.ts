@@ -16,7 +16,7 @@ export class Miscellanous {
             try {
                 let { sourceId, storeIp, storePort, storeToken, insecure, force } = req.body
 
-                let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, insecure, false)).remoteStore
+                let remoteStore = (await ClientPeering.createClientPeeringFromWebSocket(storeIp, storePort, storeToken, null, insecure)).remoteStore
 
                 log(`store ready`)
                 log(`transferring`)

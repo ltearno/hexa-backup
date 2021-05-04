@@ -192,7 +192,7 @@ export class PushDirectory {
             }
             
             log(`finished sending shas`)
-            this.shaBytes.push(null)
+            shaBytes.push(null)
         })()
 
         statusArray().forEach(log)
