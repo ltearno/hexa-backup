@@ -387,7 +387,7 @@ async function saveInMemoryDirectoryDescriptor(inMemoryDescriptor: InMemoryDirec
 
 /** pulling */
 
-async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sha: string) {
+async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sha: string, comment: string) {
     if (await destinationStore.validateShaBytes(sha)) {
         log.dbg(`already have sha valid on destination`)
         return true
@@ -405,7 +405,7 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
         return false
     }
 
-    log(`transferring sha ${sha}, ${targetLength ? `${friendlySize(sourceLength - targetLength)} of ` : ''}${friendlySize(sourceLength)}`)
+    log(`transferring sha ${sha}, ${targetLength ? `${friendlySize(sourceLength - targetLength)} of ` : ''}${friendlySize(sourceLength)} ${comment}`)
 
     let showSuccess = false
     let lastSpeedDisplay = Date.now()
@@ -471,14 +471,16 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
     log(`pulling directory descriptor ${directoryDescriptorSha} [${comment}] (${friendlySize(sourceLength - targetLength)})`)
 
     let directoryDescriptorBuffer = await sourceStore.readShaBytes(directoryDescriptorSha, 0, sourceLength)
-    let directoryDescriptor = JSON.parse(directoryDescriptorBuffer.toString('utf-8'))
+    let directoryDescriptor = JSON.parse(directoryDescriptorBuffer.toString('utf-8')) as Model.DirectoryDescriptor
     //let directoryDescriptor = await sourceStore.getDirectoryDescriptor(directoryDescriptorSha)
 
     log(`${directoryDescriptor.files.length} files in directory descriptor`)
 
     let countNullContentSha = 0
 
-    for (let file of directoryDescriptor.files) {
+    for (let fileIdx in directoryDescriptor.files) {
+        const file = directoryDescriptor.files[fileIdx]
+
         // skip badly formatted entries (they exist....)
         if (!file.contentSha) {
             log.dbg(`entry's contentSha is null in directory descriptor for ${file.name}`)
@@ -492,7 +494,7 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
                 return false
         }
         else {
-            let ok = await pullFile(sourceStore, destinationStore, file.contentSha)
+            let ok = await pullFile(sourceStore, destinationStore, file.contentSha, `${parseInt(fileIdx) + 1}/${directoryDescriptor.files.length} ${file.name}`)
             if (!ok)
                 return false
         }
