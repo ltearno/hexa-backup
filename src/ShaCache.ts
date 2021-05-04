@@ -106,6 +106,9 @@ export class ShaCache {
         if (!fsPath.isAbsolute(fullFileName))
             throw "path should be absolute"
 
+        if (! await FsTools.fileExists(fullFileName))
+            return null
+
         let stat = await FsTools.stat(fullFileName)
         if (!stat)
             return null

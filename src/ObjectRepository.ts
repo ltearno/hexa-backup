@@ -125,14 +125,19 @@ export class ObjectRepository {
             }
             else {
                 let contentFileName = await this.contentFileName(sha)
-                try {
-                    let stat = await FsTools.lstat(contentFileName)
-                    if (stat == null)
-                        result[sha] = 0
-                    else
-                        result[sha] = stat.size
-                } catch (error) {
+                if (!await FsTools.fileExists(contentFileName)) {
                     result[sha] = 0
+                }
+                else {
+                    try {
+                        let stat = await FsTools.lstat(contentFileName)
+                        if (stat == null)
+                            result[sha] = 0
+                        else
+                            result[sha] = stat.size
+                    } catch (error) {
+                        result[sha] = 0
+                    }
                 }
             }
 
@@ -159,6 +164,10 @@ export class ObjectRepository {
 
         try {
             let storedContentSha = this.shaCache ? await this.shaCache.hashFile(contentFileName) : await HashTools.hashFile(contentFileName)
+            if (!storedContentSha) {
+                log.dbg(`cannot hash file for validation (sha=${sha})`)
+                return false
+            }
 
             if (sha != storedContentSha) {
                 log.err(`wrong storage bytes for sha ${sha}`)

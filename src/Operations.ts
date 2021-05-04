@@ -387,6 +387,11 @@ async function saveInMemoryDirectoryDescriptor(inMemoryDescriptor: InMemoryDirec
 /** pulling */
 
 async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sha: string) {
+    if (await destinationStore.validateShaBytes(sha)) {
+        log.dbg(`already have sha valid on destination`)
+        return true
+    }
+
     let sourceLength = await sourceStore.hasOneShaBytes(sha)
     let targetLength = await destinationStore.hasOneShaBytes(sha)
     if (sourceLength == targetLength) {
@@ -443,6 +448,11 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
 }
 
 async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, directoryDescriptorSha: string) {
+    if (await destinationStore.validateShaBytes(directoryDescriptorSha)) {
+        log.dbg(`already have descriptor valid on destination`)
+        return true
+    }
+
     let sourceLength = await sourceStore.hasOneShaBytes(directoryDescriptorSha)
     let targetLength = await destinationStore.hasOneShaBytes(directoryDescriptorSha)
     if (sourceLength == targetLength) {
@@ -457,6 +467,12 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
     log(`${directoryDescriptor.files.length} files in directory descriptor`)
 
     for (let file of directoryDescriptor.files) {
+        // skip badly formatted entries (they exist....)
+        if (!file.contentSha) {
+            log.wrn(`entry's contentSha is null in directory descriptor ${directoryDescriptorSha}: ${JSON.stringify(file)}`)
+            continue
+        }
+
         if (file.isDirectory) {
             let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, file.contentSha)
             if (!ok)
