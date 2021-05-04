@@ -445,7 +445,6 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
 async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, directoryDescriptorSha: string) {
     let sourceLength = await sourceStore.hasOneShaBytes(directoryDescriptorSha)
     let targetLength = await destinationStore.hasOneShaBytes(directoryDescriptorSha)
-
     if (sourceLength == targetLength) {
         log.dbg(`already have directoryDescriptor`)
         return true
@@ -454,6 +453,8 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
     log(`pulling directory descriptor ${directoryDescriptorSha} (${friendlySize(sourceLength - targetLength)})`)
 
     let directoryDescriptor = await sourceStore.getDirectoryDescriptor(directoryDescriptorSha)
+
+    log(`${directoryDescriptor.files.length} files in directory descriptor`)
 
     for (let file of directoryDescriptor.files) {
         if (file.isDirectory) {

@@ -107,6 +107,8 @@ export class ShaCache {
             throw "path should be absolute"
 
         let stat = await FsTools.stat(fullFileName)
+        if (!stat)
+            return null
 
         let cacheInfo = await this.getDb(fullFileName)
         if (cacheInfo && cacheInfo.lastWrite == stat.mtime.getTime() && cacheInfo.size == stat.size) {
