@@ -4,6 +4,7 @@ import * as Model from './Model'
 import { IHexaBackupStore } from './HexaBackupStore'
 import { HashTools, LoggerBuilder, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
 import * as PathSpecHelpers from './PathSpecHelpers'
+import { store } from './Commands'
 
 const KB = 1024
 const MB = 1024 * KB
@@ -404,8 +405,10 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
         return false
     }
 
-    log(`transferring sha ${sha}, ${friendlySize(sourceLength - targetLength)} of ${friendlySize(sourceLength)}`)
+    log(`transferring sha ${sha}, ${targetLength ? `${friendlySize(sourceLength - targetLength)} of ` : ''}${friendlySize(sourceLength)}`)
 
+    let showSuccess = false
+    let lastSpeedDisplay = Date.now()
     let lastSentBytesAmount = 0
     let lastSentBytesTime = 0
     let offset = targetLength
@@ -415,9 +418,13 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
 
         lastSentBytesTime = Date.now()
 
-        let len = Math.min(1024 * 1024 * 2, sourceLength - offset)
-        if (offset)
+        let len = Math.min(1024 * 1024 * 5, sourceLength - offset)
+
+        if (offset && ((Date.now() - lastSpeedDisplay) > 1000 * 10)) {
             log(`transfer ${friendlySize(offset)}/${friendlySize(sourceLength)} (${Math.floor(100 * offset / sourceLength).toFixed(2)}%, ${friendlySize(speed)}/s)...`)
+            lastSpeedDisplay = Date.now()
+            showSuccess = true
+        }
 
         let buffer = await sourceStore.readShaBytes(sha, offset, len)
         if (lastPromise) {
@@ -438,7 +445,8 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
 
     let ok = await destinationStore.validateShaBytes(sha)
     if (ok) {
-        log(`transferred successfully sha ${sha}`)
+        if (showSuccess)
+            log(`transferred successfully sha ${sha}`)
         return true
     }
     else {
@@ -447,7 +455,7 @@ async function pullFile(sourceStore: IHexaBackupStore, destinationStore: IHexaBa
     }
 }
 
-async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, directoryDescriptorSha: string) {
+async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, directoryDescriptorSha: string, comment: string) {
     if (await destinationStore.validateShaBytes(directoryDescriptorSha)) {
         log.dbg(`already have descriptor valid on destination`)
         return true
@@ -460,21 +468,26 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
         return true
     }
 
-    log(`pulling directory descriptor ${directoryDescriptorSha} (${friendlySize(sourceLength - targetLength)})`)
+    log(`pulling directory descriptor ${directoryDescriptorSha} [${comment}] (${friendlySize(sourceLength - targetLength)})`)
 
-    let directoryDescriptor = await sourceStore.getDirectoryDescriptor(directoryDescriptorSha)
+    let directoryDescriptorBuffer = await sourceStore.readShaBytes(directoryDescriptorSha, 0, sourceLength)
+    let directoryDescriptor = JSON.parse(directoryDescriptorBuffer.toString('utf-8'))
+    //let directoryDescriptor = await sourceStore.getDirectoryDescriptor(directoryDescriptorSha)
 
     log(`${directoryDescriptor.files.length} files in directory descriptor`)
+
+    let countNullContentSha = 0
 
     for (let file of directoryDescriptor.files) {
         // skip badly formatted entries (they exist....)
         if (!file.contentSha) {
-            log.wrn(`entry's contentSha is null in directory descriptor ${directoryDescriptorSha}: ${JSON.stringify(file)}`)
+            log.dbg(`entry's contentSha is null in directory descriptor for ${file.name}`)
+            countNullContentSha++
             continue
         }
 
         if (file.isDirectory) {
-            let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, file.contentSha)
+            let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, file.contentSha, `${comment}/${file.name}`)
             if (!ok)
                 return false
         }
@@ -485,15 +498,25 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
         }
     }
 
-    let pushedSha = await pushDirectoryDescriptor(directoryDescriptor, destinationStore)
+    await destinationStore.putShaBytes(directoryDescriptorSha, 0, directoryDescriptorBuffer)
+    let ok = await destinationStore.validateShaBytes(directoryDescriptorSha)
+    if (ok) {
+        log(`ok, synced directory descriptor ${directoryDescriptorSha} (${countNullContentSha} null contentSha entries)`)
+        return true
+    }
+    else {
+        log.err(`failed to sync directory descriptor!`)
+        return false
+    }
+    /*let pushedSha = await pushDirectoryDescriptor(directoryDescriptor, destinationStore)
     if (pushedSha == directoryDescriptorSha) {
-        log(`ok, synced directory descriptor ${directoryDescriptorSha}`)
+        log(`ok, synced directory descriptor ${directoryDescriptorSha} (${countNullContentSha} null contentSha entries)`)
         return true
     }
     else {
         log.err(`failed to sync ! fetched ${directoryDescriptorSha} serializes to ${pushedSha}, probably an encoding error...`)
         return false
-    }
+    }*/
 }
 
 export async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sourceId: string, forced: boolean) {
@@ -539,6 +562,8 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
 
     let errors = []
 
+    let depth = 0
+
     while (currentCommitSha) {
         let sourceLength = await sourceStore.hasOneShaBytes(currentCommitSha)
         let targetLength = await destinationStore.hasOneShaBytes(currentCommitSha)
@@ -547,11 +572,11 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
             break
         }
 
-        log(`pulling commit ${currentCommitSha} (${friendlySize(sourceLength - targetLength)})`)
+        log(`pulling commit on source ${sourceId}, depth ${depth}, sha ${currentCommitSha} (${friendlySize(sourceLength - targetLength)})`)
 
         let commit = await sourceStore.getCommit(currentCommitSha)
 
-        let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, commit.directoryDescriptorSha)
+        let ok = await pullDirectoryDescriptor(sourceStore, destinationStore, commit.directoryDescriptorSha, `(${sourceId})`)
         if (!ok) {
             let err = `error pulling directory descriptor ${commit.directoryDescriptorSha}`
             errors.push(err)
@@ -568,6 +593,7 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
         }
 
         currentCommitSha = commit.parentSha
+        depth++
     }
 
     log.dbg(`      copy state : ${JSON.stringify(sourceState)}`)
