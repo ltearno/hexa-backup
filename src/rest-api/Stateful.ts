@@ -53,6 +53,8 @@ export class Stateful {
         catch (err) {
             this.runningUpdate = false
             this.runAgainWhenFinished = false
+
+            log.err(`exception during updateIndices: ${err}`)
         }
     }
 

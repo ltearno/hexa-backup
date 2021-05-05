@@ -10,6 +10,7 @@ import * as Tools from './Tools'
 import * as Operations from './Operations'
 import * as WebServer from './WebServer'
 import * as DbIndexation from './DbIndexation'
+import * as PushDirectory from './PushDirectory'
 
 const log = LoggerBuilder.buildLogger('Commands')
 
@@ -555,7 +556,7 @@ async function extractShaInternal(store: IHexaBackupStore, shaCache: ShaCache.Sh
 
     try {
         destinationFilePath = path.join(destinationDirectory, fileDesc.name)
-        
+
         if (fileDesc.isDirectory) {
             if (!await FsTools.fileExists(destinationFilePath))
                 fs.mkdirSync(destinationFilePath)
@@ -691,7 +692,8 @@ export async function pushStore(directory: string, storeParams: StoreConnectionP
 
     log(`start push objects`)
 
-    let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, false)
+    const pushDirectory = new PushDirectory.PushDirectory()
+    let directoryDescriptorSha = await pushDirectory.startPushLoop(pushedDirectory, false, peering.remoteStore)
     log(`store objects pushed (directory descriptor  : ${directoryDescriptorSha})`)
 
     log(`TODO : push refs`)

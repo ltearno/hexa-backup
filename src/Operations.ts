@@ -4,7 +4,7 @@ import * as Model from './Model'
 import { IHexaBackupStore } from './HexaBackupStore'
 import { HashTools, LoggerBuilder, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
 import * as PathSpecHelpers from './PathSpecHelpers'
-import { store } from './Commands'
+import * as PushDirectory from './PushDirectory'
 
 const KB = 1024
 const MB = 1024 * KB
@@ -112,7 +112,8 @@ export async function pushDirectoryToSource(peering: ClientPeering.Peering, push
 
         log(`starting push`)
 
-        let directoryDescriptorSha = await peering.startPushLoop(pushedDirectory, true)
+        const pushDirectory = new PushDirectory.PushDirectory()
+        let directoryDescriptorSha = await pushDirectory.startPushLoop(pushedDirectory, true, peering.remoteStore)
         log(`directory descriptor  : ${directoryDescriptorSha}`)
 
         let commitSha = await store.registerNewCommit(sourceId, directoryDescriptorSha)
@@ -471,7 +472,22 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
     log(`pulling directory descriptor ${directoryDescriptorSha} [${comment}] (${friendlySize(sourceLength - targetLength)})`)
 
     let directoryDescriptorBuffer = await sourceStore.readShaBytes(directoryDescriptorSha, 0, sourceLength)
-    let directoryDescriptor = JSON.parse(directoryDescriptorBuffer.toString('utf-8')) as Model.DirectoryDescriptor
+    if (!directoryDescriptorBuffer) {
+        log.err(`cannot fetch directoryDescriptor from source store ${directoryDescriptorSha}`)
+        return false
+    }
+    let directoryDescriptor = (() => {
+        try {
+            return JSON.parse(directoryDescriptorBuffer.toString('utf-8')) as Model.DirectoryDescriptor
+        }
+        catch (err) {
+            return null
+        }
+    })()
+    if (!directoryDescriptor) {
+        log.err(`cannot parse directoryDescriptor ${directoryDescriptorSha}`)
+        return false
+    }
     //let directoryDescriptor = await sourceStore.getDirectoryDescriptor(directoryDescriptorSha)
 
     log(`${directoryDescriptor.files.length} files in directory descriptor`)
@@ -503,22 +519,13 @@ async function pullDirectoryDescriptor(sourceStore: IHexaBackupStore, destinatio
     await destinationStore.putShaBytes(directoryDescriptorSha, 0, directoryDescriptorBuffer)
     let ok = await destinationStore.validateShaBytes(directoryDescriptorSha)
     if (ok) {
-        log(`ok, synced directory descriptor ${directoryDescriptorSha} (${countNullContentSha} null contentSha entries)`)
+        log(`ok, synced directory descriptor ${directoryDescriptorSha} ${countNullContentSha ? `(${countNullContentSha} null contentSha entries)` : ''}`)
         return true
     }
     else {
-        log.err(`failed to sync directory descriptor!`)
+        log.err(`failed to validate synced directory descriptor!`)
         return false
     }
-    /*let pushedSha = await pushDirectoryDescriptor(directoryDescriptor, destinationStore)
-    if (pushedSha == directoryDescriptorSha) {
-        log(`ok, synced directory descriptor ${directoryDescriptorSha} (${countNullContentSha} null contentSha entries)`)
-        return true
-    }
-    else {
-        log.err(`failed to sync ! fetched ${directoryDescriptorSha} serializes to ${pushedSha}, probably an encoding error...`)
-        return false
-    }*/
 }
 
 export async function pullSource(sourceStore: IHexaBackupStore, destinationStore: IHexaBackupStore, sourceId: string, forced: boolean) {
@@ -586,7 +593,7 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
         }
         else {
             // copy commit
-            ok = await pullFile(sourceStore, destinationStore, currentCommitSha)
+            ok = await pullFile(sourceStore, destinationStore, currentCommitSha, `commit in source ${sourceId}`)
             if (!ok) {
                 let err = `failed to copy commit ${currentCommitSha}`
                 errors.push(err)

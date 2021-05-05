@@ -40,7 +40,7 @@ export async function createClient(options: {
         password: options.password,
     })
 
-    client.connect()
+    await client.connect()
 
     return client
 }

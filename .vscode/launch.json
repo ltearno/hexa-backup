@@ -14,8 +14,8 @@
             ],
             "args": [
                 "store",
-                "-storeDirectory",
-                "/mnt/data/arnaud/hexa-backup"
+                "-storePort",
+                "5006"
             ]
         },
         {
@@ -90,9 +90,12 @@
                 "${workspaceFolder}/target/**/*.js"
             ],
             "args": [
-                "push"
-            ],
-            "cwd": "/tmp/tutu/scripts"
+                "push",
+                "-storePort",
+                "5006",
+                "-pushedDirectory",
+                "/home/arnaud/Images/"
+            ]
         }
     ]
 }

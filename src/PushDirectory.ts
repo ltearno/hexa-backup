@@ -4,12 +4,7 @@ import * as path from 'path'
 import * as DirectoryBrowser from './DirectoryBrowser'
 import { Readable } from 'stream'
 import * as ShaCache from './ShaCache'
-import * as Model from './Model'
 import { LoggerBuilder, Queue } from '@ltearno/hexa-js'
-import {
-    HasShaBytes,
-    ShaBytes
-} from './RPC'
 import { IHexaBackupStore } from './HexaBackupStore'
 
 interface ShaToSend {
@@ -22,7 +17,7 @@ const log = LoggerBuilder.buildLogger('ClientPeering')
 export class PushDirectory {
     fileInfos = new Queue.Queue<DirectoryBrowser.Entry>('file-entries')
     shasToSend = new Queue.Queue<ShaToSend>('shas-to-send')
-    
+
     async startPushLoop(pushedDirectory: string, pushDirectories: boolean, store: IHexaBackupStore) {
         let sentBytes = 0
         let sendingTime = 0
@@ -94,6 +89,8 @@ export class PushDirectory {
             })()
         }
 
+        let countBrowsedEntries = 0
+
         {
             // see what to send
             (async () => {
@@ -106,6 +103,8 @@ export class PushDirectory {
                         break
                     }
 
+                    countBrowsedEntries++
+
                     let remoteLength = await store.hasOneShaBytes(fileInfo.model.contentSha)
 
                     this.shasToSend.push({ fileInfo, offset: remoteLength })
@@ -113,87 +112,109 @@ export class PushDirectory {
             })()
         }
 
-        await (async () => {
-            let popper = Queue.waitPopper(this.shasToSend)
+        {
+            await (async () => {
+                let popper = Queue.waitPopper(this.shasToSend)
 
-            let sentShas = new Set<string>()
+                let sentShas = new Set<string>()
 
-            while (true) {
-                let shaToSend = await popper()
-                if (!shaToSend) {
-                    log(`no more sha to send`)
-                    break
+                while (true) {
+                    let shaToSend = await popper()
+                    if (!shaToSend) {
+                        log(`no more sha to send`)
+                        break
+                    }
+
+                    const model = shaToSend.fileInfo.model
+
+                    if (sentShas.has(model.contentSha)) {
+                        log.dbg(`sha already sent ${model.contentSha.substr(0, 7)}`)
+                        continue
+                    }
+
+                    // clear cache when too big
+                    if (sentShas.size > 1000)
+                        sentShas.clear()
+
+                    sentShas.add(model.contentSha)
+
+                    log.dbg(`shaEntry ${JSON.stringify(shaToSend)}`)
+
+                    if (model.size <= shaToSend.offset) {
+                        log.dbg(`already on remote ${model.contentSha.substr(0, 7)}`)
+                        continue
+                    }
+
+                    if (!pushDirectories && model.isDirectory) {
+                        log.dbg(`skipping sending directory`)
+                        continue
+                    }
+
+                    isSending = true
+                    lastShaToSend = shaToSend
+                    lastStartSendTime = Date.now()
+
+                    if (model.isDirectory) {
+                        log.dbg(`sending directory...`)
+
+                        let buffer = Buffer.from(shaToSend.fileInfo.directoryDescriptorRaw, 'utf8')
+                        let start = Date.now()
+                        await store.putShaBytes(model.contentSha, 0, buffer)
+                        sentDirectories++
+                        sendingTime += Date.now() - start
+                        sentBytes += buffer.length
+
+                        log.dbg(`sent directory`)
+                    }
+                    else {
+                        log.dbg(`pushing ${model.contentSha.substr(0, 7)} ${shaToSend.fileInfo.fullPath} @ ${shaToSend.offset}/${model.size}`)
+
+                        let start = Date.now()
+                        const shaBytes = new Queue.Queue<FileChunk>('sha-bytes')
+                        f2q = new FileStreamToQueuePipe(shaToSend.fileInfo.fullPath, model.contentSha, shaToSend.offset, shaBytes, 50, 30)
+                        const streamFilePromise = f2q.start()
+                        {
+                            // send bytes
+                            await (async () => {
+                                const popper = Queue.waitPopper(shaBytes)
+                                while (true) {
+                                    const info = await popper()
+                                    if (!info) {
+                                        log.dbg(`finished sending bytes to remote ${shaToSend.fileInfo.fullPath}`)
+                                        break
+                                    }
+
+                                    const pushed = await store.putShaBytes(...info)
+                                    if (pushed != info[2].length) {
+                                        log.err(`pushShaBytes failed, returned ${pushed}, called with ${JSON.stringify(info)}`)
+                                        break
+                                    }
+                                }
+                            })()
+                        }
+                        await streamFilePromise
+
+                        sendingTime += Date.now() - start
+                        sentBytes += model.size
+                        sentFiles++
+
+                        log.dbg(`finished push ${shaToSend.fileInfo.fullPath} speed = ${Tools.prettySize(sentBytes)} in ${sendingTime} => ${Tools.prettySize((1000 * sentBytes) / (sendingTime))}/s`)
+                    }
+
+                    isSending = false
+
+                    isValidating = true
+                    let pushResult = await store.validateShaBytes(model.contentSha)
+                    if (!pushResult)
+                        log.err(`sha not validated by remote ${model.contentSha} ${JSON.stringify(shaToSend)}`)
+                    isValidating = false
                 }
 
-                const model = shaToSend.fileInfo.model
+                log(`finished sending shas`)
+            })()
+        }
 
-                if (sentShas.has(model.contentSha)) {
-                    log.dbg(`sha already sent ${model.contentSha.substr(0, 7)}`)
-                    continue
-                }
-
-                // clear cache when too big
-                if (sentShas.size > 1000)
-                    sentShas.clear()
-
-                sentShas.add(model.contentSha)
-
-                log.dbg(`shaEntry ${JSON.stringify(shaToSend)}`)
-
-                if (model.size <= shaToSend.offset) {
-                    log.dbg(`already on remote ${model.contentSha.substr(0, 7)}`)
-                    continue
-                }
-
-                if (!pushDirectories && model.isDirectory) {
-                    log.dbg(`skipping sending directory`)
-                    continue
-                }
-
-                isSending = true
-                lastShaToSend = shaToSend
-                lastStartSendTime = Date.now()
-
-                if (model.isDirectory) {
-                    log.dbg(`sending directory...`)
-
-                    let buffer = Buffer.from(shaToSend.fileInfo.directoryDescriptorRaw, 'utf8')
-                    let start = Date.now()
-                    await store.putShaBytes(model.contentSha, 0, buffer)
-                    sentDirectories++
-                    sendingTime += Date.now() - start
-                    sentBytes += buffer.length
-
-                    log.dbg(`sent directory`)
-                }
-                else {
-                    log.dbg(`pushing ${model.contentSha.substr(0, 7)} ${shaToSend.fileInfo.fullPath} @ ${shaToSend.offset}/${model.size}`)
-
-                    let start = Date.now()
-                    const shaBytes = new Queue.Queue<FileChunk>('sha-bytes')
-                    f2q = new FileStreamToQueuePipe(shaToSend.fileInfo.fullPath, model.contentSha, shaToSend.offset, shaBytes, 50, 30)
-                    f2q.start()
-                    // TODO : exhaust shaBytes and each time push on the store
-
-                    sendingTime += Date.now() - start
-                    sentBytes += model.size
-                    sentFiles++
-
-                    log.dbg(`finished push ${shaToSend.fileInfo.fullPath} speed = ${Tools.prettySize(sentBytes)} in ${sendingTime} => ${Tools.prettySize((1000 * sentBytes) / (sendingTime))}/s`)
-                }
-
-                isSending = false
-
-                isValidating = true
-                let pushResult = await store.validateShaBytes(model.contentSha)
-                if (!pushResult)
-                    log.err(`sha not validated by remote ${model.contentSha} ${JSON.stringify(shaToSend)}`)
-                isValidating = false
-            }
-            
-            log(`finished sending shas`)
-            shaBytes.push(null)
-        })()
+        log(`push finished, browsed:${countBrowsedEntries} sent:${sentFiles}`)
 
         statusArray().forEach(log)
 
@@ -246,8 +267,8 @@ class FileStreamToQueuePipe {
                 ])
                 this.transferred += chunk.length
             }).on('end', () => {
-                this.q.push(null)
                 resolve(true)
+                this.q.push(null)
             }).on('error', (err) => {
                 console.log(`stream error ${err}`)
                 reject(err)
