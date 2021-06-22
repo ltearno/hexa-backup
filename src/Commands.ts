@@ -513,7 +513,7 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
 }
 
 export async function checkStore(storeDirectory: string, sourceId: string, saviorStoreParams: StoreConnectionParams) {
-    let saviorStore = (await ClientPeering.createClientPeeringFromWebSocket(saviorStoreParams.host, saviorStoreParams.port, saviorStoreParams.token, saviorStoreParams.insecure, false)).remoteStore
+    let saviorStore = (await ClientPeering.createClientPeeringFromWebSocket(saviorStoreParams.host, saviorStoreParams.port, saviorStoreParams.token, null, saviorStoreParams.insecure)).remoteStore
 
     let problems = []
     let nbFiles = 0
@@ -883,7 +883,7 @@ export async function push(sourceId: string, pushedDirectory: string, storeParam
 }
 
 export async function pushStore(directory: string, storeParams: StoreConnectionParams, estimateSize: boolean) {
-    // TODO : ignore .bak files and shabytes currently received
+    // TODO : ignore .bak files and shabytes currently receiving
 
     log(`push options :`)
     log(`  server: ${storeParams.host}:${storeParams.port}`)
