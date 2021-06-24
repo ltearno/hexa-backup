@@ -151,7 +151,7 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
 }
 
 export async function updateFootprintIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
-    await synchronizeRecord(`footprints`, `from objects o left join object_footprints of on o.sha=of.sha where size > 65635 and mimeType LIKE 'audio/%' and (of.sha is null)`, store, databaseParams, async (sha, mimeType, row, store, client) => {
+    await synchronizeRecord(`footprints`, `from objects o left join object_footprints of on o.sha=of.sha where size > 65635 and (of.sha is null)`, store, databaseParams, async (sha, mimeType, row, store, client) => {
         let footprints = []
 
         // select all names of sha
