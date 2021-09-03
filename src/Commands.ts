@@ -513,16 +513,29 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
 }
 
 async function recoverSha(store: IHexaBackupStore, saviorStore: IHexaBackupStore, sha: string): Promise<boolean> {
-    let saviorIsHere = await saviorStore.hasOneShaBytes(sha)
-    if (!saviorIsHere)
+    const contentSize = await saviorStore.hasOneShaBytes(sha)
+    if (!contentSize)
         return false
 
-    log(`reading ${saviorIsHere} bytes of ${sha} from savior...`)
-    let content = await saviorStore.readShaBytes(sha, 0, saviorIsHere)
-    let put = await store.putShaBytes(sha, 0, content)
-    log(`storing ${content.length} bytes (${put})`)
+    log(`recovering ${contentSize} bytes of ${sha} from savior...`)
+
+    const maxPayloadSize = 10 * 1024 * 1024
+    let offset = 0
+    while (offset < contentSize) {
+        let size = contentSize - offset
+        if (size > maxPayloadSize)
+            size = maxPayloadSize
+
+        let content = await saviorStore.readShaBytes(sha, offset, size)
+        await store.putShaBytes(sha, offset, content)
+
+        offset += size
+    }
+
+
     let fileOk = await store.validateShaBytes(sha)
     log(`validation: ${fileOk}`)
+
     return fileOk
 }
 
@@ -710,12 +723,22 @@ export async function checkStore(storeDirectory: string, sourceId: string, savio
 
                 let commitOk = await store.validateShaBytes(commitSha)
                 if (!commitOk) {
-                    problems.push({
-                        sourceId,
-                        commitSha,
-                        description: `commit is not validated ${commitSha} in source ${sourceId}`
-                    })
-                    break
+                    commitOk = await recoverSha(store, saviorStore, commitSha)
+                    if (commitOk) {
+                        problems.push({
+                            sourceId,
+                            commitSha,
+                            description: `commit ${commitSha} has been recovered in source ${sourceId}`
+                        })
+                    }
+                    else {
+                        problems.push({
+                            sourceId,
+                            commitSha,
+                            description: `commit ${commitSha} in source ${sourceId} not validated and cannot be recovered`
+                        })
+                        break
+                    }
                 }
 
                 log.dbg(`checking commit ${commitSha}`)
