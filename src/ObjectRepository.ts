@@ -158,6 +158,10 @@ export class ObjectRepository {
         if (sha == HashTools.EMPTY_PAYLOAD_SHA)
             return true
 
+        // backuped.txt in ARNAUD-LAPTOP-DOCUMENTS
+        if (sha == "f94eda6227ead95f74281004dd78922bb8022af74ace0a172131c68419554ddc")
+            return true
+
         let openedFile = this.openedShaFiles.get(sha)
         if (openedFile) {
             this.openedShaFiles.delete(sha)
