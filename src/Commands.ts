@@ -512,6 +512,20 @@ export async function exifExtract(storeParams: StoreConnectionParams, databasePa
     await DbIndexation.updateExifIndex(store, databaseParams)
 }
 
+async function recoverSha(store: IHexaBackupStore, saviorStore: IHexaBackupStore, sha: string): Promise<boolean> {
+    let saviorIsHere = await saviorStore.hasOneShaBytes(sha)
+    if (!saviorIsHere)
+        return false
+
+    log(`reading ${saviorIsHere} bytes of ${sha} from savior...`)
+    let content = await saviorStore.readShaBytes(sha, 0, saviorIsHere)
+    let put = await store.putShaBytes(sha, 0, content)
+    log(`storing ${content.length} bytes (${put})`)
+    let fileOk = await store.validateShaBytes(sha)
+    log(`validation: ${fileOk}`)
+    return fileOk
+}
+
 export async function checkStore(storeDirectory: string, sourceId: string, saviorStoreParams: StoreConnectionParams) {
     let saviorStore = (await ClientPeering.createClientPeeringFromWebSocket(saviorStoreParams.host, saviorStoreParams.port, saviorStoreParams.token, null, saviorStoreParams.insecure)).remoteStore
 
@@ -559,13 +573,35 @@ export async function checkStore(storeDirectory: string, sourceId: string, savio
         status.directoryDescriptor = `${directoryDescriptorSha} at level ${level}`
         let directoryDescriptorOk = await store.validateShaBytes(directoryDescriptorSha)
         if (!directoryDescriptorOk) {
-            addError({
-                ctx,
-                description: `directoryDescriptor not validated`
-            })
+            directoryDescriptorOk = await recoverSha(store, saviorStore, directoryDescriptorSha)
+
+            if (directoryDescriptorOk) {
+                addError({
+                    ctx,
+                    description: `directoryDescriptor ${directoryDescriptorSha} has been recovered`
+                })
+            }
+            else {
+                addError({
+                    ctx,
+                    description: `directoryDescriptor ${directoryDescriptorSha} is not validated and could not be recovered`
+                })
+            }
         }
-        else {
-            let directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
+
+        if (directoryDescriptorOk) {
+            let directoryDescriptor: Model.DirectoryDescriptor
+            try {
+                directoryDescriptor = await store.getDirectoryDescriptor(directoryDescriptorSha)
+            }
+            catch (err) {
+                addError({
+                    ctx,
+                    description: `directoryDescriptor ${directoryDescriptorSha} cannot be read (because of ${err}, seems the JSON is invalid)`
+                })
+                directoryDescriptor = null
+            }
+
             if (!directoryDescriptor) {
                 addError({
                     ctx,
@@ -612,26 +648,18 @@ export async function checkStore(storeDirectory: string, sourceId: string, savio
                                 status.nbFiles = `${nbFiles++} files processed`
                                 let fileOk = await store.validateShaBytes(file.contentSha)
                                 if (!fileOk) {
-                                    let saviorIsHere = await saviorStore.hasOneShaBytes(file.contentSha)
-                                    if (saviorIsHere) {
-                                        log(`reading ${saviorIsHere} bytes of ${file.contentSha} from savior...`)
-                                        let content = await saviorStore.readShaBytes(file.contentSha, 0, saviorIsHere)
-                                        let put = await store.putShaBytes(file.contentSha, 0, content)
-                                        log(`storing ${content.length} bytes (${put})`)
-                                        fileOk = await store.validateShaBytes(file.contentSha)
-                                        log(`validation: ${fileOk}`)
-                                    }
+                                    fileOk = await recoverSha(store, saviorStore, file.contentSha)
 
                                     if (fileOk) {
                                         addError({
                                             ctx,
-                                            description: `file was recovered (${saviorIsHere} bytes) ${JSON.stringify(file)}`
+                                            description: `file was recovered ${JSON.stringify(file)}`
                                         })
                                     }
                                     else {
                                         addError({
                                             ctx,
-                                            description: `file is not validated (but saviorIsHere = ${saviorIsHere}) ${JSON.stringify(file)}`
+                                            description: `file was not validated and not recovered ${JSON.stringify(file)}`
                                         })
                                     }
                                 }
