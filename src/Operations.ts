@@ -204,8 +204,28 @@ export async function mergeDirectoryDescriptorToDestination(source: string, dest
     }
 
     if (!destinationSourceState.currentCommitSha) {
-        log.err(`destination has no commit specified`)
-        return
+        log(`destination has no commit specified, creating and registering a new initial empty commit...`)
+
+        const createdEmptyDirectoryDescriptorSha = await pushDirectoryDescriptor({ files: [] }, store)
+        if (!createdEmptyDirectoryDescriptorSha) {
+            log.err(`cannot create and push an empty directory descriptor to initiate the destination source`)
+            return
+        }
+
+        let createdCommitSha = await store.registerNewCommit(parsedDestination.sourceId, createdEmptyDirectoryDescriptorSha)
+        if (!createdCommitSha) {
+            log.err(`did not manage to register a first commit on the source, aborting`)
+            return
+        }
+        else {
+            log(`created empty commit ${createdCommitSha}`)
+        }
+
+        destinationSourceState = await store.getSourceState(parsedDestination.sourceId)
+        if (!destinationSourceState) {
+            log.err(`destination source state not found after creating initial commit`)
+            return
+        }
     }
 
     let commit = await store.getCommit(destinationSourceState.currentCommitSha)
