@@ -12,6 +12,7 @@ export interface DirectoryDescriptor {
 
 export interface SourceState {
     currentCommitSha: string
+    readOnly?: boolean
 }
 
 export interface Commit {

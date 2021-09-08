@@ -106,6 +106,11 @@ export class HexaBackupStore implements IHexaBackupStore {
 
     async registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string> {
         let clientState = await this.getSourceState(sourceId)
+        if (clientState.readOnly) {
+            log.wrn(`refused a new commit on source ${sourceId} because the source is read-only (wanted desc ${directoryDescriptorSha})`)
+            return clientState.currentCommitSha
+        }
+
         let saveCommit = true
 
         // check if state changed
