@@ -32,8 +32,6 @@ export class HexaBackupStore implements IHexaBackupStore {
     private referenceRepository: ReferenceRepository;
     private shaCache: ShaCache;
 
-    private sourceStateCache: { [key: string]: Model.SourceState } = {}
-    private lastTimeSavedClientState = 0
     private commitListeners: CommitListener[] = []
 
     constructor(rootPath: string) {
@@ -143,40 +141,33 @@ export class HexaBackupStore implements IHexaBackupStore {
             this.commitListeners.forEach(listener => listener(commitSha, sourceId))
         }
 
-        await this.storeClientState(sourceId, clientState, true)
+        await this.storeClientState(sourceId, clientState)
 
         return clientState.currentCommitSha
     }
 
     async setClientState(sourceId: string, state: Model.SourceState) {
-        await this.storeClientState(sourceId, state, true)
+        await this.storeClientState(sourceId, state)
     }
 
     async getSourceState(sourceId: string) {
-        if (sourceId)
-            sourceId = sourceId.toLocaleUpperCase()
+        if (!sourceId)
+            return null
 
-        if (this.sourceStateCache != null && sourceId in this.sourceStateCache)
-            return this.sourceStateCache[sourceId];
+        sourceId = sourceId.toLocaleUpperCase()
 
         let clientStateReferenceName = `client_${sourceId}`
         let sourceState: Model.SourceState = await this.referenceRepository.get(clientStateReferenceName)
 
-        if (sourceState == null) {
-            sourceState = {
-                currentCommitSha: null
-            }
-
-            this.sourceStateCache[sourceId] = sourceState
+        if (!sourceState) {
+            return null
         }
-        else {
-            if ("currentTransactionContent" in sourceState) {
-                log(`removing old "currentTransactionContent" field from source state`)
-                delete sourceState["currentTransactionContent"]
-                await this.referenceRepository.put(clientStateReferenceName, sourceState)
-            }
 
-            this.sourceStateCache[sourceId] = sourceState
+        // retrocompatibility with very old sources
+        if (sourceState && ("currentTransactionContent" in sourceState)) {
+            log(`removing old "currentTransactionContent" field from source state`)
+            delete sourceState["currentTransactionContent"]
+            await this.referenceRepository.put(clientStateReferenceName, sourceState)
         }
 
         return sourceState;
@@ -203,18 +194,21 @@ export class HexaBackupStore implements IHexaBackupStore {
         }
     }
 
-    private async storeClientState(sourceId: string, sourceState: Model.SourceState, force: boolean) {
-        if (sourceId)
-            sourceId = sourceId.toLocaleUpperCase()
+    private async storeClientState(sourceId: string, sourceState: Model.SourceState): Promise<boolean> {
+        if (!sourceId)
+            return false
 
-        this.sourceStateCache[sourceId] = sourceState;
+        sourceId = sourceId.toLocaleUpperCase()
 
-        let now = Date.now()
-        if (force || (now - this.lastTimeSavedClientState > 2000)) {
-            this.lastTimeSavedClientState = now
+        let clientStateReferenceName = `client_${sourceId}`
 
-            let clientStateReferenceName = `client_${sourceId}`
-            await this.referenceRepository.put(clientStateReferenceName, sourceState)
+        let existingSource = await this.referenceRepository.get(clientStateReferenceName)
+        if (existingSource && existingSource.readOnly) {
+            return false
         }
+
+        await this.referenceRepository.put(clientStateReferenceName, sourceState)
+
+        return true
     }
 }

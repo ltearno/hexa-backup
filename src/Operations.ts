@@ -558,6 +558,9 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
     let destinationState = await destinationStore.getSourceState(sourceId)
     log.dbg(`     source state : ${JSON.stringify(sourceState)}`)
     log.dbg(`destination state : ${JSON.stringify(destinationState)}`)
+    if (destinationState.readOnly) {
+        log.wrn(`destination state is read-only, we fetch data but won't commit`)
+    }
     if (destinationState && destinationState.currentCommitSha) {
         // avoid conflicts !
         let accepted = false
@@ -625,13 +628,21 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
         depth++
     }
 
-    log.dbg(`      copy state : ${JSON.stringify(sourceState)}`)
-    await destinationStore.setClientState(sourceId, sourceState)
-
     if (errors.length) {
         log.err(`encountered errors while pulling source ${sourceId}:`)
         errors.forEach(err => log.err(err))
         return false
+    }
+
+    if (destinationState.readOnly) {
+        log.wrn(`since destination is read only, we don't update its commit, but all data has been fetched`)
+    }
+    else {
+        log.dbg(`      update destination source's commit to ${sourceState.currentCommitSha}`)
+        destinationState.currentCommitSha = sourceState.currentCommitSha
+        // THIS IS HACKY BECAUSE HERE WE COULD CHANGE ANY FIELD OF THE SOURCE.
+        // WE SHOULD HAVE A REMOTE CALL TO JUST ASK TO UPDATE THE COMMIT_SHA OF A SOURCE, AND THE SERVER DOES WHAT NEEDS TO BE DONE
+        await destinationStore.setClientState(sourceId, destinationState)
     }
 
     return true
