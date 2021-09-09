@@ -49,7 +49,7 @@ export class Base {
                 let result = []
                 let refs = await Authorization.getAuthorizedRefsFromHttpRequest(req, this.store)
                 for (let ref of refs) {
-                    result.push(await this.store.getSourceState(ref))
+                    result.push({ name: ref, data: await this.store.getSourceState(ref) })
                 }
                 res.send(JSON.stringify(result))
             }
