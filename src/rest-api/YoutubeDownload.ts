@@ -62,7 +62,7 @@ export class YoutubeDownload {
             const ytdlLog = LoggerBuilder.buildLogger('youtube-dl')
 
             //const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
-            const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'mp3', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
+            const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'best', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
                 cwd: directory
             })
 
