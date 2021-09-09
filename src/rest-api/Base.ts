@@ -40,7 +40,23 @@ export class Base {
             catch (err) {
                 res.send(`{"error":"${err}"}`)
             }
-        });
+        })
+
+        app.get('/references', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+
+            try {
+                let result = []
+                let refs = await Authorization.getAuthorizedRefsFromHttpRequest(req, this.store)
+                for (let ref of refs) {
+                    result.push(await this.store.getSourceState(ref))
+                }
+                res.send(JSON.stringify(result))
+            }
+            catch (err) {
+                res.send(`{"error":"${err}"}`)
+            }
+        })
 
         app.get('/sha/:sha/content', (req, res) => this.serveShaContent(req, res))
 
