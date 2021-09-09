@@ -58,30 +58,33 @@ export class YoutubeDownload {
     downloadYoutubeUrl(url: string, directory: string) {
         return new Promise(resolve => {
             log(`downloading in directory ${directory}`)
+
+            const ytdlLog = LoggerBuilder.buildLogger('youtube-dl')
+
             //const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
-            const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'best', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
+            const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'mp3', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
                 cwd: directory
             })
 
             child.stdout.on('data', (data) => {
-                log(`${data}`.trim())
+                ytdlLog(`${data}`.trim())
             })
 
             child.stderr.on('data', (data) => {
-                log.err(`${data}`.trim())
+                ytdlLog.err(`${data}`.trim())
             })
 
             child.on('error', (err) => {
-                log.err(`error on spawned process : ${err}`)
+                ytdlLog.err(`error on spawned process : ${err}`)
             })
 
             child.on('exit', (code, signal) => {
                 if (!code) {
-                    log('done')
+                    ytdlLog('done')
                     resolve(true)
                 }
                 else {
-                    log.err(`youtube-dl error code ${code} (${signal})`)
+                    ytdlLog.err(`youtube-dl error code ${code} (${signal})`)
                     resolve(false)
                 }
             })
@@ -97,10 +100,17 @@ export class YoutubeDownload {
         const directory = `${this.conversionCacheDir}/${uuid()}`
         fs.mkdirSync(directory, { recursive: true })
 
-        await this.downloadYoutubeUrl(url, directory)
+        try {
+            await this.downloadYoutubeUrl(url, directory)
+        }
+        catch (error) {
+            log.err(`download from youtube failed`)
+            return { error: `download from youtube failed` }
+        }
 
         let files = fs.readdirSync(directory)
         if (!files) {
+            log.err(`no files downloaded`)
             return { error: `no files after running youtube-dl` }
         }
 
