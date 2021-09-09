@@ -1,5 +1,5 @@
 import { HexaBackupStore } from '../HexaBackupStore'
-import { LoggerBuilder } from '@ltearno/hexa-js'
+import { LoggerBuilder, HashTools } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
 import { spawn } from 'child_process'
 import * as fs from 'fs'
@@ -8,6 +8,8 @@ import * as Operations from '../Operations'
 import * as BackgroundJobs from '../BackgroundJobs'
 
 const log = LoggerBuilder.buildLogger('plugins-youtube')
+
+const uuid = () => HashTools.hashStringSync(`${Date.now()}-${Math.random()}-${Math.random()}`)
 
 interface YoutubeFetchRequest {
     url: string
@@ -92,9 +94,8 @@ export class YoutubeDownload {
         await this.updateYoutubeDl()
         log(`youtube-dl is up to date`)
 
-        if (!fs.existsSync(this.conversionCacheDir))
-            fs.mkdirSync(this.conversionCacheDir)
-        const directory = this.conversionCacheDir
+        const directory = `${this.conversionCacheDir}/${uuid()}`
+        fs.mkdirSync(directory, { recursive: true })
 
         await this.downloadYoutubeUrl(url, directory)
 
@@ -122,7 +123,8 @@ export class YoutubeDownload {
 
         log(`committing changes`)
 
-        fileNames.forEach(fileName => fs.unlinkSync(fileName))
+        fs.unlinkSync(directory)
+        //fileNames.forEach(fileName => fs.unlinkSync(fileName))
 
         // fetch source current state
         let currentDescriptor = await Operations.getSourceCurrentDirectoryDescriptor(sourceId, this.store)
@@ -132,7 +134,8 @@ export class YoutubeDownload {
             }
         }
 
-        // add item
+        // add items
+        let lastWrite = Date.now()
         for (let content of contents) {
             if (content.path.endsWith('.part'))
                 continue
@@ -141,7 +144,7 @@ export class YoutubeDownload {
                 contentSha: content.sha,
                 name: fsPath.basename(content.path),
                 isDirectory: false,
-                lastWrite: Date.now(),
+                lastWrite,
                 size: content.size
             })
         }
