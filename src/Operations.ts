@@ -199,12 +199,11 @@ export async function mergeDirectoryDescriptorToDestination(source: string, dest
 
     let destinationSourceState = await store.getSourceState(parsedDestination.sourceId)
     if (!destinationSourceState) {
-        log.err(`destination source state not found`)
-        return
+        log(`destination source state '${parsedDestination.sourceId}' does not exist yet`)
     }
-
-    if (!destinationSourceState.currentCommitSha) {
-        log(`destination has no commit specified, creating and registering a new initial empty commit...`)
+    
+    if (!destinationSourceState || !destinationSourceState.currentCommitSha) {
+        log(`destination '${parsedDestination.sourceId}' has no commit specified, creating and registering a new initial empty commit...`)
 
         const createdEmptyDirectoryDescriptorSha = await pushDirectoryDescriptor({ files: [] }, store)
         if (!createdEmptyDirectoryDescriptorSha) {
