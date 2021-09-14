@@ -133,11 +133,12 @@ export class YoutubeDownload {
 
         log(`removing download directory`)
         try {
-            fs.rmSync(directory, { force: true, recursive: true })
+            let files = fs.readdirSync(directory)
+            files && files.map(name => fsPath.join(directory, name)).forEach(path => fs.unlinkSync(path))
+            fs.rmdirSync(directory)
         }
         catch (err) {
-            fs.rmdirSync(directory, { recursive: true })
-            log.err(`error removing download dir: ${err}`)
+            log.wrn(`error removing download dir: ${err}`)
         }
 
         log(`committing changes`)
