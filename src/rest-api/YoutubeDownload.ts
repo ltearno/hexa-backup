@@ -131,11 +131,10 @@ export class YoutubeDownload {
                 log.err(`failed to push ${fileName} to repository !`)
         }
 
+        log(`removing download directory`)
+        fs.rmSync(directory, { force: true, recursive: true })
+
         log(`committing changes`)
-
-        fs.unlinkSync(directory)
-        //fileNames.forEach(fileName => fs.unlinkSync(fileName))
-
         // fetch source current state
         let currentDescriptor = await Operations.getSourceCurrentDirectoryDescriptor(sourceId, this.store)
         if (!currentDescriptor) {
