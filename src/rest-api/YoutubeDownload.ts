@@ -136,6 +136,7 @@ export class YoutubeDownload {
             fs.rmSync(directory, { force: true, recursive: true })
         }
         catch (err) {
+            fs.rmdirSync(directory, { recursive: true })
             log.err(`error removing download dir: ${err}`)
         }
 
