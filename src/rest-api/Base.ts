@@ -60,6 +60,16 @@ export class Base {
 
         app.get('/sha/:sha/content', (req, res) => this.serveShaContent(req, res))
 
+        app.get('/sha/:sha/size', (req, res) => async (req, res) => {
+            res.set('Content-Type', 'application/json')
+
+            let sha = req.params.sha
+            res.send(JSON.stringify({
+                sha,
+                size: await this.store.hasOneShaBytes(sha)
+            }))
+        })
+
         // phantomName is just an easy way for a link to include the desired file name
         // if the browser wants to download the file (because of mimetype), the file
         // will have the 'phantomName' instead of 'content
