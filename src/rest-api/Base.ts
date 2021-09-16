@@ -60,13 +60,15 @@ export class Base {
 
         app.get('/sha/:sha/content', (req, res) => this.serveShaContent(req, res))
 
-        app.get('/sha/:sha/info', (req, res) => async (req, res) => {
+        app.get('/sha/:sha/info', async (req, res) => {
             res.set('Content-Type', 'application/json')
 
             let sha = req.params.sha
+            let size = await this.store.hasOneShaBytes(sha)
+
             res.send(JSON.stringify({
                 sha,
-                size: await this.store.hasOneShaBytes(sha)
+                size
             }))
         })
 
