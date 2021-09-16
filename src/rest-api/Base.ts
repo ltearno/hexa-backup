@@ -60,7 +60,7 @@ export class Base {
 
         app.get('/sha/:sha/content', (req, res) => this.serveShaContent(req, res))
 
-        app.get('/sha/:sha/size', (req, res) => async (req, res) => {
+        app.get('/sha/:sha/info', (req, res) => async (req, res) => {
             res.set('Content-Type', 'application/json')
 
             let sha = req.params.sha
