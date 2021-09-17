@@ -76,6 +76,22 @@ export class Base {
         // if the browser wants to download the file (because of mimetype), the file
         // will have the 'phantomName' instead of 'content
         app.get('/sha/:sha/content/:phantomName', (req, res) => this.serveShaContent(req, res))
+
+        app.post('/sha/:sha/content/:offset', async (req, res) => {
+            let sha = req.params.sha
+            let offset = req.params.offset * 1
+
+            let raw = req.body
+
+            let written = await this.store.putShaBytes(sha, offset, raw)
+
+            res.set('Content-Type', 'application/json')
+            res.send(JSON.stringify({
+                sha,
+                written,
+                received: raw.length
+            }))
+        })
     }
 
     private async serveShaContent(req, res) {
