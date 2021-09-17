@@ -42,6 +42,20 @@ export class Base {
             }
         })
 
+        app.post('/refs/:id/directory_descriptor/:desc', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+
+            let sourceId = req.params.id
+            let directoryDescriptorSha = req.params.desc
+
+            let commitSha = await this.store.registerNewCommit(sourceId, directoryDescriptorSha)
+
+            res.send(JSON.stringify({
+                reference: sourceId,
+                commitSha
+            }))
+        })
+
         app.get('/references', async (req, res) => {
             res.set('Content-Type', 'application/json')
 
