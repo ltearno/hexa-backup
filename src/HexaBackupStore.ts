@@ -15,6 +15,8 @@ export interface IHexaBackupStore {
     putShaBytes(sha: string, offset: number, data: Buffer): Promise<number>
     readShaBytes(sha: string, offset: number, length: number): Promise<Buffer>
     registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string>
+    /// tries to fast forward the source to this commit, and return the updated (or not) source's commit sha
+    setSourceCommit(sourceId: string, commitSha: string): Promise<string>
     setClientState(sourceId: string, state: Model.SourceState): Promise<void>
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
@@ -102,6 +104,65 @@ export class HexaBackupStore implements IHexaBackupStore {
         return this.objectRepository.readShaBytes(sha, offset, length)
     }
 
+    async setSourceCommit(sourceId: string, commitSha: string): Promise<string> {
+        // gets or create the source
+        let clientState = await this.getSourceState(sourceId)
+        if (!clientState) {
+            clientState = {
+                currentCommitSha: null,
+                readOnly: false,
+            }
+        }
+
+        // read-only
+        if (clientState.readOnly) {
+            log.wrn(`refused a set commit on source ${sourceId} because the source is read-only (wanted commit ${commitSha})`)
+            return clientState.currentCommitSha
+        }
+
+        // check that the new commit has the tip of the source in his history (fast-forward)
+        if (!this.isFastForwardFor(commitSha, clientState.currentCommitSha)) {
+            log.wrn(`refused a set commit on source ${sourceId} because it is not fast-forward (wanted commit ${commitSha}, current ${clientState.currentCommitSha})`)
+            return clientState.currentCommitSha
+        }
+
+        // check that the commit introduces a change
+        if (clientState.currentCommitSha) {
+            let currentCommit = await this.getCommit(clientState.currentCommitSha)
+            let futureCommit = await this.getCommit(commitSha)
+
+            if (currentCommit != null && futureCommit != null) {
+                if (currentCommit.directoryDescriptorSha == futureCommit.directoryDescriptorSha) {
+                    log.err(`commit introduces no change, ignoring`)
+                    return clientState.currentCommitSha
+                }
+            }
+            else {
+                log.err(`one of the commits cannot be loaded for a fast-forward`)
+                return clientState.currentCommitSha
+            }
+        }
+
+        // write the change
+        clientState.currentCommitSha = commitSha
+        this.storeClientState(sourceId, clientState)
+    }
+
+    private async isFastForwardFor(testSha: string, ancestorSha: string): Promise<boolean> {
+        if (!ancestorSha)
+            return true
+
+        while (testSha) {
+            if (testSha == ancestorSha)
+                return true
+
+            let cur = await this.getCommit(testSha)
+            testSha = cur && cur.parentSha
+        }
+
+        return false
+    }
+
     async registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string> {
         let clientState = await this.getSourceState(sourceId)
         if (!clientState) {
@@ -110,7 +171,7 @@ export class HexaBackupStore implements IHexaBackupStore {
                 readOnly: false,
             }
         }
-        
+
         if (clientState.readOnly) {
             log.wrn(`refused a new commit on source ${sourceId} because the source is read-only (wanted desc ${directoryDescriptorSha})`)
             return clientState.currentCommitSha
