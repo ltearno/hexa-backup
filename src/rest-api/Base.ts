@@ -56,6 +56,20 @@ export class Base {
             }))
         })
 
+        app.post('/refs/:id/commit/:commit', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+
+            let sourceId = req.params.id
+            let commitSha = req.params.commit
+
+            commitSha = await this.store.setSourceCommit(sourceId, commitSha)
+
+            res.send(JSON.stringify({
+                reference: sourceId,
+                commitSha
+            }))
+        })
+
         app.get('/references', async (req, res) => {
             res.set('Content-Type', 'application/json')
 
