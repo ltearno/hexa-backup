@@ -49,8 +49,8 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
     let app: any = express()
 
-    app.use(bodyParser.json())
-    app.use(bodyParser.raw())
+    app.use(bodyParser.json({ limit: '50mb' }))
+    app.use(bodyParser.raw({ limit: '50mb' }))
 
     app.use((_req, res, next) => {
         res.header("Access-Control-Allow-Origin", "*")
