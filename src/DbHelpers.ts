@@ -4,8 +4,6 @@ import * as Model from './Model'
 
 const log = LoggerBuilder.buildLogger('db-helpers')
 
-let nbOpenedClients = 0
-
 export interface DbParams {
     host: string
     database: string
@@ -25,13 +23,15 @@ function getFileMimeType(fileName: string) {
     return 'application/octet-stream'
 }
 
+let openedClients = new Map<any, string>()
+
 export async function createClient(options: {
     host: string
     database: string
     user: string
     password: string
     port?: number
-}) {
+}, cause: string) {
     const { Client } = require('pg')
 
     const client = new Client({
@@ -44,8 +44,8 @@ export async function createClient(options: {
 
     await client.connect()
 
-    nbOpenedClients++
-    log(`created DB client, currently opened: ${nbOpenedClients}`)
+    openedClients.set(client, cause)
+    printClientStats(`created DB client`)
 
     return client
 }
@@ -53,8 +53,17 @@ export async function createClient(options: {
 export function closeClient(client) {
     client.end()
 
-    nbOpenedClients--
-    log(`closed DB client, currently opened: ${nbOpenedClients}`)
+    openedClients.delete(client)
+    printClientStats(`closed DB client`)
+}
+
+function printClientStats(cause: string) {
+    log(`${cause}, currently opened: ${openedClients.size}`)
+    let stats: any = {}
+    for (let origin of openedClients.values()) {
+        stats[origin] = (stats[origin] || 0) + 1
+    }
+    log(JSON.stringify(stats, null, 2))
 }
 
 export interface DbCursor {
