@@ -66,7 +66,7 @@ function printClientStats(cause: string) {
     for (let origin of openedClients.values()) {
         stats[origin] = (stats[origin] || 0) + 1
     }
-    log(JSON.stringify(stats, null, 2))
+    log(JSON.stringify(stats))
 }
 
 export interface DbCursor {
