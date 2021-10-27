@@ -61,12 +61,11 @@ export function closeClient(client) {
 }
 
 function printClientStats(cause: string) {
-    log(`${cause}, currently opened: ${openedClients.size}`)
     let stats: any = {}
     for (let origin of openedClients.values()) {
         stats[origin] = (stats[origin] || 0) + 1
     }
-    log(JSON.stringify(stats))
+    log(`${cause}, currently opened: ${openedClients.size} ${JSON.stringify(stats)}`)
 }
 
 export interface DbCursor {
