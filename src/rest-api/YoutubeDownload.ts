@@ -6,6 +6,7 @@ import * as fs from 'fs'
 import * as fsPath from 'path'
 import * as Operations from '../Operations'
 import * as BackgroundJobs from '../BackgroundJobs'
+import * as SourceState from '../SourceState'
 
 const log = LoggerBuilder.buildLogger('plugins-youtube')
 
@@ -161,6 +162,14 @@ export class YoutubeDownload {
         }
 
         log(`committing changes`)
+
+        let source = await this.store.getSourceState(sourceId)
+        if (!source) {
+            source = SourceState.newSourceState()
+            SourceState.setIndexed(source, true)
+            await this.store.getReferenceRepository().put(sourceId, source)
+        }
+
         // fetch source current state
         let currentDescriptor = await Operations.getSourceCurrentDirectoryDescriptor(sourceId, this.store)
         if (!currentDescriptor) {
