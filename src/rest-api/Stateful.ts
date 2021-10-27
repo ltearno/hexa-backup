@@ -4,6 +4,7 @@ import * as Authorization from '../Authorization'
 import * as DbHelpers from '../DbHelpers'
 import * as DbIndexation from '../DbIndexation'
 import * as BackgroundJobs from '../BackgroundJobs'
+import * as SourceState from '../SourceState'
 
 const log = LoggerBuilder.buildLogger('stateful-server')
 
@@ -17,10 +18,14 @@ export class Stateful {
     constructor(private store: HexaBackupStore, private databaseParams: DbHelpers.DbParams, backgroundJobs: BackgroundJobs.BackgroundJobs) {
         this.backgroundJobs = backgroundJobs.createClient(`stateful-server`)
 
-        this.store.addCommitListener((commitSha, sourceId) => {
+        this.store.addCommitListener(async (commitSha, sourceId) => {
             log(`update indices after commit ${commitSha} on source ${sourceId}`)
 
-            // TODO check if source is indexed (has tag 'indexed')
+            let sourceState = await this.store.getSourceState(sourceId)
+            if (!SourceState.isIndexed(sourceState)) {
+                log(`source ${sourceId} is not indexed, skipping`)
+                return
+            }
 
             if (this.runningUpdate) {
                 this.runAgainWhenFinished = true
