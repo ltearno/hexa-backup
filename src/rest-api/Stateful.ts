@@ -35,7 +35,7 @@ export class Stateful {
                 this.runningUpdate = true
 
                 this.backgroundJobs.addJob(`update indices`, async () => {
-                    this.updateIndices()
+                    await this.updateIndices()
                 })
             }
         })
