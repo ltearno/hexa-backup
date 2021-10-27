@@ -18,7 +18,7 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
     try {
         client = await DbHelpers.createClient(dbParams, "updateObjectsIndex")
 
-        let sources = await this.store.getSources()
+        let sources = await store.getSources()
         for (let source of sources) {
             let sourceState = await store.getSourceState(source)
             if (!sourceState || !sourceState.currentCommitSha) {
