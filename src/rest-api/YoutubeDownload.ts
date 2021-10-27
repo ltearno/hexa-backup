@@ -59,10 +59,15 @@ export class YoutubeDownload {
         return new Promise(resolve => {
             log(`downloading in directory ${directory}`)
 
+            let programName = 'youtube-dl'
+            let programArguments = ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'best', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url]
+
+            log(`launching ${programName} ${programArguments.join(' ')}`)
+
             const ytdlLog = LoggerBuilder.buildLogger('youtube-dl')
 
             //const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
-            const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'best', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
+            const child = spawn(programName, programArguments, {
                 cwd: directory
             })
 
