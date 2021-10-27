@@ -23,12 +23,12 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
             let sourceState = await store.getSourceState(source)
             if (!sourceState || !sourceState.currentCommitSha) {
                 log(`source ${source} is empty, skipping`)
-                return
+                continue
             }
 
             if (!SourceState.isIndexed(sourceState)) {
                 log(`source ${source} is not indexed, skipping`)
-                return
+                continue
             }
 
             log(`index from source ${source} commit ${sourceState.currentCommitSha}`)
