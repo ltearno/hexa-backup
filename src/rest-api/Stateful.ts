@@ -48,17 +48,7 @@ export class Stateful {
 
                 this.runAgainWhenFinished = false
 
-                let sources = await this.store.getSources()
-                for (let sourceId of sources) {
-                    let source = await this.store.getSourceState(sourceId)
-                    if (!SourceState.isIndexed(source)) {
-                        log(`source ${sourceId} is not indexed, skipping`)
-                        continue
-                    }
-
-                    await DbIndexation.updateObjectsIndex(this.store, sourceId, this.databaseParams)
-                }
-
+                await DbIndexation.updateObjectsIndex(this.store, this.databaseParams)
                 //await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, this.databaseParams)
                 //await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, this.databaseParams)
                 await DbIndexation.updateAudioIndex(this.store, this.databaseParams)

@@ -6,19 +6,32 @@ import * as Model from './Model'
 import * as Operations from './Operations'
 import * as MusicMetadata from 'music-metadata'
 import * as fs from 'fs'
+import * as SourceState from './SourceState'
 
 const log = LoggerBuilder.buildLogger('db-index')
 
-export async function updateObjectsIndex(store: IHexaBackupStore, source: string, dbParams: DbConnectionParams) {
+export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbConnectionParams) {
     log(`update objects index`)
 
-    const client = await DbHelpers.createClient(dbParams, "updateObjectsIndex")
+    let client = null
 
     try {
-        log(`source ${source}`)
-        let sourceState = await store.getSourceState(source)
-        if (sourceState && sourceState.currentCommitSha) {
-            log(`commit ${sourceState.currentCommitSha}`)
+        client = await DbHelpers.createClient(dbParams, "updateObjectsIndex")
+
+        let sources = await this.store.getSources()
+        for (let source of sources) {
+            let sourceState = await store.getSourceState(source)
+            if (!sourceState || !sourceState.currentCommitSha) {
+                log(`source ${source} is empty, skipping`)
+                return
+            }
+
+            if (!SourceState.isIndexed(sourceState)) {
+                log(`source ${source} is not indexed, skipping`)
+                return
+            }
+
+            log(`index from source ${source} commit ${sourceState.currentCommitSha}`)
             let commitSha = sourceState.currentCommitSha
             while (commitSha != null) {
                 let commit = await store.getCommit(commitSha)
@@ -41,8 +54,9 @@ export async function updateObjectsIndex(store: IHexaBackupStore, source: string
     catch (err) {
         console.error(err)
     }
-
-    DbHelpers.closeClient(client)
+    finally {
+        DbHelpers.closeClient(client)
+    }
 }
 
 async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string) {

@@ -51,6 +51,9 @@ export async function createClient(options: {
 }
 
 export function closeClient(client) {
+    if (!client)
+        return
+
     client.end()
 
     openedClients.delete(client)
