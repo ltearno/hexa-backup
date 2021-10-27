@@ -4,6 +4,8 @@ import * as Model from './Model'
 
 const log = LoggerBuilder.buildLogger('db-helpers')
 
+let nbOpenedClients = 0
+
 export interface DbParams {
     host: string
     database: string
@@ -42,7 +44,17 @@ export async function createClient(options: {
 
     await client.connect()
 
+    nbOpenedClients++
+    log(`created DB client, currently opened: ${nbOpenedClients}`)
+
     return client
+}
+
+export function closeClient(client) {
+    client.end()
+
+    nbOpenedClients--
+    log(`closed DB client, currently opened: ${nbOpenedClients}`)
 }
 
 export interface DbCursor {

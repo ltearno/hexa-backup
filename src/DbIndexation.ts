@@ -45,7 +45,7 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
         }
     }
 
-    client.end()
+    DbHelpers.closeClient(client)
 }
 
 async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string) {
@@ -144,8 +144,8 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
 
     await cursor.close()
 
-    client.end()
-    client2.end()
+    DbHelpers.closeClient(client)
+    DbHelpers.closeClient(client2)
 
     log(`finished index update ${title}`)
 }
@@ -273,8 +273,8 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
 
     await cursor.close()
 
-    client.end()
-    client2.end()
+    DbHelpers.closeClient(client)
+    DbHelpers.closeClient(client2)
 
     log(`finished audio index update`)
 }
@@ -354,8 +354,8 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
 
     await cursor.close()
 
-    client.end()
-    client2.end()
+    DbHelpers.closeClient(client)
+    DbHelpers.closeClient(client2)
 }
 
 export async function updateMimeShaList(sourceId: string, mimeType: string, store: IHexaBackupStore, databaseParams: DbConnectionParams) {
@@ -445,5 +445,5 @@ export async function updateMimeShaList(sourceId: string, mimeType: string, stor
     }
 
     await cursor.close()
-    client.end()
+    DbHelpers.closeClient(client)
 }

@@ -53,7 +53,7 @@ export class Stateful {
                 await DbIndexation.updateAudioIndex(this.store, this.databaseParams)
                 await DbIndexation.updateExifIndex(this.store, this.databaseParams)
                 await DbIndexation.updateFootprintIndex(this.store, this.databaseParams)
-                
+
                 log(`indices updated`)
             }
             while (this.runAgainWhenFinished)
@@ -101,7 +101,7 @@ export class Stateful {
 
                 let result = resultSet.rows.map(row => row.parentsha)
 
-                client.end()
+                DbHelpers.closeClient(client)
 
                 res.send(JSON.stringify(result))
             }
@@ -136,7 +136,7 @@ export class Stateful {
 
                 let result = resultSet.rows.map(row => row.name)
 
-                client.end()
+                DbHelpers.closeClient(client)
 
                 res.send(JSON.stringify(result))
             }
@@ -258,7 +258,7 @@ export class Stateful {
                 info.errors.push(err)
             }
 
-            client.end()
+            DbHelpers.closeClient(client)
 
             res.send(JSON.stringify(info))
         })
@@ -363,7 +363,7 @@ export class Stateful {
                     album: row.album,
                 }))
 
-                client.end()
+                DbHelpers.closeClient(client)
 
                 const resultDirectories = items.filter(i => i.mimeType == 'application/directory').map(({ sha, name }) => ({ sha, name }))
                 const resultFiles = items.filter(i => i.mimeType != 'application/directory')
