@@ -45,6 +45,7 @@ export class Stateful {
         try {
             do {
                 log(`starting update indices`)
+
                 this.runAgainWhenFinished = false
                 await DbIndexation.updateObjectsIndex(this.store, this.databaseParams)
                 //await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, this.databaseParams)
@@ -52,6 +53,7 @@ export class Stateful {
                 await DbIndexation.updateAudioIndex(this.store, this.databaseParams)
                 await DbIndexation.updateExifIndex(this.store, this.databaseParams)
                 await DbIndexation.updateFootprintIndex(this.store, this.databaseParams)
+                
                 log(`indices updated`)
             }
             while (this.runAgainWhenFinished)
