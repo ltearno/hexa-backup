@@ -9,18 +9,15 @@ import * as fs from 'fs'
 
 const log = LoggerBuilder.buildLogger('db-index')
 
-export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbConnectionParams) {
-    log(`store ready`)
+export async function updateObjectsIndex(store: IHexaBackupStore, source: string, dbParams: DbConnectionParams) {
+    log(`update objects index`)
 
     const client = await DbHelpers.createClient(dbParams, "updateObjectsIndex")
 
-    let sources = await store.getSources()
-    for (let source of sources) {
-        try {
-            log(`source ${source}`)
-            let sourceState = await store.getSourceState(source)
-            if (!sourceState || !sourceState.currentCommitSha)
-                continue
+    try {
+        log(`source ${source}`)
+        let sourceState = await store.getSourceState(source)
+        if (sourceState && sourceState.currentCommitSha) {
             log(`commit ${sourceState.currentCommitSha}`)
             let commitSha = sourceState.currentCommitSha
             while (commitSha != null) {
@@ -40,9 +37,9 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
                 commitSha = commit.parentSha
             }
         }
-        catch (err) {
-            console.error(err)
-        }
+    }
+    catch (err) {
+        console.error(err)
     }
 
     DbHelpers.closeClient(client)
@@ -151,6 +148,8 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
 }
 
 export async function updateFootprintIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
+    log(`update footprint index`)
+
     await synchronizeRecord(`footprints`, `from objects o left join object_footprints of on o.sha=of.sha where (o.mimeType='application/directory' or size > 65635) and (of.sha is null)`, store, databaseParams, async (sha, mimeType, row, store, client) => {
         let footprints = []
 
@@ -189,7 +188,7 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
 }
 
 export async function updateAudioIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
-    log(`starting update of audio index`)
+    log(`update audio index`)
 
     const client = await DbHelpers.createClient(databaseParams, "updateAudioIndex")
     const client2 = await DbHelpers.createClient(databaseParams, "updateAudioIndex2")
@@ -282,7 +281,7 @@ export async function updateAudioIndex(store: HexaBackupStore, databaseParams: D
 let exifParserBuilder: any = null
 
 export async function updateExifIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
-    log(`store ready`)
+    log(`update exif index`)
 
     const client = await DbHelpers.createClient(databaseParams, "updateExifIndex")
     const client2 = await DbHelpers.createClient(databaseParams, "updateExifIndex2")
