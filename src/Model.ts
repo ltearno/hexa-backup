@@ -13,6 +13,10 @@ export interface DirectoryDescriptor {
 export interface SourceState {
     currentCommitSha: string
     readOnly?: boolean
+    tags?: {
+        "indexed"?: boolean
+        "readonly"?: boolean
+    }
 }
 
 export interface Commit {

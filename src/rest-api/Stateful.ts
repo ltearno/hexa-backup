@@ -20,6 +20,8 @@ export class Stateful {
         this.store.addCommitListener((commitSha, sourceId) => {
             log(`update indices after commit ${commitSha} on source ${sourceId}`)
 
+            // TODO check if source is indexed (has tag 'indexed')
+
             if (this.runningUpdate) {
                 this.runAgainWhenFinished = true
                 log(`will be processed later`)

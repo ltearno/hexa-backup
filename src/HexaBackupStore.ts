@@ -3,6 +3,7 @@ import { ReferenceRepository } from './ReferenceRepository'
 import { ObjectRepository } from './ObjectRepository'
 import { ShaCache } from './ShaCache';
 import * as Model from './Model'
+import * as SourceState from './SourceState'
 import { LoggerBuilder } from '@ltearno/hexa-js'
 
 const log = LoggerBuilder.buildLogger('HexaBackupStore')
@@ -108,14 +109,11 @@ export class HexaBackupStore implements IHexaBackupStore {
         // gets or create the source
         let clientState = await this.getSourceState(sourceId)
         if (!clientState) {
-            clientState = {
-                currentCommitSha: null,
-                readOnly: false,
-            }
+            clientState = SourceState.newSourceState()
         }
 
         // read-only
-        if (clientState.readOnly) {
+        if (SourceState.isReadOnly(clientState)) {
             log.wrn(`refused a set commit on source ${sourceId} because the source is read-only (wanted commit ${commitSha})`)
             return clientState.currentCommitSha
         }
@@ -166,13 +164,10 @@ export class HexaBackupStore implements IHexaBackupStore {
     async registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string> {
         let clientState = await this.getSourceState(sourceId)
         if (!clientState) {
-            clientState = {
-                currentCommitSha: null,
-                readOnly: false,
-            }
+            clientState = SourceState.newSourceState()
         }
 
-        if (clientState.readOnly) {
+        if (SourceState.isReadOnly(clientState)) {
             log.wrn(`refused a new commit on source ${sourceId} because the source is read-only (wanted desc ${directoryDescriptorSha})`)
             return clientState.currentCommitSha
         }
@@ -271,7 +266,7 @@ export class HexaBackupStore implements IHexaBackupStore {
         let clientStateReferenceName = `client_${sourceId}`
 
         let existingSource = await this.referenceRepository.get(clientStateReferenceName)
-        if (existingSource && existingSource.readOnly) {
+        if (SourceState.isReadOnly(existingSource)) {
             return false
         }
 

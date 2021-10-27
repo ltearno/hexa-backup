@@ -5,6 +5,7 @@ import { IHexaBackupStore } from './HexaBackupStore'
 import { HashTools, LoggerBuilder, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
 import * as PathSpecHelpers from './PathSpecHelpers'
 import * as PushDirectory from './PushDirectory'
+import * as SourceState from './SourceState'
 
 const KB = 1024
 const MB = 1024 * KB
@@ -201,7 +202,7 @@ export async function mergeDirectoryDescriptorToDestination(source: string, dest
     if (!destinationSourceState) {
         log(`destination source state '${parsedDestination.sourceId}' does not exist yet`)
     }
-    
+
     if (!destinationSourceState || !destinationSourceState.currentCommitSha) {
         log(`destination '${parsedDestination.sourceId}' has no commit specified, creating and registering a new initial empty commit...`)
 
@@ -560,7 +561,7 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
     if (!destinationState) {
         log.wrn(`destination ${sourceId} does not exist, will be created`)
     }
-    if (destinationState && destinationState.readOnly) {
+    if (SourceState.isReadOnly(destinationState)) {
         log.wrn(`destination state is read-only, we fetch data but won't commit`)
     }
     if (destinationState && destinationState.currentCommitSha) {
@@ -636,20 +637,17 @@ export async function pullSource(sourceStore: IHexaBackupStore, destinationStore
         return false
     }
 
-    if (destinationState && destinationState.readOnly) {
+    if (SourceState.isReadOnly(destinationState)) {
         log.wrn(`since destination is read only, we don't update its commit, but all data has been fetched`)
     }
     else {
         log.dbg(`      update destination source's commit to ${sourceState.currentCommitSha}`)
         if (!destinationState) {
-            destinationState = {
-                currentCommitSha: sourceState.currentCommitSha,
-                readOnly: false
-            }
+            destinationState = SourceState.newSourceState()
         }
-        else {
-            destinationState.currentCommitSha = sourceState.currentCommitSha
-        }
+
+        destinationState.currentCommitSha = sourceState.currentCommitSha
+
         // THIS IS HACKY BECAUSE HERE WE COULD CHANGE ANY FIELD OF THE SOURCE.
         // WE SHOULD HAVE A REMOTE CALL TO JUST ASK TO UPDATE THE COMMIT_SHA OF A SOURCE, AND THE SERVER DOES WHAT NEEDS TO BE DONE
         await destinationStore.setClientState(sourceId, destinationState)
