@@ -210,6 +210,24 @@ export class HexaBackupStore implements IHexaBackupStore {
     }
 
     async setClientState(sourceId: string, state: Model.SourceState) {
+        if (!sourceId || !state || !state.currentCommitSha) {
+            log(`invalid parameters for setClientState(${sourceId}, ${state})`)
+            return
+        }
+
+        if (!await this.validateShaBytes(state.currentCommitSha)) {
+            log(`cannot update source ${sourceId} because commit ${state.currentCommitSha} is not validated)`)
+            return
+        }
+
+        let current = await this.getSourceState(sourceId)
+        if (!current) {
+            current = state
+        }
+        else {
+            current.currentCommitSha = state.currentCommitSha
+        }
+
         await this.storeClientState(sourceId, state)
     }
 
