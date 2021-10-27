@@ -87,7 +87,7 @@ export class Stateful {
 
                 let sha = req.params.sha
 
-                const client = await DbHelpers.createClient(this.databaseParams)
+                const client = await DbHelpers.createClient(this.databaseParams, "shaparents")
 
                 const query = `select distinct o.parentsha from object_parents o ${authorizedRefs !== null ?
                     `inner join object_sources os on o.parentsha=os.sha` :
@@ -122,7 +122,7 @@ export class Stateful {
 
                 let sha = req.params.sha
 
-                const client = await DbHelpers.createClient(this.databaseParams)
+                const client = await DbHelpers.createClient(this.databaseParams, "shanames")
 
                 const query = `select distinct o.name from objects o ${authorizedRefs !== null ?
                     `inner join object_parents op on op.sha=o.sha inner join object_sources os on op.parentsha=os.sha` :
@@ -160,7 +160,7 @@ export class Stateful {
                 return
             }
 
-            const client = await DbHelpers.createClient(this.databaseParams)
+            const client = await DbHelpers.createClient(this.databaseParams, "shainfo")
             if (!client) {
                 res.send(JSON.stringify({ error: `not connected to stateful storage (db)` }))
                 return
@@ -283,7 +283,7 @@ export class Stateful {
                     noDirectory
                 } = req.body
 
-                const client = await DbHelpers.createClient(this.databaseParams)
+                const client = await DbHelpers.createClient(this.databaseParams, "search")
 
                 let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'min(o.size) as size', 'min(o.lastWrite) as lastWrite']
                 let whereConditions: string[] = [`os.sourceId in (${authorizedRefs})`]

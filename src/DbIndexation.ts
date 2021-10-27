@@ -12,7 +12,7 @@ const log = LoggerBuilder.buildLogger('db-index')
 export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbConnectionParams) {
     log(`store ready`)
 
-    const client = await DbHelpers.createClient(dbParams)
+    const client = await DbHelpers.createClient(dbParams, "updateObjectsIndex")
 
     let sources = await store.getSources()
     for (let source of sources) {
@@ -95,8 +95,8 @@ let musicMetadata: any = null
 async function synchronizeRecord(title: string, baseQuery: string, store: HexaBackupStore, databaseParams: DbConnectionParams, callback: (sha: string, mimeType: string, row: any, store: HexaBackupStore, client: any) => Promise<any>) {
     log(`starting update of index ${title}`)
 
-    const client = await DbHelpers.createClient(databaseParams)
-    const client2 = await DbHelpers.createClient(databaseParams)
+    const client = await DbHelpers.createClient(databaseParams, "synchronizeRecord")
+    const client2 = await DbHelpers.createClient(databaseParams, "synchronizeRecord2")
 
     log(`connected to database`)
 
@@ -191,8 +191,8 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
 export async function updateAudioIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
     log(`starting update of audio index`)
 
-    const client = await DbHelpers.createClient(databaseParams)
-    const client2 = await DbHelpers.createClient(databaseParams)
+    const client = await DbHelpers.createClient(databaseParams, "updateAudioIndex")
+    const client2 = await DbHelpers.createClient(databaseParams, "updateAudioIndex2")
 
     log(`connected to database`)
 
@@ -284,8 +284,8 @@ let exifParserBuilder: any = null
 export async function updateExifIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
     log(`store ready`)
 
-    const client = await DbHelpers.createClient(databaseParams)
-    const client2 = await DbHelpers.createClient(databaseParams)
+    const client = await DbHelpers.createClient(databaseParams, "updateExifIndex")
+    const client2 = await DbHelpers.createClient(databaseParams, "updateExifIndex2")
 
     log(`connected to database`)
 
@@ -361,7 +361,7 @@ export async function updateExifIndex(store: IHexaBackupStore, databaseParams: D
 export async function updateMimeShaList(sourceId: string, mimeType: string, store: IHexaBackupStore, databaseParams: DbConnectionParams) {
     log(`store ready`)
 
-    const client = await DbHelpers.createClient(databaseParams)
+    const client = await DbHelpers.createClient(databaseParams, "updateMimeShaList")
 
     log(`connected to database`)
 
