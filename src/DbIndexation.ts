@@ -109,20 +109,21 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
     const client = await DbHelpers.createClient(databaseParams, "synchronizeRecord")
     const client2 = await DbHelpers.createClient(databaseParams, "synchronizeRecord2")
 
-    log(`connected to database`)
-
-    const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
-    let rs = await DbHelpers.dbQuery(client, queryCount)
-    let nbTotal = rs.rows[0].total
-
-    let nbRows = 0
-    let nbRowsError = 0
-
-    const query = `select distinct o.sha, o.mimetype ${baseQuery};`
-
-    const cursor = await DbHelpers.createCursor(client, query)
-
     try {
+        log(`connected to database`)
+
+        const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
+        let rs = await DbHelpers.dbQuery(client, queryCount)
+        let nbTotal = rs.rows[0].total
+
+        let nbRows = 0
+        let nbRowsError = 0
+
+        const query = `select distinct o.sha, o.mimetype ${baseQuery};`
+
+        const cursor = await DbHelpers.createCursor(client, query)
+
+
         while (true) {
             let rows = await cursor.read()
             if (!rows || !rows.length) {
@@ -147,16 +148,19 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
                 }
             }
         }
+
+
+        log(`processed ${nbRows}/${nbTotal} shas with ${nbRowsError} errors`)
+
+        await cursor.close()
+
     } catch (err) {
         log.err(`error processing: ${err}`)
+    } finally {
+        DbHelpers.closeClient(client)
+        DbHelpers.closeClient(client2)
     }
 
-    log(`processed ${nbRows}/${nbTotal} shas with ${nbRowsError} errors`)
-
-    await cursor.close()
-
-    DbHelpers.closeClient(client)
-    DbHelpers.closeClient(client2)
 
     log(`finished index update ${title}`)
 }
