@@ -11,6 +11,9 @@ const log = LoggerBuilder.buildLogger('plugins-youtube')
 
 const uuid = () => HashTools.hashStringSync(`${Date.now()}-${Math.random()}-${Math.random()}`)
 
+// yt-dlp working version: https://github.com/yt-dlp/yt-dlp/releases/download/2021.10.22/yt-dlp
+const YoutubeDownloadExecutable = 'yt-dlp' // 'youtube-dl'
+
 interface YoutubeFetchRequest {
     url: string
 }
@@ -24,12 +27,12 @@ export class YoutubeDownload {
     private backgroundJobs: BackgroundJobs.BackgroundJobClientApi
 
     constructor(private store: HexaBackupStore, backgroundJobs: BackgroundJobs.BackgroundJobs) {
-        this.backgroundJobs = backgroundJobs.createClient(`youtube-dl`)
+        this.backgroundJobs = backgroundJobs.createClient(YoutubeDownloadExecutable)
     }
 
     updateYoutubeDl() {
         return new Promise(resolve => {
-            const child = spawn('youtube-dl', ['-U'])
+            const child = spawn(YoutubeDownloadExecutable, ['-U'])
 
             child.stdout.on('data', (data) => {
                 log(`${data}`.trim())
@@ -48,7 +51,7 @@ export class YoutubeDownload {
                     resolve(true)
                 }
                 else {
-                    log.err(`youtube-dl update error code ${code} (${signal})`)
+                    log.err(`${YoutubeDownloadExecutable} update error code ${code} (${signal})`)
                     resolve(false)
                 }
             })
@@ -59,14 +62,25 @@ export class YoutubeDownload {
         return new Promise(resolve => {
             log(`downloading in directory ${directory}`)
 
-            let programName = 'youtube-dl'
-            let programArguments = ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '--audio-format', 'best', '--audio-quality', '0', '-o', '%(artist)s-%(title)s.%(ext)s', url]
+            let programName = YoutubeDownloadExecutable
+            let programArguments = [
+                '-x',
+                '-i',
+                '--rm-cache-dir',
+                '--no-progress',
+                '--yes-playlist',
+                '-f', 'bestaudio',
+                '--audio-format', 'best',
+                '--audio-quality', '0',
+                '-o', '%(artist)s-%(title)s.%(ext)s',
+                url
+            ]
 
             log(`launching ${programName} ${programArguments.join(' ')}`)
 
-            const ytdlLog = LoggerBuilder.buildLogger('youtube-dl')
+            const ytdlLog = LoggerBuilder.buildLogger(YoutubeDownloadExecutable)
 
-            //const child = spawn('youtube-dl', ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
+            //const child = spawn(YoutubeDownloadExecutable, ['-x', '-i', '--rm-cache-dir', '--no-progress', '--yes-playlist', '-f', 'bestaudio', '-o', '%(artist)s-%(title)s.%(ext)s', url], {
             const child = spawn(programName, programArguments, {
                 cwd: directory
             })
@@ -89,7 +103,7 @@ export class YoutubeDownload {
                     resolve(true)
                 }
                 else {
-                    ytdlLog.err(`youtube-dl error code ${code} (${signal})`)
+                    ytdlLog.err(`exit error code ${code} (${signal})`)
                     resolve(false)
                 }
             })
@@ -100,7 +114,7 @@ export class YoutubeDownload {
         log(`fetch youtube from url ${url} on source ${sourceId}`)
 
         await this.updateYoutubeDl()
-        log(`youtube-dl is up to date`)
+        log(`${YoutubeDownloadExecutable} is up to date`)
 
         const directory = `${this.conversionCacheDir}/${uuid()}`
         fs.mkdirSync(directory, { recursive: true })
@@ -116,7 +130,7 @@ export class YoutubeDownload {
         let files = fs.readdirSync(directory)
         if (!files) {
             log.err(`no files downloaded`)
-            return { error: `no files after running youtube-dl` }
+            return { error: `no files after running ${YoutubeDownloadExecutable}` }
         }
 
         let fileNames = files.map(name => fsPath.join(directory, name))
@@ -213,7 +227,7 @@ export class YoutubeDownload {
             let sourceId = userSourceId(user)
 
             this.backgroundJobs.addJob(
-                `youtube-dl ${url}`,
+                `${YoutubeDownloadExecutable} ${url}`,
                 async () => {
                     try {
                         log(`starting youtube conversion ${url} on ${sourceId}`)
