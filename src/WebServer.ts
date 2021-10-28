@@ -49,7 +49,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
 
     let app: any = express()
 
-    app.use(bodyParser.json({ limit: '50mb' }))
+    app.use(bodyParser.json({ limit: '50mb', strict: false }))
     app.use(bodyParser.raw({ limit: '50mb' }))
 
     app.use((_req, res, next) => {
