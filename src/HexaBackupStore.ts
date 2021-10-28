@@ -298,9 +298,12 @@ export class HexaBackupStore implements IHexaBackupStore {
         let clientStateReferenceName = `client_${sourceId}`
 
         let existingSource = await this.referenceRepository.get(clientStateReferenceName)
+
+        log(`updating source ${sourceId} from ${JSON.stringify(existingSource)} to ${JSON.stringify(sourceState)}`)
+
         await this.referenceRepository.put(clientStateReferenceName, sourceState)
 
-        log(`updated source ${sourceId} from ${JSON.stringify(existingSource)} to ${JSON.stringify(sourceState)}`)
+        log(`update done`)
 
         return sourceState
     }
