@@ -113,7 +113,7 @@ export async function insertObject(client, file: Model.FileDescriptor) {
     }
 
     let fileName = file.name.replace('\\', '/')
-    let mimeType = file.isDirectory ? 'application/directory' : getFileMimeType(fileName)
+    let mimeType = file.isDirectory ? 'application/x-hexa-backup-directory' : getFileMimeType(fileName)
 
     log.dbg(`insert object ${file.contentSha}`)
 

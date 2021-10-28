@@ -331,7 +331,7 @@ export class Stateful {
                 if (noDirectory)
                     whereConditions.push(`o.mimeType like '${mimeType}'`)
                 else
-                    whereConditions.push(`o.mimeType = 'application/directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
+                    whereConditions.push(`o.mimeType = 'application/x-hexa-backup-directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
 
                 if (!offset || offset < 0)
                     offset = 1
@@ -366,8 +366,8 @@ export class Stateful {
 
                 DbHelpers.closeClient(client)
 
-                const resultDirectories = items.filter(i => i.mimeType == 'application/directory').map(({ sha, name }) => ({ sha, name }))
-                const resultFiles = items.filter(i => i.mimeType != 'application/directory')
+                const resultDirectories = items.filter(i => i.mimeType == 'application/x-hexa-backup-directory').map(({ sha, name }) => ({ sha, name }))
+                const resultFiles = items.filter(i => i.mimeType != 'application/x-hexa-backup-directory')
 
                 res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items, query }))
             }
