@@ -42,17 +42,22 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
                     if (commit.directoryDescriptorSha) {
                         // TODO if has object source, skip
 
-                        await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
+                        try {
+                            await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
 
-                        await DbHelpers.insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
-                        await DbHelpers.insertObjectSource(client, commit.directoryDescriptorSha, source)
+                            await DbHelpers.insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
+                            await DbHelpers.insertObjectSource(client, commit.directoryDescriptorSha, source)
+                        }
+                        catch (err) {
+                            log.err(`source ${source} had an error on commit ${commitSha} desc ${commit.directoryDescriptorSha}: ${err}, continuing`)
+                        }
                     }
 
                     commitSha = commit.parentSha
                 }
             }
             catch (err) {
-                log.err(`source ${source} made an error: ${err}`)
+                log.err(`source ${source} had an error: ${err}, continuing`)
             }
         }
     }
