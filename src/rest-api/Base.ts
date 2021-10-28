@@ -71,7 +71,7 @@ export class Base {
             }))
         })
 
-        app.post('/refs/:id/tag/:name', async (req, res) => {
+        app.post('/refs/:id/tags/:name', async (req, res) => {
             res.set('Content-Type', 'application/json')
 
             let sourceId = req.params.id
