@@ -152,14 +152,11 @@ export class HexaBackupStore implements IHexaBackupStore {
         if (!source)
             return null
 
-        // for compatibility update (kind of hacky doing this but...)
-        SourceState.setReadOnly(source, SourceState.isReadOnly(source))
-
         if (!source.tags)
             source.tags = {}
 
-        source.tags[tagName] = tagValue
-
+        SourceState.setTagValue(source, tagName, tagValue)
+        
         return await this.storeClientState(sourceId, source)
     }
 

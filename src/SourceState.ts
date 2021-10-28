@@ -7,6 +7,14 @@ export function newSourceState(): Model.SourceState {
     }
 }
 
+export function setTagValue(source: Model.SourceState, name: string, value: any) {
+    source.tags[name] = value
+
+    // compatibility upgrade hack
+    if (name == "readonly")
+        setReadOnly(source, isReadOnly(source))
+}
+
 export function isReadOnly(sourceState: Model.SourceState) {
     if (!sourceState)
         return false
