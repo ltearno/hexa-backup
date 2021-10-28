@@ -20,34 +20,39 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
 
         let sources = await store.getSources()
         for (let source of sources) {
-            let sourceState = await store.getSourceState(source)
-            if (!sourceState || !sourceState.currentCommitSha) {
-                log(`source ${source} is empty, skipping`)
-                continue
-            }
-
-            if (!SourceState.isIndexed(sourceState)) {
-                log(`source ${source} is not indexed, skipping`)
-                continue
-            }
-
-            log(`index from source ${source} commit ${sourceState.currentCommitSha}`)
-            let commitSha = sourceState.currentCommitSha
-            while (commitSha != null) {
-                let commit = await store.getCommit(commitSha)
-                if (!commit)
-                    break
-
-                if (commit.directoryDescriptorSha) {
-                    // TODO if has object source, skip
-
-                    await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
-
-                    await DbHelpers.insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
-                    await DbHelpers.insertObjectSource(client, commit.directoryDescriptorSha, source)
+            try {
+                let sourceState = await store.getSourceState(source)
+                if (!sourceState || !sourceState.currentCommitSha) {
+                    log(`source ${source} is empty, skipping`)
+                    continue
                 }
 
-                commitSha = commit.parentSha
+                if (!SourceState.isIndexed(sourceState)) {
+                    log(`source ${source} is not indexed, skipping`)
+                    continue
+                }
+
+                log(`index from source ${source} commit ${sourceState.currentCommitSha}`)
+                let commitSha = sourceState.currentCommitSha
+                while (commitSha != null) {
+                    let commit = await store.getCommit(commitSha)
+                    if (!commit)
+                        break
+
+                    if (commit.directoryDescriptorSha) {
+                        // TODO if has object source, skip
+
+                        await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
+
+                        await DbHelpers.insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
+                        await DbHelpers.insertObjectSource(client, commit.directoryDescriptorSha, source)
+                    }
+
+                    commitSha = commit.parentSha
+                }
+            }
+            catch (err) {
+                log.err(`source ${source} made an error: ${err}`)
             }
         }
     }
