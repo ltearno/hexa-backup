@@ -18,6 +18,7 @@ export interface IHexaBackupStore {
     registerNewCommit(sourceId: string, directoryDescriptorSha: string): Promise<string>
     /// tries to fast forward the source to this commit, and return the updated (or not) source's commit sha
     setSourceCommit(sourceId: string, commitSha: string): Promise<string>
+    setSourceTag(sourceId: string, tagName: string, tagValue: any): Promise<Model.SourceState>
     setClientState(sourceId: string, state: Model.SourceState): Promise<void>
     getSourceState(sourceId: string): Promise<Model.SourceState>
     getCommit(sha: string): Promise<Model.Commit>
@@ -143,7 +144,23 @@ export class HexaBackupStore implements IHexaBackupStore {
 
         // write the change
         clientState.currentCommitSha = commitSha
-        this.storeClientState(sourceId, clientState)
+        await this.storeClientState(sourceId, clientState)
+    }
+
+    async setSourceTag(sourceId: string, tagName: string, tagValue: any): Promise<Model.SourceState> {
+        let source = await this.getSourceState(sourceId)
+        if (!source)
+            return null
+
+        // for compatibility update (kind of hacky doing this but...)
+        SourceState.setReadOnly(source, SourceState.isReadOnly(source))
+
+        if (!source.tags)
+            source.tags = {}
+
+        source.tags[tagName] = tagValue
+
+        return await this.storeClientState(sourceId, source)
     }
 
     private async isFastForwardFor(testSha: string, ancestorSha: string): Promise<boolean> {
@@ -228,7 +245,7 @@ export class HexaBackupStore implements IHexaBackupStore {
             current.currentCommitSha = state.currentCommitSha
         }
 
-        await this.storeClientState(sourceId, state)
+        await this.storeClientState(sourceId, current)
     }
 
     async getSourceState(sourceId: string) {
@@ -275,21 +292,19 @@ export class HexaBackupStore implements IHexaBackupStore {
         }
     }
 
-    private async storeClientState(sourceId: string, sourceState: Model.SourceState): Promise<boolean> {
+    private async storeClientState(sourceId: string, sourceState: Model.SourceState): Promise<Model.SourceState> {
         if (!sourceId)
-            return false
+            return null
 
         sourceId = sourceId.toLocaleUpperCase()
 
         let clientStateReferenceName = `client_${sourceId}`
 
         let existingSource = await this.referenceRepository.get(clientStateReferenceName)
-        if (SourceState.isReadOnly(existingSource)) {
-            return false
-        }
-
         await this.referenceRepository.put(clientStateReferenceName, sourceState)
 
-        return true
+        log(`updated source ${sourceId} from ${JSON.stringify(existingSource)} to ${JSON.stringify(sourceState)}`)
+
+        return sourceState
     }
 }

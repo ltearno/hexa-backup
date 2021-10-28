@@ -1,6 +1,7 @@
 import { HexaBackupStore } from '../HexaBackupStore'
 import { LoggerBuilder } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
+import * as SourceState from '../SourceState'
 
 const log = LoggerBuilder.buildLogger('base-server')
 
@@ -68,6 +69,22 @@ export class Base {
                 reference: sourceId,
                 commitSha
             }))
+        })
+
+        app.post('/refs/:id/tag/:name', async (req, res) => {
+            res.set('Content-Type', 'application/json')
+
+            let sourceId = req.params.id
+            let tagName = req.params.name
+            let tagValue = req.body
+
+            let source = await this.store.setSourceTag(sourceId, tagName, tagValue)
+            if (!source) {
+                res.send(JSON.stringify({ error: `source does not exist` }))
+                return
+            }
+
+            res.send(JSON.stringify(source))
         })
 
         app.get('/references', async (req, res) => {
