@@ -156,7 +156,7 @@ export class HexaBackupStore implements IHexaBackupStore {
             source.tags = {}
 
         SourceState.setTagValue(source, tagName, tagValue)
-        
+
         return await this.storeClientState(sourceId, source)
     }
 
@@ -298,6 +298,10 @@ export class HexaBackupStore implements IHexaBackupStore {
         let clientStateReferenceName = `client_${sourceId}`
 
         let existingSource = await this.referenceRepository.get(clientStateReferenceName)
+
+        if (JSON.stringify(existingSource) == JSON.stringify(sourceState)) {
+            return sourceState
+        }
 
         log(`updating source ${sourceId} from ${JSON.stringify(existingSource)} to ${JSON.stringify(sourceState)}`)
 
