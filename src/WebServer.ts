@@ -50,8 +50,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     let app: any = express()
 
     app.use(function (req, _, next) {
-        let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-        log(`${req.socket.remoteAddress} ${req.method} ${req.url} ${JSON.stringify(req.headers)}`)
+        log(`'${req.socket.remoteAddress}' '${req.headers['x-forwarded-for']}' ${req.method} ${req.url}`)
         next()
     })
 
