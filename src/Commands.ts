@@ -983,11 +983,9 @@ export async function browse(directory: string, verbose: boolean) {
                     break
 
                 if (verbose) {
+                    log(`${entry.model.isDirectory?'d ':'f '} ${entry.walkPath}`)
                     if (entry.model.isDirectory) {
                         log.dbg(`${entry.directoryDescriptorRaw}`)
-                    }
-                    else {
-                        log(`${entry.fullPath}`)
                     }
                 }
             }

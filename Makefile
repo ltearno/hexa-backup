@@ -1,5 +1,11 @@
 .PHONY: build-image run-image
 
+build:
+	npm run build
+
+build-watch:
+	npm run watch
+
 build-image:
 	docker build . --build-arg UID=$(shell id -u) --build-arg GID=$(shell id -g) -t hexa-backup:latest
 

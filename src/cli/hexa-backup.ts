@@ -521,7 +521,7 @@ async function run() {
         }
     })
 
-    let cmdManager = new CommandManager(commandSpecs)
+    let cmdManager = new CommandManager(commandSpecs.sort((a, b) => a.id.localeCompare(b.id)))
 
     function parseAndProcess(args: string[]) {
         let parsed = parseArgs(args, defaultParameters)

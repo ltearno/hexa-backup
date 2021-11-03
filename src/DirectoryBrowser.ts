@@ -8,7 +8,8 @@ const log = LoggerBuilder.buildLogger('directory-browser')
 
 export interface Entry {
     model: Model.FileDescriptor
-    fullPath?: string
+    fullPath: string // absolute path
+    walkPath: string // path from the root of the walk
     directoryDescriptorRaw?: string
 }
 
@@ -83,9 +84,7 @@ export class DirectoryBrowser {
 
                     if (stat.isSymbolicLink()) {
                         let symbolicLinkTarget = fs.realpathSync(fs.readlinkSync(fileName))
-
                         log.wrn(`skipped symbolic link ${fileName}, targetting ${symbolicLinkTarget}`)
-
                         continue
                     }
 
@@ -139,7 +138,9 @@ export class DirectoryBrowser {
 
                             directoryDescriptor.files.push(model)
 
-                            await this.pusher({ model, fullPath })
+                            const walkPath = '/' + fsPath.relative(this.rootPath, fullPath)
+
+                            await this.pusher({ model, fullPath, walkPath })
                         }
                     }
                     catch (error) {
@@ -154,6 +155,8 @@ export class DirectoryBrowser {
             let directoryDescriptorRaw = OrderedJson.stringify(directoryDescriptor)
             let directoryDescriptorSha = await HashTools.hashString(directoryDescriptorRaw)
 
+            const walkPath = '/' + fsPath.relative(this.rootPath, path)
+
             let stat = fs.statSync(path)
             await this.pusher({
                 model: {
@@ -163,6 +166,8 @@ export class DirectoryBrowser {
                     contentSha: directoryDescriptorSha,
                     size: directoryDescriptorRaw.length
                 },
+                fullPath: path,
+                walkPath,
                 directoryDescriptorRaw
             })
 
