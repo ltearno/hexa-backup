@@ -44,6 +44,7 @@ export class DirectoryBrowser {
             "/.hb-refs",
             "/.hb-metadata",
             "/.git",
+            "/node_modules"
         ].map(globToRegExp)
 
         let d = await this.walkDir(this.rootPath, ignoreExpressions)
