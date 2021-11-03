@@ -181,6 +181,8 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
     await synchronizeRecord(`footprints`, `from objects o left join object_footprints of on o.sha=of.sha where (o.mimeType='application/x-hexa-backup-directory' or o.size > 65635) and (of.sha is null)`, store, databaseParams, async (sha, mimeType, row, store, client) => {
         let footprints = []
 
+        log(`ufi 1`)
+
         // select all names of sha
         let rs = await DbHelpers.dbQuery(client, {
             text: `select name from objects where sha=$1`,
@@ -190,6 +192,8 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
             if (!footprints.includes(row.name))
                 footprints.push(row.name)
         }
+
+        log(`ufi 2`)
 
         // if mimeType is audio/ => add artist, album and title
         if (mimeType && mimeType.startsWith('audio/')) {
@@ -209,9 +213,14 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
             }
         }
 
+        log(`ufi 3`)
+
         if (footprints.length) {
+            log(`ufi 4`)
             await DbHelpers.insertObjectFootprint(client, sha, footprints.join(' '))
         }
+
+        log(`ufi 5`)
     })
 }
 
