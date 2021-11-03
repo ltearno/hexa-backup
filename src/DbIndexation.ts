@@ -133,13 +133,14 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
 
         const cursor = await DbHelpers.createCursor(client, query)
 
-
         while (true) {
             let rows = await cursor.read()
             if (!rows || !rows.length) {
                 log(`finished cursor`)
                 break
             }
+
+            log(`processing batch of ${rows.length}`)
 
             for (let row of rows) {
                 nbRows++
@@ -159,7 +160,6 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
             }
         }
 
-
         log(`processed ${nbRows}/${nbTotal} shas with ${nbRowsError} errors`)
 
         await cursor.close()
@@ -178,7 +178,7 @@ async function synchronizeRecord(title: string, baseQuery: string, store: HexaBa
 export async function updateFootprintIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
     log(`update footprint index`)
 
-    await synchronizeRecord(`footprints`, `from objects o left join object_footprints of on o.sha=of.sha where (o.mimeType='application/x-hexa-backup-directory' or size > 65635) and (of.sha is null)`, store, databaseParams, async (sha, mimeType, row, store, client) => {
+    await synchronizeRecord(`footprints`, `from objects o left join object_footprints of on o.sha=of.sha where (o.mimeType='application/x-hexa-backup-directory' or o.size > 65635) and (of.sha is null)`, store, databaseParams, async (sha, mimeType, row, store, client) => {
         let footprints = []
 
         // select all names of sha
