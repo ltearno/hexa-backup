@@ -13,6 +13,18 @@ export interface Entry {
     directoryDescriptorRaw?: string
 }
 
+function globToRegExp(glob: string): RegExp {
+    let r = glob
+        .replace(/\./g, '\\.')
+        .replace(/\//g, '\\/')
+        .replace(/\*/g, `[^\\/]+?`)
+        + '$'
+
+    log.dbg(`filter ${glob} to ${r}`)
+
+    return new RegExp(r, 'i')
+}
+
 export class DirectoryBrowser {
     constructor(private rootPath: string, private pusher: Queue.Pusher<Entry>, private shaCache: ShaCache) {
     }
@@ -27,10 +39,12 @@ export class DirectoryBrowser {
 
     async start() {
         let ignoreExpressions: RegExp[] = [
-            /^\.hb-cache$|^.*\\\.hb-cache$/gi,
-            /^\.hb-object$|^.*\\\.hb-object$/gi,
-            /^\.hb-refs$|^.*\\\.hb-refs$/gi
-        ]
+            "/.hb-cache",
+            "/.hb-object",
+            "/.hb-refs",
+            "/.hb-metadata",
+            "/.git",
+        ].map(globToRegExp)
 
         let d = await this.walkDir(this.rootPath, ignoreExpressions)
 
@@ -39,20 +53,25 @@ export class DirectoryBrowser {
         return d.sha
     }
 
-    async walkDir(path: string, ignoreExpressions: any[]): Promise<{ descriptor: Model.DirectoryDescriptor; sha: string; size: number }> {
+    async walkDir(path: string, ignoreExpressions: RegExp[]): Promise<{ descriptor: Model.DirectoryDescriptor; sha: string; size: number }> {
         try {
-            let hbIgnorePath = fsPath.join(path, '.hbignore')
+            let hbIgnorePath = fsPath.join(path, '.hb-ignore')
             if (fs.existsSync(hbIgnorePath)) {
                 ignoreExpressions = ignoreExpressions.slice()
                 let lines = fs
                     .readFileSync(hbIgnorePath, 'utf8')
                     .split(/\r\n|\n\r|\n|\r/g)
-                    .filter(line => !line.startsWith('#') && line.trim().length)
+                    .map(line => line.trim())
+                    .filter(line => !line.startsWith('#') && line.length)
                 lines.forEach(line => {
                     try {
-                        let regexp = new RegExp(line, 'ig')
                         log(`ignoring pattern ${line}`)
-                        ignoreExpressions.push(regexp)
+                        if (line.startsWith('/')) {
+                            ignoreExpressions.push(globToRegExp(fsPath.relative(this.rootPath, path) + line))
+                        }
+                        else {
+                            ignoreExpressions.push(globToRegExp('/' + line))
+                        }
                     }
                     catch (error) {
                         log.err(`error in ${hbIgnorePath} at regexp ${line} : ${error}`)
@@ -70,8 +89,10 @@ export class DirectoryBrowser {
             for (let fileName of rawFiles) {
                 fileName = fsPath.join(path, fileName)
 
-                let relative = fsPath.basename(fileName)
-                let ignores = ignoreExpressions.some(expression => expression.test(relative))
+                const walkPath = '/' + fsPath.relative(this.rootPath, fileName)
+
+                //let relative = fsPath.basename(fileName)
+                let ignores = ignoreExpressions.some(expression => expression.test(walkPath))
                 if (ignores) {
                     log.dbg(`ignored path ${fileName}`)
                     continue
@@ -137,8 +158,6 @@ export class DirectoryBrowser {
                             this.stats.bytesHashed += element.size
 
                             directoryDescriptor.files.push(model)
-
-                            const walkPath = '/' + fsPath.relative(this.rootPath, fullPath)
 
                             await this.pusher({ model, fullPath, walkPath })
                         }
