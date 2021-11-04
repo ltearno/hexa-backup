@@ -1,5 +1,5 @@
 import { HexaBackupStore } from '../HexaBackupStore'
-import { LoggerBuilder } from '@ltearno/hexa-js'
+import { LoggerBuilder, HashTools } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
 import * as SourceState from '../SourceState'
 
@@ -135,6 +135,14 @@ export class Base {
         // if the browser wants to download the file (because of mimetype), the file
         // will have the 'phantomName' instead of 'content
         app.get('/sha/:sha/content/:phantomName', (req, res) => this.serveShaContent(req, res))
+
+        app.post('/sha', async (req, res) => {
+            let bytes = req.body
+            let sha = HashTools.hashBytes(bytes)
+            let len = await this.store.putShaBytes(sha, 0, bytes)
+            res.set('Content-Type', 'application/json')
+            res.send(JSON.stringify({ sha, len }))
+        })
 
         app.post('/sha/:sha/content/:offset', async (req, res) => {
             let sha = req.params.sha
