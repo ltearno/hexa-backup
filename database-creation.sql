@@ -13,6 +13,7 @@ create index idx_object_parents_parentSha on object_parents USING btree(parentSh
 
 create table object_footprints (sha char(64), footprint text, primary key (sha));
 create index idx_object_footprints ON object_footprints USING gin (footprint gin_trgm_ops);
+create index idx_object_footprints_sha on objects USING btree (sha);
 
 /* table des sources */
 create table object_sources (sha char(64), sourceId char(64), primary key (sha, sourceId));
