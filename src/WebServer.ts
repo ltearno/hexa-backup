@@ -50,6 +50,7 @@ export async function runStore(directory: string, port: number, insecure: boolea
     let app: any = express()
 
     app.use(function (req, _, next) {
+        req.headers['cookie'] = ''
         log(`'${req.socket.remoteAddress}' '${req.headers['x-forwarded-for']}' ${req.method} ${req.url} '${JSON.stringify(req.headers)}'`)
         next()
     })
