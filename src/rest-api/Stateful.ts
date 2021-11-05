@@ -274,7 +274,8 @@ export class Stateful {
                     return
                 }
 
-                let { name,
+                let {
+                    name,
                     mimeType,
                     geoSearch,
                     dateMin,

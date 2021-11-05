@@ -209,9 +209,9 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
             }
         }
 
-        if (footprints.length) {
+        //if (footprints.length) {
             await DbHelpers.insertObjectFootprint(client, sha, footprints.join(' '))
-        }
+        //}
     })
 }
 
