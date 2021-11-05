@@ -1,5 +1,4 @@
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import * as MimeTypes from './mime-types'
 import * as Model from './Model'
 
 const log = LoggerBuilder.buildLogger('db-helpers')
@@ -10,17 +9,6 @@ export interface DbParams {
     user: string
     password: string
     port: number
-}
-
-function getFileMimeType(fileName: string) {
-    let pos = fileName.lastIndexOf('.')
-    if (pos >= 0) {
-        let extension = fileName.substr(pos + 1).toLocaleLowerCase()
-        if (extension in MimeTypes.MimeTypes)
-            return MimeTypes.MimeTypes[extension]
-    }
-
-    return 'application/octet-stream'
 }
 
 let openedClients = new Map<any, string>()
@@ -103,7 +91,7 @@ export async function createCursor(client: any, query: string): Promise<DbCursor
     })
 }
 
-export async function insertObject(client, file: Model.FileDescriptor) {
+export async function insertObject(client, file: Model.FileDescriptor, mimeType: string) {
     if (!file)
         return
 
@@ -113,7 +101,6 @@ export async function insertObject(client, file: Model.FileDescriptor) {
     }
 
     let fileName = file.name.replace('\\', '/')
-    let mimeType = file.isDirectory ? 'application/x-hexa-backup-directory' : getFileMimeType(fileName)
 
     log.dbg(`insert object ${file.contentSha}`)
 

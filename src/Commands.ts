@@ -493,12 +493,6 @@ export async function pull(directory: string, sourceId: string, storeParams: Sto
     log(`pull done`)
 }
 
-export async function dbPush(storeParams: StoreConnectionParams, dbParams: DbConnectionParams) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, null, storeParams.insecure)).remoteStore
-
-    await DbIndexation.updateObjectsIndex(store, dbParams)
-}
-
 export async function dbImage(storeParams: StoreConnectionParams, databaseParams: DbConnectionParams) {
     let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, null, storeParams.insecure)).remoteStore
 

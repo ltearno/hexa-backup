@@ -452,22 +452,6 @@ async function run() {
         }
     })
     commandSpecs.push({
-        id: "dbpush",
-        description: `updates database indices from sources in a store`,
-        verbs: ["dbpush"],
-        options: options()
-            .withStore()
-            .withDatabase(),
-        executor: async (options) => {
-            const storeParams = getStoreParams(options)
-            const databaseParams = getDatabaseParams(options)
-
-            await Commands.dbPush(storeParams, databaseParams)
-
-            process.exit(0)
-        }
-    })
-    commandSpecs.push({
         id: "dbimage",
         description: `updates db indices for images and videos`,
         verbs: ["dbimage"],

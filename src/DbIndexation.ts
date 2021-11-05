@@ -4,13 +4,13 @@ import { DbConnectionParams } from "./Commands"
 import * as DbHelpers from './DbHelpers'
 import * as Model from './Model'
 import * as Operations from './Operations'
-import * as MusicMetadata from 'music-metadata'
+import * as MimeTypes from './mime-types'
 import * as fs from 'fs'
 import * as SourceState from './SourceState'
 
 const log = LoggerBuilder.buildLogger('db-index')
 
-export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbConnectionParams) {
+export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbConnectionParams) {
     log(`update objects index`)
 
     let client = null
@@ -45,7 +45,7 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
                         try {
                             await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
 
-                            await DbHelpers.insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 })
+                            await DbHelpers.insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 }, 'x-hexa-backup-directory')
                             await DbHelpers.insertObjectSource(client, commit.directoryDescriptorSha, source)
                         }
                         catch (err) {
@@ -69,7 +69,7 @@ export async function updateObjectsIndex(store: IHexaBackupStore, dbParams: DbCo
     }
 }
 
-async function recPushDir(client, store: IHexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string) {
+async function recPushDir(client, store: HexaBackupStore, basePath: string, directoryDescriptorSha, sourceId: string) {
     if (await DbHelpers.hasObjectSource(client, directoryDescriptorSha, sourceId)) {
         //log(`skipped ${directoryDescriptorSha} ${basePath}, already indexed`)
         return
@@ -105,10 +105,27 @@ async function recPushDir(client, store: IHexaBackupStore, basePath: string, dir
             await recPushDir(client, store, path, file.contentSha, sourceId)
         }
 
+        const mimeType = getFileMimeType(file)
+
         await DbHelpers.insertObjectParent(client, file.contentSha, directoryDescriptorSha)
         await DbHelpers.insertObjectSource(client, file.contentSha, sourceId)
-        await DbHelpers.insertObject(client, file)
+        await DbHelpers.insertObject(client, file, mimeType)
+        await updateObjectAudioForSha(store, client, file.contentSha, mimeType)
     }
+}
+
+function getFileMimeType(file: Model.FileDescriptor) {
+    if (file.isDirectory)
+        return 'application/x-hexa-backup-directory'
+
+    let pos = file.name.lastIndexOf('.')
+    if (pos >= 0) {
+        let extension = file.name.substr(pos + 1).toLocaleLowerCase()
+        if (extension in MimeTypes.MimeTypes)
+            return MimeTypes.MimeTypes[extension]
+    }
+
+    return 'application/octet-stream'
 }
 
 let musicMetadata: any = null
@@ -210,100 +227,48 @@ export async function updateFootprintIndex(store: HexaBackupStore, databaseParam
         }
 
         //if (footprints.length) {
-            await DbHelpers.insertObjectFootprint(client, sha, footprints.join(' '))
+        await DbHelpers.insertObjectFootprint(client, sha, footprints.join(' '))
         //}
     })
 }
 
-export async function updateAudioIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
-    log(`update audio index`)
-
-    const client = await DbHelpers.createClient(databaseParams, "updateAudioIndex")
-    const client2 = await DbHelpers.createClient(databaseParams, "updateAudioIndex2")
-
-    log(`connected to database`)
-
-    let baseQuery = `from objects o left join object_audio_tags ot on o.sha=ot.sha where size > 65635 and mimeType LIKE 'audio/%' and (ot.sha is null)`
-
-    const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
-    let rs = await DbHelpers.dbQuery(client, queryCount)
-    let nbTotal = rs.rows[0].total
-
-    let nbRows = 0
-    let nbRowsError = 0
-
-    const query = `select distinct o.sha, o.mimetype ${baseQuery};`
-
-    const cursor = await DbHelpers.createCursor(client, query)
-
+// returns an error if any
+async function updateObjectAudioForSha(store: HexaBackupStore, client: any, sha: string, mimeType: string): Promise<string> {
+    let stage = `init`
     try {
-        while (true) {
-            let rows = await cursor.read()
-            if (!rows || !rows.length) {
-                log(`finished cursor`)
-                break
-            }
-
-            for (let row of rows) {
-                nbRows++
-                let sha = row['sha']
-                if (!sha)
-                    continue
-
-                let mimeType = row['mimetype']
-
-                log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
-                let stage = `init`
-
-                try {
-                    await DbHelpers.insertObjectAudioTags(client2, sha, {})
-
-                    if (!musicMetadata) {
-                        stage = `requiring module`
-                        musicMetadata = require('music-metadata')
-                        if (!musicMetadata)
-                            throw `cannot require/load module 'music-metadata'`
-                    }
-
-                    stage = `getShaFileName`
-                    let fileName = store.getShaFileName(sha)
-                    if (!fs.existsSync(fileName))
-                        throw `file does not exists: ${fileName}`
-
-                    stage = `readShaFile`
-                    let buffer = fs.readFileSync(fileName)
-                    if (!buffer || !buffer.length)
-                        throw `cannot read file ${fileName}`
-
-                    stage = `parsing metadata '${mimeType}' : ${sha} at ${fileName}`
-                    let metadata = await musicMetadata.parseBuffer(buffer, mimeType)
-                    if (!metadata)
-                        throw `no metadata for ${sha}`
-
-                    stage = `conforming metadata ${JSON.stringify(metadata)}`
-                    metadata = JSON.parse(JSON.stringify(metadata))
-
-                    stage = `database insert`
-                    await DbHelpers.insertObjectAudioTags(client2, sha, metadata)
-                }
-                catch (err) {
-                    nbRowsError++
-                    log.err(`${stage} error while processing ${sha} : ${err}`)
-                }
-            }
+        if (!musicMetadata) {
+            stage = `requiring module`
+            musicMetadata = require('music-metadata')
+            if (!musicMetadata)
+                throw `cannot require/load module 'music-metadata'`
         }
-    } catch (err) {
-        log.err(`error processing: ${err}`)
+
+        stage = `getShaFileName`
+        let fileName = store.getShaFileName(sha)
+        if (!fs.existsSync(fileName))
+            throw `file does not exists: ${fileName}`
+
+        stage = `readShaFile`
+        let buffer = fs.readFileSync(fileName)
+        if (!buffer || !buffer.length)
+            throw `cannot read file ${fileName}`
+
+        stage = `parsing metadata '${mimeType}' : ${sha} at ${fileName}`
+        let metadata = await musicMetadata.parseBuffer(buffer, mimeType)
+        if (!metadata)
+            throw `no metadata for ${sha}`
+
+        stage = `conforming metadata ${JSON.stringify(metadata)}`
+        metadata = JSON.parse(JSON.stringify(metadata))
+
+        stage = `database insert`
+        await DbHelpers.insertObjectAudioTags(client, sha, metadata)
+    }
+    catch (err) {
+        return `error update object audio sha ${sha} at stage ${stage}`
     }
 
-    log(`processed ${nbRows}/${nbTotal} shas with ${nbRowsError} errors`)
-
-    await cursor.close()
-
-    DbHelpers.closeClient(client)
-    DbHelpers.closeClient(client2)
-
-    log(`finished audio index update`)
+    return null
 }
 
 let exifParserBuilder: any = null

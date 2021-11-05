@@ -51,7 +51,6 @@ export class Stateful {
                 await DbIndexation.updateObjectsIndex(this.store, this.databaseParams)
                 //await DbIndexation.updateMimeShaList('PHOTOS', 'image', store, this.databaseParams)
                 //await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, this.databaseParams)
-                await DbIndexation.updateAudioIndex(this.store, this.databaseParams)
                 await DbIndexation.updateExifIndex(this.store, this.databaseParams)
                 await DbIndexation.updateFootprintIndex(this.store, this.databaseParams)
 
