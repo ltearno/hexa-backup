@@ -148,7 +148,7 @@ export async function insertObjectAudioTags(client, sha: string, tags: object) {
 
     await dbQuery(client, {
         text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2) ON CONFLICT (sha) DO UPDATE SET tags=$2;`,
-        values: [sha, JSON.stringify(tags).replace(/\0.*$/g, '')],
+        values: [sha, JSON.stringify(tags).replace(/\0/g, '').replace(/\\u0000/g, '')],
     })
 }
 
