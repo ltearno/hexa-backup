@@ -223,7 +223,7 @@ async function updateObjectAudioForSha(store: HexaBackupStore, client: any, o: M
 }
 
 async function updateObjectExifForSha(store: HexaBackupStore, client: any, o: Model.FileDescriptor, mimeType: string): Promise<string> {
-    if (o.size < 65535 || !mimeType.startsWith('image/')) // apparently it only works with image/jpeg
+    if (o.size < 65535 || !mimeType.startsWith('image/jpeg'))
         return null
 
     try {
