@@ -43,9 +43,12 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                     if (!commit)
                         break
 
-                    if (commit.directoryDescriptorSha) {
-                        // TODO if has object source, skip
+                    if (await DbHelpers.hasObjectSource(client, commitSha, source)) {
+                        log(`skipped commit ${commitSha}, commit already indexed`)
+                        break
+                    }
 
+                    if (commit.directoryDescriptorSha) {
                         try {
                             await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
 
@@ -56,6 +59,9 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                             log.err(`source ${source} had an error on commit ${commitSha} desc ${commit.directoryDescriptorSha}: ${err}, continuing`)
                         }
                     }
+
+                    // mark commit as processed for the source
+                    await DbHelpers.insertObjectSource(client, commitSha, source)
 
                     commitSha = commit.parentSha
                 }
