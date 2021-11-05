@@ -468,23 +468,6 @@ async function run() {
         }
     })
     commandSpecs.push({
-        id: "exifextract",
-        description: `processes exif data from sha of image mime type`,
-        verbs: ["exifextract"],
-        options: options()
-            .with({ sourceId: defaultSourceId })
-            .withStore()
-            .withDatabase(),
-        executor: async (options) => {
-            const storeParams = getStoreParams(options)
-            const databaseParams = getDatabaseParams(options)
-
-            await Commands.exifExtract(storeParams, databaseParams)
-
-            process.exit(0)
-        }
-    })
-    commandSpecs.push({
         id: "check",
         description: `checks sources and sha integrity in a store`,
         verbs: ["check"],

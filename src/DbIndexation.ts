@@ -10,6 +10,10 @@ import * as SourceState from './SourceState'
 
 const log = LoggerBuilder.buildLogger('db-index')
 
+/* dynamically imported modules */
+let musicMetadata: any = null
+let exifParserBuilder: any = null
+
 export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbConnectionParams) {
     log(`update objects index`)
 
@@ -110,11 +114,17 @@ async function recPushDir(client, store: HexaBackupStore, basePath: string, dire
         await DbHelpers.insertObjectParent(client, file.contentSha, directoryDescriptorSha)
         await DbHelpers.insertObjectSource(client, file.contentSha, sourceId)
         await DbHelpers.insertObject(client, file, mimeType)
-        await updateObjectAudioForSha(store, client, file.contentSha, mimeType)
+        let err = await updateObjectAudioForSha(store, client, file, mimeType)
+        if (err)
+            log.err(err)
+        err = await updateObjectExifForSha(store, client, file, mimeType)
+        if (err)
+            log.err(err)
+        await updateObjectFootprintForSha(client, file, mimeType)
     }
 }
 
-function getFileMimeType(file: Model.FileDescriptor) {
+function getFileMimeType(file: Model.FileDescriptor): string {
     if (file.isDirectory)
         return 'application/x-hexa-backup-directory'
 
@@ -128,112 +138,53 @@ function getFileMimeType(file: Model.FileDescriptor) {
     return 'application/octet-stream'
 }
 
-let musicMetadata: any = null
+async function updateObjectFootprintForSha(client: any, o: Model.FileDescriptor, mimeType: string) {
+    let footprints = []
 
-async function synchronizeRecord(title: string, baseQuery: string, store: HexaBackupStore, databaseParams: DbConnectionParams, callback: (sha: string, mimeType: string, row: any, store: HexaBackupStore, client: any) => Promise<any>) {
-    log(`starting update of index ${title}`)
-
-    const client = await DbHelpers.createClient(databaseParams, "synchronizeRecord")
-    const client2 = await DbHelpers.createClient(databaseParams, "synchronizeRecord2")
-
-    try {
-        log(`connected to database`)
-
-        const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
-        let rs = await DbHelpers.dbQuery(client, queryCount)
-        let nbTotal = rs.rows[0].total
-
-        let nbRows = 0
-        let nbRowsError = 0
-
-        const query = `select distinct o.sha, o.mimetype ${baseQuery};`
-
-        const cursor = await DbHelpers.createCursor(client, query)
-
-        while (true) {
-            let rows = await cursor.read()
-            if (!rows || !rows.length) {
-                log(`finished cursor`)
-                break
-            }
-
-            log(`processing batch of ${rows.length}`)
-
-            for (let row of rows) {
-                nbRows++
-                let sha = row['sha']
-                if (!sha)
-                    continue
-
-                log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
-
-                try {
-                    await callback(sha, row['mimetype'], row, store, client2)
-                }
-                catch (err) {
-                    nbRowsError++
-                    log.err(`${title} error while processing ${sha} : ${err}`)
-                }
-            }
+    let rs = await DbHelpers.dbQuery(client, { text: `select footprint from object_footprints where sha=$1`, values: [o.contentSha] })
+    for (let row of rs.rows) {
+        for (let f of row['footprint'].split(' ')) {
+            if (!footprints.includes(f))
+                footprints.push(f)
         }
-
-        log(`processed ${nbRows}/${nbTotal} shas with ${nbRowsError} errors`)
-
-        await cursor.close()
-
-    } catch (err) {
-        log.err(`error processing: ${err}`)
-    } finally {
-        DbHelpers.closeClient(client)
-        DbHelpers.closeClient(client2)
     }
 
+    // select all names of sha
+    rs = await DbHelpers.dbQuery(client, {
+        text: `select name from objects where sha=$1`,
+        values: [o.contentSha]
+    })
+    for (let row of rs.rows) {
+        if (!footprints.includes(row.name))
+            footprints.push(row.name)
+    }
 
-    log(`finished index update ${title}`)
-}
-
-export async function updateFootprintIndex(store: HexaBackupStore, databaseParams: DbConnectionParams) {
-    log(`update footprint index`)
-
-    await synchronizeRecord(`footprints`, `from objects o left join object_footprints of on o.sha=of.sha where (o.mimeType='application/x-hexa-backup-directory' or o.size > 65635) and (of.sha is null)`, store, databaseParams, async (sha, mimeType, row, store, client) => {
-        let footprints = []
-
-        // select all names of sha
+    // if mimeType is audio/ => add artist, album and title
+    if (mimeType && mimeType.startsWith('audio/')) {
         let rs = await DbHelpers.dbQuery(client, {
-            text: `select name from objects where sha=$1`,
-            values: [sha]
+            text: `select tags#>>'{common,artist}' as artist, tags#>>'{common,album}' as album, tags#>>'{common,title}' as title, tags#>'{common,genre}'->>0 as genre from object_audio_tags where sha=$1`,
+            values: [o.contentSha]
         })
         for (let row of rs.rows) {
-            if (!footprints.includes(row.name))
-                footprints.push(row.name)
+            if (!footprints.includes(row.artist))
+                footprints.push(row.artist)
+            if (!footprints.includes(row.album))
+                footprints.push(row.album)
+            if (!footprints.includes(row.title))
+                footprints.push(row.title)
+            if (!footprints.includes(row.genre))
+                footprints.push(row.genre)
         }
+    }
 
-        // if mimeType is audio/ => add artist, album and title
-        if (mimeType && mimeType.startsWith('audio/')) {
-            let rs = await DbHelpers.dbQuery(client, {
-                text: `select tags#>>'{common,artist}' as artist, tags#>>'{common,album}' as album, tags#>>'{common,title}' as title, tags#>'{common,genre}'->>0 as genre from object_audio_tags where sha=$1`,
-                values: [sha]
-            })
-            for (let row of rs.rows) {
-                if (!footprints.includes(row.artist))
-                    footprints.push(row.artist)
-                if (!footprints.includes(row.album))
-                    footprints.push(row.album)
-                if (!footprints.includes(row.title))
-                    footprints.push(row.title)
-                if (!footprints.includes(row.genre))
-                    footprints.push(row.genre)
-            }
-        }
-
-        //if (footprints.length) {
-        await DbHelpers.insertObjectFootprint(client, sha, footprints.join(' '))
-        //}
-    })
+    await DbHelpers.insertObjectFootprint(client, o.contentSha, footprints.join(' '))
 }
 
 // returns an error if any
-async function updateObjectAudioForSha(store: HexaBackupStore, client: any, sha: string, mimeType: string): Promise<string> {
+async function updateObjectAudioForSha(store: HexaBackupStore, client: any, o: Model.FileDescriptor, mimeType: string): Promise<string> {
+    if (!mimeType.startsWith('audio/') || o.size < 65535)
+        return null
+
     let stage = `init`
     try {
         if (!musicMetadata) {
@@ -244,7 +195,7 @@ async function updateObjectAudioForSha(store: HexaBackupStore, client: any, sha:
         }
 
         stage = `getShaFileName`
-        let fileName = store.getShaFileName(sha)
+        let fileName = store.getShaFileName(o.contentSha)
         if (!fs.existsSync(fileName))
             throw `file does not exists: ${fileName}`
 
@@ -253,101 +204,53 @@ async function updateObjectAudioForSha(store: HexaBackupStore, client: any, sha:
         if (!buffer || !buffer.length)
             throw `cannot read file ${fileName}`
 
-        stage = `parsing metadata '${mimeType}' : ${sha} at ${fileName}`
+        stage = `parsing metadata '${mimeType}' : ${o.contentSha} at ${fileName}`
         let metadata = await musicMetadata.parseBuffer(buffer, mimeType)
         if (!metadata)
-            throw `no metadata for ${sha}`
+            throw `no metadata for ${o.contentSha}`
 
         stage = `conforming metadata ${JSON.stringify(metadata)}`
         metadata = JSON.parse(JSON.stringify(metadata))
 
         stage = `database insert`
-        await DbHelpers.insertObjectAudioTags(client, sha, metadata)
+        await DbHelpers.insertObjectAudioTags(client, o.contentSha, metadata)
     }
     catch (err) {
-        return `error update object audio sha ${sha} at stage ${stage}`
+        return `error update object audio sha ${o.contentSha} at stage ${stage}`
     }
 
     return null
 }
 
-let exifParserBuilder: any = null
-
-export async function updateExifIndex(store: IHexaBackupStore, databaseParams: DbConnectionParams) {
-    log(`update exif index`)
-
-    const client = await DbHelpers.createClient(databaseParams, "updateExifIndex")
-    const client2 = await DbHelpers.createClient(databaseParams, "updateExifIndex2")
-
-    log(`connected to database`)
-
-    let baseQuery = `from objects o left join object_exifs op on o.sha=op.sha where size > 65635 and mimeType = 'image/jpeg' and (op.sha is null)`
-
-    const queryCount = `select count(distinct o.sha) as total ${baseQuery};`
-    let rs = await DbHelpers.dbQuery(client, queryCount)
-    let nbTotal = rs.rows[0].total
-
-    const query = `select distinct o.sha ${baseQuery};`
-
-    const cursor = await DbHelpers.createCursor(client, query)
-
-    let nbRows = 0
-    let nbRowsError = 0
-
-    if (!exifParserBuilder)
-        exifParserBuilder = require('exif-parser')
+async function updateObjectExifForSha(store: HexaBackupStore, client: any, o: Model.FileDescriptor, mimeType: string): Promise<string> {
+    if (o.size < 65535 || !mimeType.startsWith('image/')) // apparently it only works with image/jpeg
+        return null
 
     try {
-        while (true) {
-            let rows = await cursor.read()
-            if (!rows || !rows.length) {
-                log(`finished cursor`)
-                break
-            }
+        if (!exifParserBuilder)
+            exifParserBuilder = require('exif-parser')
 
-            for (let row of rows) {
-                nbRows++
-                let sha = row['sha']
-                if (!sha)
-                    continue
+        // insert an empty object in case the job stales, so it does not come up again...
+        await DbHelpers.insertObjectExif(client, o.contentSha, {})
 
-                log(`processing ${sha} (${nbRows}/${nbTotal} rows so far (${nbRowsError} errors))`)
+        let buffer = await store.readShaBytes(o.contentSha, 0, 65635)
+        if (!buffer)
+            throw `cannot read 65kb from sha ${o.contentSha}`
 
-                try {
-                    // insert an empty object in case the job stales, so it does not come up again...
-                    await DbHelpers.insertObjectExif(client2, sha, {})
+        let exifParser = exifParserBuilder.create(buffer)
+        let exif = exifParser.parse()
 
-                    let buffer = await store.readShaBytes(sha, 0, 65635)
-                    if (!buffer)
-                        throw `cannot read 65kb from sha ${sha}`
+        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
+        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
+        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
 
-                    let exifParser = exifParserBuilder.create(buffer)
-                    let exif = exifParser.parse()
-
-                    log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
-                    log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
-                    log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
-
-                    await DbHelpers.insertObjectExif(client2, sha, exif.tags)
-                }
-                catch (err) {
-                    nbRowsError++
-                    log.err(`error processing image ${sha} : ${err}`)
-                }
-
-                //log(`endp`)
-            }
-        }
-    } catch (err) {
-        log.err(`error processing images : ${err}`)
+        await DbHelpers.insertObjectExif(client, o.contentSha, exif.tags)
+    }
+    catch (err) {
+        return `error processing image ${o.contentSha} : ${err}`
     }
 
-    log(`processed ${nbRows}/${nbTotal} images with ${nbRowsError} errors`)
-
-    await cursor.close()
-
-    DbHelpers.closeClient(client)
-    DbHelpers.closeClient(client2)
+    return null
 }
 
 export async function updateMimeShaList(sourceId: string, mimeType: string, store: IHexaBackupStore, databaseParams: DbConnectionParams) {

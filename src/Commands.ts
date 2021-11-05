@@ -500,12 +500,6 @@ export async function dbImage(storeParams: StoreConnectionParams, databaseParams
     await DbIndexation.updateMimeShaList('VIDEOS', 'video', store, databaseParams)
 }
 
-export async function exifExtract(storeParams: StoreConnectionParams, databaseParams: DbConnectionParams) {
-    let store = (await ClientPeering.createClientPeeringFromWebSocket(storeParams.host, storeParams.port, storeParams.token, null, storeParams.insecure)).remoteStore
-
-    await DbIndexation.updateExifIndex(store, databaseParams)
-}
-
 async function recoverSha(store: IHexaBackupStore, saviorStore: IHexaBackupStore, sha: string): Promise<boolean> {
     const contentSize = await saviorStore.hasOneShaBytes(sha)
     if (!contentSize)
