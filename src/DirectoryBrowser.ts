@@ -52,12 +52,12 @@ export class DirectoryBrowser {
 
     async start() {
         let ignoreExpressions: IgnoreExpression[] = [
-            "/.hb-cache",
-            "/.hb-object",
-            "/.hb-refs",
-            "/.hb-metadata",
+            ".hb-cache",
+            ".hb-object",
+            ".hb-refs",
+            ".hb-metadata",
             ".git",
-            "/node_modules"
+            "node_modules"
         ].map(ex => {
             return {
                 definitionLocation: "<factory-defaults>",
