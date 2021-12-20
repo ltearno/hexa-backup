@@ -96,6 +96,27 @@
                 "-pushedDirectory",
                 "/home/arnaud/Images/"
             ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Fixme",
+            "program": "${workspaceFolder}/target/cli/hexa-backup.js",
+            "outFiles": [
+                "${workspaceFolder}/target/**/*.js"
+            ],
+            "args": [
+                "cp",
+                "-pushedDirectory",
+                "/home/arnaud/repos",
+                "-recursive",
+                "true",
+                "-sourceId",
+                "ARNAUD-WORKSTATION-UPLOAD-REPOS",
+                "-storeIp",
+                "arnaud-server",
+                "ARNAUD-UPLOADS:arnaud-workstation-repos"
+            ]
         }
     ]
 }
