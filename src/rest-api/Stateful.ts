@@ -143,7 +143,7 @@ export class Stateful {
             }
         })
 
-        app.get('/sha/:sha/info', async (req, res) => {
+        app.get('/sha/:sha/stateful-info', async (req, res) => {
             res.set('Content-Type', 'application/json')
 
             let sha = req.params.sha
