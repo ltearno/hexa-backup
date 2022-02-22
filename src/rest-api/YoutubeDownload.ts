@@ -70,6 +70,7 @@ export class YoutubeDownload {
                 '--rm-cache-dir',
                 '--no-progress',
                 '--yes-playlist',
+                '--split-chapters',
                 '-f', 'bestaudio',
                 '--audio-format', 'best',
                 '--audio-quality', '0',
