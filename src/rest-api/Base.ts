@@ -2,6 +2,7 @@ import { HexaBackupStore } from '../HexaBackupStore'
 import { LoggerBuilder, HashTools } from '@ltearno/hexa-js'
 import * as Authorization from '../Authorization'
 import * as SourceState from '../SourceState'
+import { EMPTY_PAYLOAD_SHA } from '@ltearno/hexa-js/dist/hash-tools'
 
 const log = LoggerBuilder.buildLogger('base-server')
 
@@ -121,8 +122,13 @@ export class Base {
             res.set('Content-Type', 'application/json')
 
             let sha = req.params.sha
+            log(`validation of sha '${sha}'`)
             let size = await this.store.hasOneShaBytes(sha)
-            let verified = await this.store.validateShaBytes(sha)
+            let verified = false
+            if (!size)
+                verified = sha == EMPTY_PAYLOAD_SHA
+            else
+                verified = await this.store.validateShaBytes(sha)
 
             res.send(JSON.stringify({
                 sha,
