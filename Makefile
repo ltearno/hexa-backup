@@ -19,6 +19,17 @@ stop-and-remove-daemon:
 	docker stop hexa-backup
 	docker rm hexa-backup
 
+run-image-as-daemon-for-workstation:
+	docker run --name hexa-backup -d --restart=always \
+		--network=host \
+		-v /mnt/data/arnaud/hexa-backup:/hexa-backup/store \
+		hexa-backup:latest \
+		-database postgres \
+		-databaseHost localhost \
+		-databasePort 5432 \
+		-databaseUser postgres \
+		-databasePassword hexa-backup
+
 run-image-as-daemon-for-xps15:
 	docker run --name hexa-backup -d --restart=always \
 		--network=host \
