@@ -2,16 +2,20 @@ FROM node:19 AS builder
 
 WORKDIR /hexa-backup
 
+RUN wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+RUN chmod +x yt-dlp_linux
+
 ADD package.json ./
 ADD tsconfig.json ./
 
 RUN npm install
 
 ADD src ./src
-
 RUN ./node_modules/.bin/tsc || echo "yes"
 
 FROM node:19
+
+RUN apt update && apt install -y ffmpeg
 
 ARG UID=1000
 ARG GID=1000
@@ -27,6 +31,7 @@ ADD --chown=1000:1000 static /hexa-backup/static
 
 COPY --from=builder --chown=1000:1000 /hexa-backup/target /hexa-backup/target
 COPY --from=builder --chown=1000:1000 /hexa-backup/node_modules/ /hexa-backup/node_modules/
+COPY --from=builder --chown=1000:1000 /hexa-backup/yt-dlp_linux /usr/local/bin/yt-dlp
 
 WORKDIR /hexa-backup
 
