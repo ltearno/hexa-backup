@@ -1,11 +1,11 @@
 import * as fs from 'fs'
-import * as ClientPeering from './ClientPeering'
-import * as Model from './Model'
-import { IHexaBackupStore } from './HexaBackupStore'
+import * as ClientPeering from './ClientPeering.js'
+import * as Model from './Model.js'
+import { IHexaBackupStore } from './HexaBackupStore.js'
 import { HashTools, LoggerBuilder, NetworkApiNodeImpl, NetworkApi, OrderedJson } from '@ltearno/hexa-js'
-import * as PathSpecHelpers from './PathSpecHelpers'
-import * as PushDirectory from './PushDirectory'
-import * as SourceState from './SourceState'
+import * as PathSpecHelpers from './PathSpecHelpers.js'
+import * as PushDirectory from './PushDirectory.js'
+import * as SourceState from './SourceState.js'
 
 const KB = 1024
 const MB = 1024 * KB

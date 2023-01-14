@@ -1,8 +1,7 @@
-import { HexaBackupStore } from '../HexaBackupStore'
+import { HexaBackupStore } from '../HexaBackupStore.js'
 import { LoggerBuilder, HashTools } from '@ltearno/hexa-js'
-import * as Authorization from '../Authorization'
-import * as SourceState from '../SourceState'
-import { EMPTY_PAYLOAD_SHA } from '@ltearno/hexa-js/dist/hash-tools'
+import * as Authorization from '../Authorization.js'
+import { EMPTY_PAYLOAD_SHA } from '@ltearno/hexa-js/dist/hash-tools.js'
 
 const log = LoggerBuilder.buildLogger('base-server')
 

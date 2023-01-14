@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import * as fsPath from 'path'
-import { ShaCache } from './ShaCache'
+import { ShaCache } from './ShaCache.js'
 import * as Stream from 'stream'
 import * as ZLib from 'zlib'
 

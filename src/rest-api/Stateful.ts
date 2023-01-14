@@ -1,10 +1,10 @@
-import { HexaBackupStore } from '../HexaBackupStore'
+import { HexaBackupStore } from '../HexaBackupStore.js'
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import * as Authorization from '../Authorization'
-import * as DbHelpers from '../DbHelpers'
-import * as DbIndexation from '../DbIndexation'
-import * as BackgroundJobs from '../BackgroundJobs'
-import * as SourceState from '../SourceState'
+import * as Authorization from '../Authorization.js'
+import * as DbHelpers from '../DbHelpers.js'
+import * as DbIndexation from '../DbIndexation.js'
+import * as BackgroundJobs from '../BackgroundJobs.js'
+import * as SourceState from '../SourceState.js'
 import * as http from 'http'
 
 const log = LoggerBuilder.buildLogger('stateful-server')
@@ -267,26 +267,30 @@ export class Stateful {
                 const options = {
                     method: 'GET',
                 }
-        
+
                 const req = http.request(url, options, resp => {
                     let data = ''
                     resp.on('data', chunk => data += chunk)
                     resp.on('end', () => resolve({ statusCode: resp.statusCode, body: data }))
                 })
-        
+
                 req.on('error', err => {
                     reject(err)
                 })
-        
+
                 req.end()
             })
         }
 
         app.post('/autocomplete', async (req, res) => {
             let { text } = req.body
-            let { body } = await rest_get(`http://localhost:9875/complete?s=${encodeURIComponent(text)}`)
-            res.set('Content-Type', 'application/json')
-            res.send(JSON.stringify({ result: JSON.parse(body) }))
+            try {
+                let { body } = await rest_get(`http://localhost:9875/complete?s=${encodeURIComponent(text)}`)
+                res.set('Content-Type', 'application/json')
+                res.send(JSON.stringify({ result: JSON.parse(body) }))
+            } catch (e) {
+                res.send(JSON.stringify({ error: "${e}", text }))
+            }
         })
 
         app.post('/search', async (req, res) => {

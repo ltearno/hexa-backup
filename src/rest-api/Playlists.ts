@@ -1,7 +1,7 @@
-import { HexaBackupStore } from '../HexaBackupStore'
+import { HexaBackupStore } from '../HexaBackupStore.js'
 import { LoggerBuilder, OrderedJson, HashTools } from '@ltearno/hexa-js'
-import * as Authorization from '../Authorization'
-import * as Model from '../Model'
+import * as Authorization from '../Authorization.js'
+import * as Model from '../Model.js'
 
 const log = LoggerBuilder.buildLogger('plugins-server')
 

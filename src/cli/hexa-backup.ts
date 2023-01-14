@@ -2,8 +2,8 @@ import os = require('os')
 import fsPath = require('path')
 
 import { FsTools, LoggerBuilder } from '@ltearno/hexa-js'
-import * as Commands from '../Commands'
-import * as Authorization from '../Authorization'
+import * as Commands from '../Commands.js'
+import * as Authorization from '../Authorization.js'
 
 const log = LoggerBuilder.buildLogger('hexa-backup')
 log.conf('dbg', false)

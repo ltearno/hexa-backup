@@ -1,7 +1,7 @@
 import fs = require('fs')
 import fsPath = require('path')
 import { FsTools, HashTools } from '@ltearno/hexa-js'
-import * as Model from './Model'
+import * as Model from './Model.js'
 
 export class ReferenceRepository {
     private rootPath: string

@@ -1,4 +1,4 @@
-import * as Model from './Model'
+import * as Model from './Model.js'
 
 export function newSourceState(): Model.SourceState {
     return {

@@ -1,6 +1,5 @@
-const fs = require('fs')
-
-const mm = require('music-metadata')
+import * as mm from 'music-metadata'
+import * as fs from 'fs'
 
 //let buffer = fs.readFileSync('/home/arnaud/Téléchargements/teueyetuyte')
 //

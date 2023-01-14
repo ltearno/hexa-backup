@@ -1,9 +1,9 @@
-import { HexaBackupStore } from './HexaBackupStore'
+import { HexaBackupStore } from './HexaBackupStore.js'
 import { Queue, LoggerBuilder } from '@ltearno/hexa-js'
 import * as fs from 'fs'
 import * as path from 'path'
 import { spawn } from 'child_process'
-import * as BackgroundJobs from './BackgroundJobs'
+import * as BackgroundJobs from './BackgroundJobs.js'
 
 const log = LoggerBuilder.buildLogger('video-converter')
 

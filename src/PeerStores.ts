@@ -1,8 +1,8 @@
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import * as Operations from './Operations'
-import * as ClientPeering from './ClientPeering'
-import { HexaBackupStore, IHexaBackupStore } from './HexaBackupStore'
-import * as RestTools from './RestTools'
+import * as Operations from './Operations.js'
+import * as ClientPeering from './ClientPeering.js'
+import { HexaBackupStore, IHexaBackupStore } from './HexaBackupStore.js'
+import * as RestTools from './RestTools.js'
 
 const log = LoggerBuilder.buildLogger('peer-stores')
 

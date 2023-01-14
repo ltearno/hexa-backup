@@ -1,17 +1,17 @@
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import { IHexaBackupStore, HexaBackupStore } from "./HexaBackupStore"
-import { DbConnectionParams } from "./Commands"
-import * as DbHelpers from './DbHelpers'
-import * as Model from './Model'
-import * as Operations from './Operations'
-import * as MimeTypes from './mime-types'
+import { IHexaBackupStore, HexaBackupStore } from "./HexaBackupStore.js"
+import { DbConnectionParams } from "./Commands.js"
+import * as DbHelpers from './DbHelpers.js'
+import * as Model from './Model.js'
+import * as Operations from './Operations.js'
+import * as MimeTypes from './mime-types.js'
 import * as fs from 'fs'
-import * as SourceState from './SourceState'
+import * as SourceState from './SourceState.js'
+//import { parseFile } from 'music-metadata'
 
 const log = LoggerBuilder.buildLogger('db-index')
 
 /* dynamically imported modules */
-let musicMetadata: any = null
 let exifParserBuilder: any = null
 
 export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbConnectionParams) {
@@ -186,6 +186,8 @@ async function updateObjectFootprintForSha(client: any, o: Model.FileDescriptor,
     await DbHelpers.insertObjectFootprint(client, o.contentSha, footprints.join(' '))
 }
 
+let musicMetadata: any = null
+
 // returns an error if any
 async function updateObjectAudioForSha(store: HexaBackupStore, client: any, o: Model.FileDescriptor, mimeType: string): Promise<string> {
     if (!mimeType.startsWith('audio/') || o.size < 65535)
@@ -195,7 +197,8 @@ async function updateObjectAudioForSha(store: HexaBackupStore, client: any, o: M
     try {
         if (!musicMetadata) {
             stage = `requiring module`
-            musicMetadata = require('music-metadata')
+            const m = await import('music-metadata')
+            musicMetadata = m
             if (!musicMetadata)
                 throw `cannot require/load module 'music-metadata'`
         }
@@ -205,24 +208,19 @@ async function updateObjectAudioForSha(store: HexaBackupStore, client: any, o: M
         if (!fs.existsSync(fileName))
             throw `file does not exists: ${fileName}`
 
-        stage = `readShaFile`
-        let buffer = fs.readFileSync(fileName)
-        if (!buffer || !buffer.length)
-            throw `cannot read file ${fileName}`
-
-        stage = `parsing metadata '${mimeType}' : ${o.contentSha} at ${fileName}`
-        let metadata = await musicMetadata.parseBuffer(buffer, mimeType)
+        stage = `parsing metadata for ${fileName}`
+        let metadata = await musicMetadata.parseFile(fileName)
         if (!metadata)
             throw `no metadata for ${o.contentSha}`
 
-        stage = `conforming metadata ${JSON.stringify(metadata)}`
+        stage = `validating metadata ${JSON.stringify(metadata)}`
         metadata = JSON.parse(JSON.stringify(metadata))
 
         stage = `database insert`
         await DbHelpers.insertObjectAudioTags(client, o.contentSha, metadata)
     }
     catch (err) {
-        return `error update object audio sha ${o.contentSha} at stage ${stage}`
+        return `error update object audio sha ${o.contentSha} at stage ${stage}: ${err}`
     }
 
     return null

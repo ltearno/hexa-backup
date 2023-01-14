@@ -11,7 +11,7 @@ ADD tsconfig.json ./
 RUN npm install
 
 ADD src ./src
-RUN ./node_modules/.bin/tsc || echo "yes"
+RUN npm run build || echo "yes"
 
 FROM node:19
 

@@ -1,10 +1,10 @@
-import { IHexaBackupStore } from '../HexaBackupStore'
+import { IHexaBackupStore } from '../HexaBackupStore.js'
 import { Queue, Transport, NetworkApi, LoggerBuilder } from '@ltearno/hexa-js'
 import {
     RequestType,
     RpcQuery,
     RpcReply
-} from '../RPC'
+} from '../RPC.js'
 
 const log = LoggerBuilder.buildLogger('rpc-server')
 

@@ -1,11 +1,11 @@
-import * as Tools from './Tools'
+import * as Tools from './Tools.js'
 import * as fs from 'fs'
 import * as path from 'path'
-import * as DirectoryBrowser from './DirectoryBrowser'
+import * as DirectoryBrowser from './DirectoryBrowser.js'
 import { Readable } from 'stream'
-import * as ShaCache from './ShaCache'
+import * as ShaCache from './ShaCache.js'
 import { LoggerBuilder, Queue } from '@ltearno/hexa-js'
-import { IHexaBackupStore } from './HexaBackupStore'
+import { IHexaBackupStore } from './HexaBackupStore.js'
 
 interface ShaToSend {
     fileInfo: DirectoryBrowser.Entry

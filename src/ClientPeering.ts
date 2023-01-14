@@ -1,4 +1,4 @@
-import { IHexaBackupStore } from './HexaBackupStore'
+import { IHexaBackupStore } from './HexaBackupStore.js'
 import { LoggerBuilder, Queue, Transport, NetworkApi } from '@ltearno/hexa-js'
 import {
     RequestType,
@@ -7,8 +7,8 @@ import {
     RpcQuery,
     RpcReply,
     ShaBytes
-} from './RPC'
-import * as Operations from './Operations'
+} from './RPC.js'
+import * as Operations from './Operations.js'
 
 const log = LoggerBuilder.buildLogger('ClientPeering')
 

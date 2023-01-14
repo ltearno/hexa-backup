@@ -1,0 +1,6 @@
+.hb-cache/
+.hb-metadata/
+.hb-object/
+.hb-refs/
+node-modules/
+target/

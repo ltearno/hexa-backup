@@ -1,8 +1,8 @@
 import * as fs from 'fs'
-import { HexaBackupStore } from '../HexaBackupStore'
+import { HexaBackupStore } from '../HexaBackupStore.js'
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import * as VideoConverter from '../VideoConverter'
-import { BackgroundJobs } from '../BackgroundJobs';
+import * as VideoConverter from '../VideoConverter.js'
+import { BackgroundJobs } from '../BackgroundJobs.js'
 
 export class Plugins {
     thumbnailCache = new Map<string, Buffer>()

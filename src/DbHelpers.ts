@@ -1,5 +1,5 @@
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import * as Model from './Model'
+import * as Model from './Model.js'
 
 const log = LoggerBuilder.buildLogger('db-helpers')
 

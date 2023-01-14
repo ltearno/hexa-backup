@@ -1,4 +1,4 @@
-import { IHexaBackupStore } from './HexaBackupStore'
+import { IHexaBackupStore } from './HexaBackupStore.js'
 import { LoggerBuilder } from '@ltearno/hexa-js'
 
 const log = LoggerBuilder.buildLogger('hexa-backup')

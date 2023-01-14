@@ -1,9 +1,9 @@
 import fsPath = require('path')
-import { ReferenceRepository } from './ReferenceRepository'
-import { ObjectRepository } from './ObjectRepository'
-import { ShaCache } from './ShaCache';
-import * as Model from './Model'
-import * as SourceState from './SourceState'
+import { ReferenceRepository } from './ReferenceRepository.js'
+import { ObjectRepository } from './ObjectRepository.js'
+import { ShaCache } from './ShaCache.js'
+import * as Model from './Model.js'
+import * as SourceState from './SourceState.js'
 import { LoggerBuilder } from '@ltearno/hexa-js'
 
 const log = LoggerBuilder.buildLogger('HexaBackupStore')

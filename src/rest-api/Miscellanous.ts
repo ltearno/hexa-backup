@@ -1,7 +1,7 @@
-import * as ClientPeering from '../ClientPeering'
-import { HexaBackupStore } from '../HexaBackupStore'
+import * as ClientPeering from '../ClientPeering.js'
+import { HexaBackupStore } from '../HexaBackupStore.js'
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import * as Operations from '../Operations'
+import * as Operations from '../Operations.js'
 
 const log = LoggerBuilder.buildLogger('misc-server')
 

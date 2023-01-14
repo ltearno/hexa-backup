@@ -1,12 +1,12 @@
-import { HexaBackupStore } from '../HexaBackupStore'
+import { HexaBackupStore } from '../HexaBackupStore.js'
 import { LoggerBuilder, HashTools } from '@ltearno/hexa-js'
-import * as Authorization from '../Authorization'
+import * as Authorization from '../Authorization.js'
 import { spawn } from 'child_process'
 import * as fs from 'fs'
 import * as fsPath from 'path'
-import * as Operations from '../Operations'
-import * as BackgroundJobs from '../BackgroundJobs'
-import * as SourceState from '../SourceState'
+import * as Operations from '../Operations.js'
+import * as BackgroundJobs from '../BackgroundJobs.js'
+import * as SourceState from '../SourceState.js'
 
 const log = LoggerBuilder.buildLogger('plugins-youtube')
 
@@ -72,7 +72,7 @@ export class YoutubeDownload {
                 '--yes-playlist',
                 '--split-chapters',
                 '-f', 'bestaudio',
-                '--audio-format', 'best',
+                '--audio-format', 'mp3', // best
                 '--audio-quality', '0',
                 '-o', '%(artist)s-%(title)s.%(ext)s',
                 url
