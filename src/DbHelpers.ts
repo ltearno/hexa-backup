@@ -110,6 +110,15 @@ export async function insertObject(client, file: Model.FileDescriptor, mimeType:
     })
 }
 
+export async function deleteObjectsFromSource(client, sourceId: string) {
+    log.dbg(`remove objects from source ${sourceId}`)
+
+    await dbQuery(client, {
+        text: 'DELETE FROM object_sources WHERE sourceId=$1',
+        values: [sourceId],
+    })
+}
+
 export async function insertObjectSource(client, sha: string, sourceId: string) {
     if (!sha)
         return

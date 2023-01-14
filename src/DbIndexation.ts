@@ -1,11 +1,11 @@
 import { LoggerBuilder } from '@ltearno/hexa-js'
-import { IHexaBackupStore, HexaBackupStore } from "./HexaBackupStore.js"
+import * as fs from 'fs'
 import { DbConnectionParams } from "./Commands.js"
 import * as DbHelpers from './DbHelpers.js'
+import { HexaBackupStore, IHexaBackupStore } from "./HexaBackupStore.js"
+import * as MimeTypes from './mime-types.js'
 import * as Model from './Model.js'
 import * as Operations from './Operations.js'
-import * as MimeTypes from './mime-types.js'
-import * as fs from 'fs'
 import * as SourceState from './SourceState.js'
 //import { parseFile } from 'music-metadata'
 
@@ -36,6 +36,9 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                     continue
                 }
 
+                // TO REMOVE
+                await DbHelpers.deleteObjectsFromSource(client, source)
+
                 log(`index from source ${source} commit ${sourceState.currentCommitSha}`)
                 let commitSha = sourceState.currentCommitSha
                 while (commitSha != null) {
@@ -48,7 +51,12 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                         break
                     }
 
+                    DbHelpers.deleteObjectsFromSource(client, source)
+
                     if (commit.directoryDescriptorSha) {
+                        // remove records in object_sources for the current source
+                        // browse the directory descriptor and insert records in object_sources
+                        // index shas that are not already indexed
                         try {
                             await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
 
@@ -63,7 +71,11 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                     // mark commit as processed for the source
                     await DbHelpers.insertObjectSource(client, commitSha, source)
 
-                    commitSha = commit.parentSha
+                    log(`commit ${commitSha} indexed`)
+
+                    // do not go in commits depth, only index the current commit
+                    commitSha = null
+                    //commitSha = commit.parentSha
                 }
             }
             catch (err) {
@@ -85,7 +97,7 @@ async function recPushDir(client, store: HexaBackupStore, basePath: string, dire
         return
     }
 
-    log(`pushing ${directoryDescriptorSha} ${basePath}`)
+    log(`indexing directory descriptor ${directoryDescriptorSha} ${basePath}`)
 
     let dirDesc = await store.getDirectoryDescriptor(directoryDescriptorSha)
     if (!dirDesc) {
@@ -120,13 +132,16 @@ async function recPushDir(client, store: HexaBackupStore, basePath: string, dire
         await DbHelpers.insertObjectParent(client, file.contentSha, directoryDescriptorSha)
         await DbHelpers.insertObjectSource(client, file.contentSha, sourceId)
         await DbHelpers.insertObject(client, file, mimeType)
-        let err = await updateObjectAudioForSha(store, client, file, mimeType)
-        if (err)
-            log.err(err)
-        err = await updateObjectExifForSha(store, client, file, mimeType)
-        if (err)
-            log.err(err)
-        await updateObjectFootprintForSha(client, file, mimeType)
+
+        if (false) {
+            let err = await updateObjectAudioForSha(store, client, file, mimeType)
+            if (err)
+                log.err(err)
+            err = await updateObjectExifForSha(store, client, file, mimeType)
+            if (err)
+                log.err(err)
+            await updateObjectFootprintForSha(client, file, mimeType)
+        }
     }
 }
 
