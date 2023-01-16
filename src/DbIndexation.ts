@@ -217,7 +217,7 @@ async function updateObjectFootprintForSha(client: any, o: Model.FileDescriptor,
 
     // select all names of sha
     rs = await DbHelpers.dbQuery(client, {
-        text: `select name from objects where sha=$1`,
+        text: `select name from objects_hierarchy where sha=$1`,
         values: [o.contentSha]
     })
     for (let row of rs.rows) {
@@ -359,7 +359,7 @@ export async function updateMimeShaList(sourceId: string, mimeType: string, stor
 
     log(`connected to database`)
 
-    const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite, min(mimeType) as mimeType from objects where size>100000 and mimeType ilike '${mimeType}/%' group by sha order by min(lastWrite);`
+    const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite, min(mimeType) as mimeType from objects_hierarchy where size>100000 and mimeType ilike '${mimeType}/%' group by sha order by min(lastWrite);`
 
     const cursor = await DbHelpers.createCursor(client, query)
 
