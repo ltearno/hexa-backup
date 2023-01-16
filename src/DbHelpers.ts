@@ -57,7 +57,7 @@ function printClientStats(cause: string) {
 }
 
 export interface DbCursor {
-    read(): Promise<any[]>
+    read(nb: number): Promise<any[]>
     close(): Promise<any>
 }
 
@@ -67,10 +67,10 @@ export async function createCursor(client: any, query: string): Promise<DbCursor
     const cursor = client.query(new Cursor(query))
 
     return Promise.resolve({
-        read: async (): Promise<any[]> => {
+        read: async (nb: number): Promise<any[]> => {
             return new Promise((resolve, reject) => {
                 try {
-                    cursor.read(100, function (err, rows) {
+                    cursor.read(nb, function (err, rows) {
                         if (err) {
                             reject(err)
                             return
@@ -91,7 +91,7 @@ export async function createCursor(client: any, query: string): Promise<DbCursor
     })
 }
 
-export async function insertObject(client, file: Model.FileDescriptor, mimeType: string) {
+export async function insertObjectHierarchy(client, sourceId: string, parentSha: string, file: Model.FileDescriptor, mimeType: string) {
     if (!file)
         return
 
@@ -102,42 +102,25 @@ export async function insertObject(client, file: Model.FileDescriptor, mimeType:
 
     let fileName = file.name.replace('\\', '/')
 
-    log.dbg(`insert object ${file.contentSha}`)
+    log.dbg(`insert object_hierarchy ${file.contentSha}`)
 
     await dbQuery(client, {
-        text: 'INSERT INTO objects(sha, isDirectory, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING',
-        values: [file.contentSha, file.isDirectory, file.size, file.lastWrite, fileName, mimeType],
+        text: 'INSERT INTO objects_hierarchy(sourceId, parentSha, sha, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING',
+        values: [sourceId, parentSha, file.contentSha, file.size, file.lastWrite, fileName, mimeType],
     })
 }
 
-export async function deleteObjectsFromSource(client, sourceId: string) {
-    log.dbg(`remove objects from source ${sourceId}`)
+export async function hasObjectHierarchy(client, sha: string, sourceId: string) {
+    let results: any = await dbQuery(client, `select sha, sourceId from objects_hierarchy where sha='${sha}' and sourceId='${sourceId}' limit 1;`)
+    return !!(results && results.rows && results.rows.length)
+}
+
+export async function deleteObjectsHierarchyFromSource(client, sourceId: string) {
+    log.dbg(`remove objects hierarchy from source ${sourceId}`)
 
     await dbQuery(client, {
-        text: 'DELETE FROM object_sources WHERE sourceId=$1',
+        text: 'DELETE FROM objects_hierarchy WHERE sourceId=$1',
         values: [sourceId],
-    })
-}
-
-export async function insertObjectSource(client, sha: string, sourceId: string) {
-    if (!sha)
-        return
-
-    log.dbg(`insert object source ${sha} ${sourceId}`)
-
-    await dbQuery(client, {
-        text: 'INSERT INTO object_sources(sha, sourceId) VALUES($1, $2) ON CONFLICT DO NOTHING',
-        values: [sha, sourceId],
-    })
-}
-
-export async function insertObjectParent(client, sha: string, parentSha: string) {
-    if (!sha)
-        return
-
-    await dbQuery(client, {
-        text: 'INSERT INTO object_parents(sha, parentsha) VALUES($1, $2) ON CONFLICT DO NOTHING',
-        values: [sha, parentSha],
     })
 }
 
@@ -169,11 +152,6 @@ export async function insertObjectExif(client, sha: string, exif: object) {
         text: `INSERT INTO object_exifs(sha, exif) VALUES($1, $2) ON CONFLICT (sha) DO UPDATE SET exif=$2;`,
         values: [sha, JSON.stringify(exif)],
     })
-}
-
-export async function hasObjectSource(client, sha: string, sourceId: string) {
-    let results: any = await dbQuery(client, `select sha, sourceId from object_sources where sha='${sha}' and sourceId='${sourceId}' limit 1;`)
-    return !!(results && results.rows && results.rows.length)
 }
 
 export async function dbQuery(client, query): Promise<any> {

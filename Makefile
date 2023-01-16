@@ -52,3 +52,6 @@ run-postresql:
 
 gen-certs:
 	openssl req -new -x509 -sha256 -newkey rsa:2048 -nodes -keyout server.key -days 365 -out server.crt
+
+run-local:
+	node target/cli/hexa-backup.js store -database postgres -databaseHost localhost -databasePort 5432 -databaseUser postgres -databasePassword hexa-backup -storeDirectory /mnt/data/arnaud/hexa-backup

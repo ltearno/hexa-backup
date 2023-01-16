@@ -8,10 +8,6 @@ CREATE index idx_objects_mimeType on objects USING btree (mimeType);
 create index idx_objects_lastWrite on objects USING btree(lastWrite);
 CREATE index idx_objects_size on objects USING btree (size);
 
-/* table des parents */
-create table object_parents (sha char(64), parentSha char(64), primary key (sha,parentSha));
-create index idx_object_parents_parentSha on object_parents USING btree(parentSha);
-
 /* object_footprints : sha names, and (artist, album, genre,... for audio/ objects) */
 /*
     sha names is particular to object (how a sha is referenced in a directory)
@@ -29,8 +25,12 @@ create index idx_object_footprints_sha on objects USING btree (sha);
 create table object_audio_tags (sha char(64), tags jsonb, primary key (sha));
 create table object_exifs (sha char(64), exif jsonb, primary key (sha));
 
-/* table des sources */
-create table object_sources (sha char(64), sourceId char(64), primary key (sha, sourceId));
-create index idx_object_sources_sourceId on object_sources USING btree(sourceId);
-create index idx_object_shas on object_sources USING btree(sha);
-create index idx_object_sources on object_sources USING btree(sourceId, sha);
+create table objects_hierarchy (sourceId char(64), parentSha char(64), sha char(64), lastWrite bigint, size bigint, name text, mimeType text);
+alter table objects_hierarchy add constraint objects_hierarchy_unique primary key (sourceId, parentSha, sha, lastWrite, size, name, mimeType);
+CREATE index idx_objects_hierarchy_sourceId on objects_hierarchy USING btree (sourceId);
+CREATE index idx_objects_hierarchy_parentSha on objects_hierarchy USING btree (parentSha);
+CREATE index idx_objects_hierarchy_sha on objects_hierarchy USING btree (sha);
+create index idx_objects_hierarchy_lastWrite on objects_hierarchy USING btree(lastWrite);
+CREATE index idx_objects_hierarchy_size on objects_hierarchy USING btree (size);
+CREATE INDEX trgm_idx_objects_hierarchy_name ON objects_hierarchy USING gin (name gin_trgm_ops);
+CREATE index idx_objects_hierarchy_mimeType on objects_hierarchy USING btree (mimeType);

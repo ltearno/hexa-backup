@@ -88,10 +88,8 @@ export class Stateful {
 
                 const client = await DbHelpers.createClient(this.databaseParams, "shaparents")
 
-                const query = `select distinct o.parentsha from object_parents o ${authorizedRefs !== null ?
-                    `inner join object_sources os on o.parentsha=os.sha` :
-                    ``} where ${authorizedRefs != null ?
-                        `os.sourceId in (${authorizedRefs}) and` :
+                const query = `select distinct o.parentsha from objects_hierarchy o where ${authorizedRefs != null ?
+                        `o.sourceId in (${authorizedRefs}) and` :
                         ''} o.sha = '${sha}' limit ${SQL_RESULT_LIMIT};`
 
                 log.dbg(`sql:${query}`)
@@ -123,10 +121,8 @@ export class Stateful {
 
                 const client = await DbHelpers.createClient(this.databaseParams, "shanames")
 
-                const query = `select distinct o.name from objects o ${authorizedRefs !== null ?
-                    `inner join object_parents op on op.sha=o.sha inner join object_sources os on op.parentsha=os.sha` :
-                    ``} where ${authorizedRefs != null ?
-                        `os.sourceId in (${authorizedRefs}) and` :
+                const query = `select distinct o.name from objects_hierarchy o where ${authorizedRefs != null ?
+                        `o.sourceId in (${authorizedRefs}) and` :
                         ''} o.sha = '${sha}' limit ${SQL_RESULT_LIMIT};`
 
                 log.dbg(`sql:${query}`)
@@ -180,7 +176,7 @@ export class Stateful {
 
             try {
                 let queryResult: any = await DbHelpers.dbQuery(client, {
-                    text: `select * from objects where sha=$1`,
+                    text: `select * from objects_hierarchy where sha=$1`,
                     values: [sha]
                 })
 
@@ -201,7 +197,7 @@ export class Stateful {
 
             try {
                 let queryResult = await DbHelpers.dbQuery(client, {
-                    text: `select * from object_parents where sha=$1`,
+                    text: `select parentsha from objects_hiearchy where sha=$1`,
                     values: [sha]
                 })
 
@@ -216,7 +212,7 @@ export class Stateful {
 
             try {
                 let queryResult = await DbHelpers.dbQuery(client, {
-                    text: `select * from object_sources where sha=$1`,
+                    text: `select sourceId from objects_hierarchy where sha=$1`,
                     values: [sha]
                 })
 
@@ -317,9 +313,9 @@ export class Stateful {
                 const client = await DbHelpers.createClient(this.databaseParams, "search")
 
                 let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'min(o.size) as size', 'min(o.lastWrite) as lastWrite']
-                let whereConditions: string[] = [`os.sourceId in (${authorizedRefs})`]
+                let whereConditions: string[] = [`o.sourceId in (${authorizedRefs})`]
                 let groups: string[] = ['o.sha', 'o.name', 'o.mimeType']
-                let froms: string[] = ['objects o', 'inner join object_sources os on o.sha=os.sha']
+                let froms: string[] = ['objects_hierarchy o']
                 let orders: string[] = []
 
                 if (mimeType && mimeType.startsWith('image/') && geoSearch) {
@@ -361,7 +357,7 @@ export class Stateful {
                 if (noDirectory)
                     whereConditions.push(`o.mimeType like '${mimeType}'`)
                 else
-                    whereConditions.push(`o.mimeType = 'application/x-hexa-backup-directory' or o.isDirectory or o.mimeType like '${mimeType}'`)
+                    whereConditions.push(`o.mimeType = 'application/x-hexa-backup-directory' or o.mimeType like '${mimeType}'`)
 
                 if (!offset || offset < 0)
                     offset = 1
@@ -373,7 +369,7 @@ export class Stateful {
 
                 query = `select ${selects.join(', ')} from ${froms.join(' ')} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by ${groups.join(', ')} ${orders.join(', ')} limit ${limit} offset ${offset};`
 
-                log.dbg(`sql:${query}`)
+                log(`sql:${query}`)
 
                 let queryResult: any = await DbHelpers.dbQuery(client, query)
 

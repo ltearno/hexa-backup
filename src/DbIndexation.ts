@@ -36,9 +36,6 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                     continue
                 }
 
-                // TO REMOVE
-                await DbHelpers.deleteObjectsFromSource(client, source)
-
                 log(`index from source ${source} commit ${sourceState.currentCommitSha}`)
                 let commitSha = sourceState.currentCommitSha
                 while (commitSha != null) {
@@ -46,30 +43,26 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                     if (!commit)
                         break
 
-                    if (await DbHelpers.hasObjectSource(client, commitSha, source)) {
-                        log(`skipped commit ${commitSha}, commit already indexed`)
+                    if (await DbHelpers.hasObjectHierarchy(client, commit.directoryDescriptorSha, source)) {
+                        log(`skipped commit ${commitSha}, descriptor ${commit.directoryDescriptorSha} already indexed`)
                         break
                     }
 
-                    DbHelpers.deleteObjectsFromSource(client, source)
+                    // remove hierarchy records for the current source
+                    await DbHelpers.deleteObjectsHierarchyFromSource(client, source)
 
                     if (commit.directoryDescriptorSha) {
-                        // remove records in object_sources for the current source
-                        // browse the directory descriptor and insert records in object_sources
-                        // index shas that are not already indexed
-                        try {
-                            await recPushDir(client, store, `${source}:`, commit.directoryDescriptorSha, source)
-
-                            await DbHelpers.insertObject(client, { isDirectory: true, contentSha: commit.directoryDescriptorSha, lastWrite: 0, name: '', size: 0 }, 'x-hexa-backup-directory')
-                            await DbHelpers.insertObjectSource(client, commit.directoryDescriptorSha, source)
-                        }
-                        catch (err) {
-                            log.err(`source ${source} had an error on commit ${commitSha} desc ${commit.directoryDescriptorSha}: ${err}, continuing`)
-                        }
+                        await registerHierarchy("", client, store, source, commit.directoryDescriptorSha)
                     }
 
                     // mark commit as processed for the source
-                    await DbHelpers.insertObjectSource(client, commitSha, source)
+                    await DbHelpers.insertObjectHierarchy(client, source, "", {
+                        isDirectory: true,
+                        contentSha: commit.directoryDescriptorSha,
+                        lastWrite: 0,
+                        name: '',
+                        size: 0
+                    }, 'application/x-hexa-backup-directory')
 
                     log(`commit ${commitSha} indexed`)
 
@@ -77,6 +70,31 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                     commitSha = null
                     //commitSha = commit.parentSha
                 }
+
+                // index audio files
+                const cursorClient = await DbHelpers.createClient(dbParams, "findUnindexedAudioFiles")
+                let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_audio_tags oat ON oh.sha=oat.sha where mimeType LIKE 'audio/%' AND oat.sha IS NULL AND oh.sourceId='${source}';`)
+                while (true) {
+                    try {
+                        let rows = await cursor.read(100)
+                        if (!rows || !rows.length) {
+                            log(`no more rows`)
+                            break
+                        }
+                        log(`we have ${rows.length} rows`)
+
+                        for (let row of rows) {
+                            let err = await processObjectAudioForSha(store, client, row.sha)
+                            if (err)
+                                log.err(err)
+                        }
+                    }
+                    catch (err) {
+                        log.err(`error while reading cursor: ${err}`)
+                        break
+                    }
+                }
+                DbHelpers.closeClient(cursorClient)
             }
             catch (err) {
                 log.err(`source ${source} had an error: ${err}, continuing`)
@@ -91,11 +109,38 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
     }
 }
 
-async function recPushDir(client, store: HexaBackupStore, basePath: string, directoryDescriptorSha: string, sourceId: string) {
-    if (await DbHelpers.hasObjectSource(client, directoryDescriptorSha, sourceId)) {
-        //log(`skipped ${directoryDescriptorSha} ${basePath}, already indexed`)
+async function registerHierarchy(path: string, client, store: HexaBackupStore, sourceId: string, directoryDescriptorSha: string) {
+    log(`register hierarchy ${sourceId}, ${directoryDescriptorSha} ${path}`)
+
+    // read the directory descriptor
+    let dirDesc = await store.getDirectoryDescriptor(directoryDescriptorSha)
+    if (!dirDesc) {
+        log.err(`source '${sourceId}' cannot obtain directory descriptor for sha ${directoryDescriptorSha}`)
         return
     }
+
+    // for each file, insert a record in objects_hierarchy
+    for (let file of dirDesc.files) {
+        if (!file.contentSha) {
+            log.wrn(`source '${sourceId}', an entry in ${directoryDescriptorSha} has no contentSha (entry: ${JSON.stringify(file)})`)
+            continue
+        }
+
+        const mimeType = getFileMimeType(file)
+
+        await DbHelpers.insertObjectHierarchy(client, sourceId, directoryDescriptorSha, file, mimeType)
+
+        if (file.isDirectory) {
+            await registerHierarchy(`${path}/${file.name}`, client, store, sourceId, file.contentSha)
+        }
+    }
+}
+
+async function recPushDir(client, store: HexaBackupStore, basePath: string, directoryDescriptorSha: string, sourceId: string) {
+    /* DELETED if (await DbHelpers.hasObjectSource(client, directoryDescriptorSha, sourceId)) {
+        //log(`skipped ${directoryDescriptorSha} ${basePath}, already indexed`)
+        return
+    }*/
 
     log(`indexing directory descriptor ${directoryDescriptorSha} ${basePath}`)
 
@@ -129,9 +174,9 @@ async function recPushDir(client, store: HexaBackupStore, basePath: string, dire
 
         const mimeType = getFileMimeType(file)
 
-        await DbHelpers.insertObjectParent(client, file.contentSha, directoryDescriptorSha)
-        await DbHelpers.insertObjectSource(client, file.contentSha, sourceId)
-        await DbHelpers.insertObject(client, file, mimeType)
+        // DELETED await DbHelpers.insertObjectParent(client, file.contentSha, directoryDescriptorSha)
+        // DELETED await DbHelpers.insertObjectSource(client, file.contentSha, sourceId)
+        // DELETED await DbHelpers.insertObject(client, file, mimeType)
 
         if (false) {
             let err = await updateObjectAudioForSha(store, client, file, mimeType)
@@ -241,6 +286,41 @@ async function updateObjectAudioForSha(store: HexaBackupStore, client: any, o: M
     return null
 }
 
+async function processObjectAudioForSha(store: HexaBackupStore, client: any, sha: string): Promise<string> {
+    let stage = `init`
+    try {
+        if (!musicMetadata) {
+            stage = `requiring module`
+            const m = await import('music-metadata')
+            musicMetadata = m
+            if (!musicMetadata)
+                throw `cannot require/load module 'music-metadata'`
+        }
+
+        stage = `getShaFileName`
+        let fileName = store.getShaFileName(sha)
+        if (!fs.existsSync(fileName))
+            throw `file does not exists: ${fileName}`
+
+        stage = `parsing metadata for ${fileName}`
+        let metadata = await musicMetadata.parseFile(fileName)
+        if (!metadata)
+            throw `no metadata for ${sha}`
+
+        stage = `validating metadata ${JSON.stringify(metadata)}`
+        metadata = JSON.parse(JSON.stringify(metadata))
+
+        stage = `database insert`
+        await DbHelpers.insertObjectAudioTags(client, sha, metadata)
+    }
+    catch (err) {
+        await DbHelpers.insertObjectAudioTags(client, sha, {})
+        return `error update object audio sha ${sha} at stage ${stage}: ${err}`
+    }
+
+    return null
+}
+
 async function updateObjectExifForSha(store: HexaBackupStore, client: any, o: Model.FileDescriptor, mimeType: string): Promise<string> {
     if (o.size < 65535 || !mimeType.startsWith('image/jpeg'))
         return null
@@ -326,7 +406,7 @@ export async function updateMimeShaList(sourceId: string, mimeType: string, stor
 
     try {
         while (true) {
-            let rows = await cursor.read()
+            let rows = await cursor.read(100)
             if (!rows || !rows.length) {
                 log(`finished cursor`)
                 await maybePurge(0)
