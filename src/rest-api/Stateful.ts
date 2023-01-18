@@ -341,11 +341,11 @@ export class Stateful {
                 name = name.trim()
                 if (name != '') {
                     if (mimeType && mimeType.startsWith('audio/')) {
-                        froms.push(`left join object_footprints of on o.sha=of.sha`)
-                        whereConditions.push(`of.footprint ilike '%${name}%'`)
-                        orders.push(`order by similarity(of.footprint, '${name}') desc`)
-                        selects.push(`similarity(of.footprint, '${name}') as score`)
-                        groups.push(`of.footprint`)
+                        froms.push(`left join object_audio_tags oat on o.sha=oat.sha`)
+                        whereConditions.push(`o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%'`)
+                        orders.push(`order by similarity(o.name, '${name}') desc, similarity(oat.footprint, '${name}') desc`)
+                        selects.push(`similarity(oat.footprint, '${name}') as score`)
+                        groups.push(`oat.footprint`)
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)

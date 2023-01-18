@@ -106,17 +106,21 @@
                 "${workspaceFolder}/target/**/*.js"
             ],
             "args": [
-                "cp",
-                "-pushedDirectory",
-                "/home/arnaud/repos",
-                "-recursive",
-                "true",
-                "-sourceId",
-                "ARNAUD-WORKSTATION-UPLOAD-REPOS",
-                "-storeIp",
-                "arnaud-server",
-                "ARNAUD-UPLOADS:arnaud-workstation-repos"
-            ]
+                "store",
+                "-database",
+                "postgres",
+                "-databaseHost",
+                "localhost",
+                "-databasePort",
+                "5432",
+                "-databaseUser",
+                "postgres",
+                "-databasePassword",
+                "hexa-backup",
+                "-storeDirectory",
+                "/mnt/data/arnaud/hexa-backup"
+            ],
+            "runtimeExecutable": "/usr/local/lib/nodejs/node-v19.4.0-linux-x64/bin/node"
         }
     ]
 }

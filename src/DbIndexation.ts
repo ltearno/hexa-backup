@@ -209,10 +209,10 @@ async function recPushDir(client, store: HexaBackupStore, basePath: string, dire
         // DELETED await DbHelpers.insertObject(client, file, mimeType)
 
         if (false) {
-            let err = await updateObjectAudioForSha(store, client, file, mimeType)
+            /* DELETED let err = await updateObjectAudioForSha(store, client, file, mimeType)
             if (err)
-                log.err(err)
-            err = await updateObjectExifForSha(store, client, file, mimeType)
+                log.err(err)*/
+            let err = await updateObjectExifForSha(store, client, file, mimeType)
             if (err)
                 log.err(err)
             await updateObjectFootprintForSha(client, file, mimeType)
@@ -278,44 +278,6 @@ async function updateObjectFootprintForSha(client: any, o: Model.FileDescriptor,
 
 let musicMetadata: any = null
 
-// returns an error if any
-async function updateObjectAudioForSha(store: HexaBackupStore, client: any, o: Model.FileDescriptor, mimeType: string): Promise<string> {
-    if (!mimeType.startsWith('audio/') || o.size < 65535)
-        return null
-
-    let stage = `init`
-    try {
-        if (!musicMetadata) {
-            stage = `requiring module`
-            const m = await import('music-metadata')
-            musicMetadata = m
-            if (!musicMetadata)
-                throw `cannot require/load module 'music-metadata'`
-        }
-
-        stage = `getShaFileName`
-        let fileName = store.getShaFileName(o.contentSha)
-        if (!fs.existsSync(fileName))
-            throw `file does not exists: ${fileName}`
-
-        stage = `parsing metadata for ${fileName}`
-        let metadata = await musicMetadata.parseFile(fileName)
-        if (!metadata)
-            throw `no metadata for ${o.contentSha}`
-
-        stage = `validating metadata ${JSON.stringify(metadata)}`
-        metadata = JSON.parse(JSON.stringify(metadata))
-
-        stage = `database insert`
-        await DbHelpers.insertObjectAudioTags(client, o.contentSha, metadata)
-    }
-    catch (err) {
-        return `error update object audio sha ${o.contentSha} at stage ${stage}: ${err}`
-    }
-
-    return null
-}
-
 async function processObjectAudioForSha(store: HexaBackupStore, client: any, sha: string): Promise<string> {
     let stage = `init`
     try {
@@ -340,11 +302,33 @@ async function processObjectAudioForSha(store: HexaBackupStore, client: any, sha
         stage = `validating metadata ${JSON.stringify(metadata)}`
         metadata = JSON.parse(JSON.stringify(metadata))
 
+        let artist = metadata?.common?.artist
+        let album = metadata?.common?.album
+        let title = metadata?.common?.title
+        let genre = metadata?.common?.genre
+
+        let footprint = [];
+        [artist, album, title, genre].forEach(v => {
+            if (!v)
+                return
+
+            if (Array.isArray(v))
+                v = v.join(' ')
+
+            let words = v.trim().split(' ')
+            words.forEach(w => {
+                if (v.length <= 3)
+                    return
+                if (!footprint.includes(w))
+                    footprint.push(w)
+            })
+        })
+
         stage = `database insert`
-        await DbHelpers.insertObjectAudioTags(client, sha, metadata)
+        await DbHelpers.insertObjectAudioTags(client, sha, metadata, footprint.join(' '))
     }
     catch (err) {
-        await DbHelpers.insertObjectAudioTags(client, sha, { error: err.toString() })
+        await DbHelpers.insertObjectAudioTags(client, sha, { error: err.toString() }, "")
         return `error update object audio sha ${sha} at stage ${stage}: ${err}`
     }
 

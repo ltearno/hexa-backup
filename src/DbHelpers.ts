@@ -134,13 +134,13 @@ export async function insertObjectFootprint(client, sha: string, footprint: stri
     })
 }
 
-export async function insertObjectAudioTags(client, sha: string, tags: object) {
+export async function insertObjectAudioTags(client, sha: string, tags: object, footprint: string) {
     if (!sha || !tags)
         return
 
     await dbQuery(client, {
-        text: `INSERT INTO object_audio_tags(sha, tags) VALUES($1, $2) ON CONFLICT (sha) DO UPDATE SET tags=$2;`,
-        values: [sha, JSON.stringify(tags).replace(/\0/g, '').replace(/\\u0000/g, '')],
+        text: `INSERT INTO object_audio_tags(sha, tags, footprint) VALUES($1, $2, $3) ON CONFLICT (sha) DO UPDATE SET tags=$2, footprint=$3;`,
+        values: [sha, JSON.stringify(tags).replace(/\0/g, '').replace(/\\u0000/g, ''), footprint],
     })
 }
 
