@@ -72,29 +72,59 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                 }
 
                 // index audio files
-                const cursorClient = await DbHelpers.createClient(dbParams, "findUnindexedAudioFiles")
-                let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_audio_tags oat ON oh.sha=oat.sha where mimeType LIKE 'audio/%' AND oat.sha IS NULL AND oh.sourceId='${source}';`)
-                while (true) {
-                    try {
-                        let rows = await cursor.read(100)
-                        if (!rows || !rows.length) {
-                            log(`no more rows`)
+                {
+                    const cursorClient = await DbHelpers.createClient(dbParams, "findUnindexedAudioFiles")
+                    let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_audio_tags oat ON oh.sha=oat.sha where mimeType LIKE 'audio/%' AND oat.sha IS NULL AND oh.sourceId='${source}';`)
+                    while (true) {
+                        try {
+                            let rows = await cursor.read(100)
+                            if (!rows || !rows.length) {
+                                log(`no more rows`)
+                                break
+                            }
+                            log(`we have ${rows.length} rows`)
+
+                            for (let row of rows) {
+                                let err = await processObjectAudioForSha(store, client, row.sha)
+                                if (err)
+                                    log.err(err)
+                            }
+                        }
+                        catch (err) {
+                            log.err(`error while reading cursor: ${err}`)
                             break
                         }
-                        log(`we have ${rows.length} rows`)
+                    }
+                    DbHelpers.closeClient(cursorClient)
+                }
 
-                        for (let row of rows) {
-                            let err = await processObjectAudioForSha(store, client, row.sha)
-                            if (err)
-                                log.err(err)
+                // index image files
+                {
+                    const cursorClient = await DbHelpers.createClient(dbParams, "findUnindexedImageFiles")
+                    let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_exifs oe ON oh.sha=oe.sha where mimeType='image/jpeg' AND oe.sha IS NULL AND oh.sourceId='${source}';`)
+                    while (true) {
+                        try {
+                            let rows = await cursor.read(100)
+                            if (!rows || !rows.length) {
+                                log(`no more rows`)
+                                break
+                            }
+                            log(`we have ${rows.length} rows`)
+
+                            for (let row of rows) {
+                                let err = await processObjectExifForSha(store, client, row.sha)
+                                if (err)
+                                    log.err(err)
+                            }
+                        }
+                        catch (err) {
+                            log.err(`error while reading cursor: ${err}`)
+                            break
                         }
                     }
-                    catch (err) {
-                        log.err(`error while reading cursor: ${err}`)
-                        break
-                    }
+                    DbHelpers.closeClient(cursorClient)
                 }
-                DbHelpers.closeClient(cursorClient)
+
             }
             catch (err) {
                 log.err(`source ${source} had an error: ${err}, continuing`)
@@ -314,8 +344,40 @@ async function processObjectAudioForSha(store: HexaBackupStore, client: any, sha
         await DbHelpers.insertObjectAudioTags(client, sha, metadata)
     }
     catch (err) {
-        await DbHelpers.insertObjectAudioTags(client, sha, {})
+        await DbHelpers.insertObjectAudioTags(client, sha, { error: err.toString() })
         return `error update object audio sha ${sha} at stage ${stage}: ${err}`
+    }
+
+    return null
+}
+
+async function processObjectExifForSha(store: HexaBackupStore, client: any, sha: string): Promise<string> {
+    try {
+        if (!exifParserBuilder) {
+            const m = await import('exif-parser')
+            exifParserBuilder = m
+            if (!exifParserBuilder)
+                throw `cannot require/load module 'exif-parser'`
+        }
+
+        let size = await store.hasOneShaBytes(sha)
+
+        let buffer = await store.readShaBytes(sha, 0, Math.min(size, 65635))
+        if (!buffer)
+            throw `cannot read 65kb from sha ${sha}`
+
+        let exifParser = exifParserBuilder.create(buffer)
+        let exif = exifParser.parse()
+
+        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
+        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
+        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+
+        await DbHelpers.insertObjectExif(client, sha, exif.tags)
+    }
+    catch (err) {
+        await DbHelpers.insertObjectExif(client, sha, { error: err.toString() })
+        return `error processing image exif ${sha} : ${err}`
     }
 
     return null
