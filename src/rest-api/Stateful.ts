@@ -348,8 +348,9 @@ export class Stateful {
 
                         whereConditions.push(`(${names.map(name=>`(o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%')`).join(' AND ')})`)
 
-                        //orders.push(`order by similarity(o.name, '${name}') desc, similarity(oat.footprint, '${name}') desc`)
-                        selects.push(`similarity(oat.footprint, '${name}') as score`)
+                        let similarities = names.map(name=>`similarity(o.name, '${name}') + similarity(oat.footprint, '${name}')`).join(' + ')
+                        orders.push(`order by (${similarities}) desc`)
+                        selects.push(`(${similarities}) as score`)
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
@@ -447,6 +448,15 @@ export class Stateful {
                 resultDirectories = resultDirectories.filter((d, i) => resultDirectories.findIndex(d2 => d2.sha == d.sha) == i)
                 // same for files
                 resultFiles = resultFiles.filter((f, i) => resultFiles.findIndex(f2 => f2.sha == f.sha) == i)
+
+                // remove directories which have no audio inside
+                if (mimeType && mimeType.startsWith('audio/')) {
+                    let directoryShas = resultDirectories.map(d => d.sha)
+                    let query = `select parentSha from objects_hierarchy where mimeType like 'audio/%' and parentSha in ('${directoryShas.join("','")}') group by parentSha`
+                    let queryResult: any = await DbHelpers.dbQuery(client, query)
+                    let directoryShasWithAudio = queryResult.rows.map(row => row.parentsha)
+                    resultDirectories = resultDirectories.filter(d => directoryShasWithAudio.find(sha => sha == d.sha))
+                }
 
                 res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items:[], query: '' }))
             }
