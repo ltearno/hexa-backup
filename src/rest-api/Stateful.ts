@@ -342,10 +342,14 @@ export class Stateful {
                 if (name != '') {
                     if (mimeType && mimeType.startsWith('audio/')) {
                         froms.push(`left join object_audio_tags oat on o.sha=oat.sha`)
-                        whereConditions.push(`o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%'`)
-                        orders.push(`order by similarity(o.name, '${name}') desc, similarity(oat.footprint, '${name}') desc`)
-                        selects.push(`similarity(oat.footprint, '${name}') as score`)
                         groups.push(`oat.footprint`)
+                        
+                        let names = name.split(' ')
+
+                        whereConditions.push(`(${names.map(name=>`(o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%')`).join(' AND ')})`)
+
+                        //orders.push(`order by similarity(o.name, '${name}') desc, similarity(oat.footprint, '${name}') desc`)
+                        selects.push(`similarity(oat.footprint, '${name}') as score`)
                     }
                     else {
                         whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
@@ -360,7 +364,7 @@ export class Stateful {
                     whereConditions.push(`o.mimeType = 'application/x-hexa-backup-directory' or o.mimeType like '${mimeType}'`)
 
                 if (!offset || offset < 0)
-                    offset = 1
+                    offset = 0
                 else
                     offset = Math.floor(offset * 1)
 
@@ -440,7 +444,9 @@ export class Stateful {
                 }
 
                 // remove items from resultDirectories that have the same sha as another item in resultDirectories
-                resultDirectories = resultDirectories.filter((d, i) => resultDirectories.findIndex(d2 => d2.sha == d.sha) == i)                
+                resultDirectories = resultDirectories.filter((d, i) => resultDirectories.findIndex(d2 => d2.sha == d.sha) == i)
+                // same for files
+                resultFiles = resultFiles.filter((f, i) => resultFiles.findIndex(f2 => f2.sha == f.sha) == i)
 
                 res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items:[], query: '' }))
             }
