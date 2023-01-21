@@ -349,7 +349,7 @@ export class Stateful {
                         whereConditions.push(`(${names.map(name=>`(o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%')`).join(' AND ')})`)
 
                         let similarities = names.map(name=>`similarity(o.name, '${name}') + similarity(oat.footprint, '${name}')`).join(' + ')
-                        orders.push(`order by (${similarities}) desc`)
+                        orders.push(`order by parentSha desc, name asc, (${similarities}) desc`)
                         selects.push(`(${similarities}) as score`)
                     }
                     else {
@@ -415,7 +415,7 @@ export class Stateful {
                 // if a directory has more than mentionTrigger mentions, it is added to the resultDirectories and corresponding files are removed from resultFiles
                 Object.keys(directoryMentions).forEach(sha => {
                     if (directoryMentions[sha] >= mentionTrigger) {
-                        resultFiles = resultFiles.filter(f => f.parentSha != sha)
+                        //resultFiles = resultFiles.filter(f => f.parentSha != sha)
                         directoryShasToAdd.push(sha)
                     }
                 })
