@@ -349,7 +349,7 @@ export class Stateful {
                         whereConditions.push(`(${names.map(name=>`(o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%')`).join(' AND ')})`)
 
                         let similarities = names.map(name=>`similarity(o.name, '${name}') + similarity(oat.footprint, '${name}')`).join(' + ')
-                        orders.push(`order by parentSha desc, name asc, (${similarities}) desc`)
+                        orders.push(`order by (${similarities}) desc`)
                         selects.push(`(${similarities}) as score`)
                     }
                     else {
