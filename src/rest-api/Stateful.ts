@@ -312,7 +312,7 @@ export class Stateful {
                     noDirectory
                 } = req.body
 
-                let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'min(o.size) as size', 'min(o.lastWrite) as lastWrite', 'o.parentSha as parentSha']
+                let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'o.parentSha as parentSha']
                 let whereConditions: string[] = [`o.sourceId in (${authorizedRefs})`]
                 let groups: string[] = ['o.sha', 'o.name', 'o.mimeType', 'o.parentSha']
                 let froms: string[] = ['objects_hierarchy o']
@@ -385,9 +385,6 @@ export class Stateful {
                     score: row.score * 1,
                     parentSha: row.parentsha,
 
-                    lastWrite: row.lastwrite * 1,
-                    size: row.size * 1,
-
                     lat: row.latitude * 1,
                     lng: row.longitude * 1,
 
@@ -421,7 +418,8 @@ export class Stateful {
                 })
                 //log(`directoryShasToAdd:${JSON.stringify(directoryShasToAdd)}`)
                 if (directoryShasToAdd.length > 0) {
-                    let query = `select sha, name, mimeType, parentSha, lastWrite, size from objects_hierarchy where sha in ('${directoryShasToAdd.join("','")}')`
+                    let query = `select sha, name, mimeType, parentSha from objects_hierarchy where sha in ('${directoryShasToAdd.join("','")}')`
+                    log(`sql - 1:${query}`)
                     let queryResult: any = await DbHelpers.dbQuery(client, query)
                     let directoriesToAdd = queryResult.rows.map(row => ({
                         sha: row.sha,
@@ -429,9 +427,6 @@ export class Stateful {
                         mimeType: row.mimetype,
                         score: row.score * 1,
                         parentSha: row.parentsha,
-
-                        lastWrite: row.lastwrite * 1,
-                        size: row.size * 1,
 
                         lat: row.latitude * 1,
                         lng: row.longitude * 1,
@@ -453,6 +448,7 @@ export class Stateful {
                 if (mimeType && mimeType.startsWith('audio/')) {
                     let directoryShas = resultDirectories.map(d => d.sha)
                     let query = `select parentSha from objects_hierarchy where mimeType like 'audio/%' and parentSha in ('${directoryShas.join("','")}') group by parentSha`
+                    log(`sql - 2:${query}`)
                     let queryResult: any = await DbHelpers.dbQuery(client, query)
                     let directoryShasWithAudio = queryResult.rows.map(row => row.parentsha)
                     resultDirectories = resultDirectories.filter(d => directoryShasWithAudio.find(sha => sha == d.sha))
@@ -461,123 +457,11 @@ export class Stateful {
                 res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items:[], query: '' }))
             }
             catch (err) {
+                log.err(err)
                 res.send(JSON.stringify({ error: err, query }))
             }
 
             DbHelpers.closeClient(client)
-        })
-
-        app.post('/search-old', async (req, res) => {
-            let query = '-'
-            res.set('Content-Type', 'application/json')
-            try {
-                let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequestAsSql(req, this.store)
-                if (!authorizedRefs) {
-                    res.send(JSON.stringify({ resultDirectories: [], resultFilesddd: [] }))
-                    return
-                }
-
-                let {
-                    name,
-                    mimeType,
-                    geoSearch,
-                    dateMin,
-                    dateMax,
-                    offset,
-                    limit,
-                    noDirectory
-                } = req.body
-
-                const client = await DbHelpers.createClient(this.databaseParams, "search")
-
-                let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'min(o.size) as size', 'min(o.lastWrite) as lastWrite']
-                let whereConditions: string[] = [`o.sourceId in (${authorizedRefs})`]
-                let groups: string[] = ['o.sha', 'o.name', 'o.mimeType']
-                let froms: string[] = ['objects_hierarchy o']
-                let orders: string[] = []
-
-                if (mimeType && mimeType.startsWith('image/') && geoSearch) {
-                    let { nw, se } = geoSearch
-                    let latMin = Math.min(nw.lat, se.lat)
-                    let latMax = Math.max(nw.lat, se.lat)
-                    let lngMin = Math.min(nw.lng, se.lng)
-                    let lngMax = Math.max(nw.lng, se.lng)
-
-                    selects.push(`cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`)
-                    froms.push(`inner join object_exifs oe on o.sha=oe.sha`)
-                    whereConditions.push(`cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`)
-                    groups.push(`cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`)
-
-                    if (dateMin)
-                        whereConditions.push(`o.lastWrite>=${dateMin}`)
-                    if (dateMax)
-                        whereConditions.push(`o.lastWrite<=${dateMax}`)
-                }
-
-                if (!name)
-                    name = ''
-                name = name.trim()
-                if (name != '') {
-                    if (mimeType && mimeType.startsWith('audio/')) {
-                        froms.push(`left join object_audio_tags oat on o.sha=oat.sha`)
-                        whereConditions.push(`o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%'`)
-                        orders.push(`order by similarity(o.name, '${name}') desc, similarity(oat.footprint, '${name}') desc`)
-                        selects.push(`similarity(oat.footprint, '${name}') as score`)
-                        groups.push(`oat.footprint`)
-                    }
-                    else {
-                        whereConditions.push(`o.name % '${name}' or o.name ilike '%${name}%'`)
-                        orders.push(`order by similarity(o.name, '${name}') desc`)
-                        selects.push(`similarity(o.name, '${name}') as score`)
-                    }
-                }
-
-                if (noDirectory)
-                    whereConditions.push(`o.mimeType like '${mimeType}'`)
-                else
-                    whereConditions.push(`o.mimeType = 'application/x-hexa-backup-directory' or o.mimeType like '${mimeType}'`)
-
-                if (!offset || offset < 0)
-                    offset = 1
-                else
-                    offset = Math.floor(offset * 1)
-
-                if (!limit || limit < 1 || limit > SQL_RESULT_LIMIT)
-                    limit = SQL_RESULT_LIMIT
-
-                query = `select ${selects.join(', ')} from ${froms.join(' ')} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by ${groups.join(', ')} ${orders.join(', ')} limit ${limit} offset ${offset};`
-
-                log(`sql:${query}`)
-
-                let queryResult: any = await DbHelpers.dbQuery(client, query)
-
-                const items = queryResult.rows.map(row => ({
-                    sha: row.sha,
-                    name: row.name,
-                    mimeType: row.mimetype,
-                    score: row.score * 1,
-
-                    lastWrite: row.lastwrite * 1,
-                    size: row.size * 1,
-
-                    lat: row.latitude * 1,
-                    lng: row.longitude * 1,
-
-                    title: row.title,
-                    artist: row.artist,
-                    album: row.album,
-                }))
-
-                DbHelpers.closeClient(client)
-
-                const resultDirectories = items.filter(i => i.mimeType == 'application/x-hexa-backup-directory').map(({ sha, name }) => ({ sha, name }))
-                const resultFiles = items.filter(i => i.mimeType != 'application/x-hexa-backup-directory')
-
-                res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items, query }))
-            }
-            catch (err) {
-                res.send(JSON.stringify({ error: err, query }))
-            }
         })
     }
 }
