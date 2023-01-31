@@ -1,0 +1,253 @@
+    Convertisseur de devises
+    Calculateur de calories
+    Convertisseur de mesures
+    Calculateur de pourcentage
+    Générateur de mots de passe aléatoires
+    Test de personnalité
+    Convertisseur de fichiers en ligne (PDF, DOC, etc.)
+    Outil de compression d'image
+    Calculateur de prix de vente
+    Convertisseur de temps
+    Météo locale
+    Calculateur de distance
+    Générateur de noms de société
+    Traducteur de langues
+    Outil de suivi du temps de travail
+    Planificateur de budget
+    Convertisseur de vitesse
+    Calculateur de salaire net
+    Générateur d'horoscopes
+    Convertisseur de poids
+    Outil de vérification de l'orthographe
+    Calculateur de taux d'intérêt
+    Générateur de mots clés
+    Outil de comparaison de prix
+    Convertisseur de fichiers audio
+    Calculateur d'âge
+    Convertisseur de fichiers vidéo
+    Générateur de nom de domaine
+    Outil de rédaction de CV
+    Calculateur d'emprunt
+    Convertisseur de longueur
+    Générateur de citations
+    Outil de suivi de fitness
+    Calculateur de coût de la vie
+    Convertisseur de volume
+    Générateur de tests d'aptitude
+    Outil de conversion de livres électroniques
+    Calculateur de retraite
+    Convertisseur de puissance
+    Générateur de mémos
+    Outil de conversion de fichiers 3D
+    Calculateur d'indice de masse corporelle.
+
+        Outil de vérification de grammaire
+    Calculateur de coût de voyage
+    Convertisseur de systèmes numériques
+    Générateur de tests de connaissances
+    Outil de suivi de la santé mentale
+    Calculateur de nombre de calories brûlées
+    Convertisseur de systèmes de mesure de la pression
+    Générateur de bannières publicitaires
+    Outil de génération de nom d'utilisateur
+    Calculateur de coût d'achat de voiture
+    Convertisseur de unités de mesure de la température
+    Générateur de titres d'articles
+    Outil de suivi de la condition physique
+    Calculateur de coût d'achat de maison
+    Convertisseur de unités de mesure de la force
+    Générateur de slogans publicitaires
+    Outil de génération de nom de code
+    Calculateur de coût de l'énergie
+    Convertisseur de unités de mesure de l'électricité
+    Générateur de noms de produits
+    Outil de suivi de la productivité
+    Calculateur de coût d'achat de bateau
+    Convertisseur de unités de mesure de la luminosité
+    Générateur de thèmes de couleurs
+    Outil de génération de pseudonyme
+    Calculateur de coût d'achat d'avion
+    Convertisseur de unités de mesure de la vitesse
+    Générateur de devises fictives
+    Outil de génération de surnom
+    Calculateur de coût de l'essence
+    Convertisseur de unités de mesure de la distance
+    Générateur de chiffres aléatoires
+    Outil de génération de noms de famille
+    Calculateur de coût de l'assurance automobile
+    Convertisseur de unités de mesure de la surface
+    Générateur de numéros de téléphone fictifs
+    Outil de génération de noms de rues
+    Calculateur de coût de l'assurance maladie
+    Convertisseur de unités de mesure de la masse
+    Générateur de dates aléatoires
+    Outil de génération de noms de villes
+    Calculateur de coût d'achat d'équipement de sport.
+
+
+        Convertisseur de devises
+    Calculateur de pourcentage
+    Outil de génération de mots de passe
+    Convertisseur de temps (secondes, minutes, heures)
+    Calculateur de distance et itinéraire
+    Outil de vérification d'adresse e-mail
+    Convertisseur de volume (litres, gallons, etc.)
+    Calculateur de date de naissance à partir de l'âge
+    Outil de génération de citation aléatoire
+    Convertisseur de poids (kg, lbs, etc.)
+    Calculateur de tailles de vêtements
+    Outil de génération d'excuse aléatoire
+    Convertisseur de température (Celsius, Fahrenheit)
+    Calculateur de budget de voyage
+    Outil de génération d'excuse pour absence scolaire
+    Convertisseur de longueur (mètres, pieds, etc.)
+    Calculateur d'âge à partir de la date de naissance
+    Outil de génération d'alibi aléatoire
+    Convertisseur de vitesse (km/h, mph, etc.)
+    Calculateur de pourboire
+    Outil de génération de nom d'entreprise
+    Convertisseur de pression (Pa, psi, etc.)
+    Calculateur de coût de la nourriture
+    Outil de génération de nom de domaine
+    Convertisseur d'énergie (joules, kilowatt-heures, etc.)
+    Calculateur de coût d'électricité
+    Outil de génération de nom de blog
+    Convertisseur de surface (mètres carrés, pieds carrés, etc.)
+    Calculateur de coût de gaz
+    Outil de génération de nom de restaurant
+    Convertisseur de masque (oz, g, etc.)
+    Calculateur de coût de carburant pour un voyage
+    Outil de génération de nom de magasin
+    Convertisseur de capacité (bytes, gigabytes, etc.)
+    Calculateur de coût de vie dans une ville
+    Outil de génération de nom de club
+    Convertisseur d'angle (degrés, radians, etc.)
+    Calculateur de coût de la location de voiture
+    Outil de génération de nom de organisation à but non lucratif
+    Convertisseur d'électricité (ampères, volts, etc.)
+    Calculateur de coût de la location d'un appartement
+    Outil de génération de nom de groupe musical.
+
+        Outil de prédiction de la météo à partir des habitudes alimentaires
+    Convertisseur de coûts de vie entre villes
+    Calculateur de risques d'accidents en fonction des habitudes de conduite
+    Outil de génération de recommandations de films en fonction des préférences
+    Convertisseur de décalage horaire entre villes
+    Calculateur de chances de trouver un parking en fonction des heures et jours
+    Outil de génération de liste de courses en fonction des habitudes alimentaires
+    Convertisseur de coûts de voyage en fonction de la distance et du mode de transport
+    Calculateur de taux de réussite pour des examens en fonction des notes antérieures
+    Outil de génération de destinations de voyage en fonction des préférences et du budget
+    Convertisseur de coûts de vie en fonction du niveau de vie et des habitudes de dépense
+    Calculateur de chances de tomber enceinte en fonction de l'âge et de la période de cycle
+    Outil de génération de recettes en fonction des ingrédients disponibles
+    Convertisseur de coûts de santé en fonction des habitudes et des antécédents médicaux
+    Calculateur de chances de trouver un emploi en fonction des compétences et de l'industrie
+    Outil de génération de plans d'entraînement en fonction des objectifs et des habitudes de vie
+    Convertisseur de coûts de logement en fonction de la taille et de la localisation
+    Calculateur de risques de développer une maladie en fonction des habitudes de vie
+    Outil de génération de liste de musique en fonction des préférences et de l'humeur
+    Convertisseur de coûts de transport en fonction de la distance et du mode de transport.
+
+        Outil de prévision de la tendance du marché boursier
+    Convertisseur de taux de change en temps réel
+    Calculateur de coût total pour l'achat d'une maison
+    Outil de recommandation de produits en fonction des avis et des critiques
+    Convertisseur de mesures de cuisine
+    Calculateur de coûts de voyage pour des vacances en famille
+    Outil de génération de plans de repas en fonction des restrictions alimentaires
+    Convertisseur de temps de vol entre villes
+    Calculateur de coûts pour le lancement d'une entreprise
+    Outil de recommandation de livres en fonction des genres et des auteurs préférés
+    Convertisseur de mesures de distance pour les sports et les activités de plein air
+    Calculateur de coûts pour l'achat d'une voiture
+    Outil de génération de plans de jardinage en fonction du climat et de la région
+    Convertisseur de mesures énergétiques pour la maison et les appareils électroniques
+    Calculateur de coûts pour la planification d'un mariage
+    Outil de recommandation de programmes de télévision en fonction des genres et des préférences.
+
+        Outil de prédiction de la performance de l'équipe sportive
+    Convertisseur de mesures de longueur pour les projets de bricolage
+    Calculateur de coûts pour l'organisation d'un événement en plein air
+    Outil de recommandation de produits de beauté en fonction des types de peau et des préférences
+    Convertisseur de mesures de temps pour les projets de cuisine
+    Calculateur de coûts pour la planification d'un voyage d'affaires
+    Outil de génération de plans de fitness en fonction des objectifs et des habitudes de vie
+    Convertisseur de mesures de poids pour les projets de cuisine et de bricolage
+    Calculateur de coûts pour la planification d'un anniversaire
+    Outil de recommandation de jeux en fonction des genres et des préférences.
+
+        Outil de conversion de code entre différents langages de programmation
+    Calculateur de coûts pour le lancement d'une application
+    Outil de recommandation de bibliothèques et de frameworks pour les développeurs
+    Convertisseur de notations pour les algorithmes de tri
+    Calculateur de coûts pour la mise en œuvre d'une API
+    Outil de génération de code pour la mise en place de formulaires web
+    Convertisseur de formats de fichiers pour les images et les données
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de contenu (CMS)
+    Outil de recommandation de plates-formes pour le développement de jeux en ligne
+    Convertisseur de mesures de mémoire pour les projets de développement.
+
+        Outil de comparaison de différents SGBD
+    Calculateur de coûts pour la mise en place d'une infrastructure cloud
+    Outil de recommandation de technologies pour le développement de logiciels
+    Convertisseur de syntaxe pour les scripts de shell
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de bases de données
+    Outil de génération de code pour la mise en place de pagination web
+    Convertisseur de formats de fichiers pour les données tabulaires
+    Calculateur de coûts pour la mise en œuvre d'une plateforme e-commerce
+    Outil de recommandation de technologies pour la sécurité des données
+    Convertisseur de notations pour les algorithmes de recherche
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de projet
+    Outil de comparaison de différents frameworks front-end
+    Convertisseur de syntaxe pour les scripts de automatisation
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de version
+    Outil de recommandation de bibliothèques pour le développement de applications web
+    Convertisseur de formats de fichiers pour les données geospatiales
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de la qualité logicielle
+    Outil de génération de code pour la mise en place de filtres web
+    Convertisseur de notations pour les algorithmes de cryptage
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de la sécurité
+    Outil de recommandation de technologies pour le développement mobile
+    Convertisseur de formats de fichiers pour les données audio
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de la documentation
+    Outil de comparaison de différents environnements de développement
+    Convertisseur de syntaxe pour les scripts de build
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de la qualité de l'air
+    Outil de recommandation de bibliothèques pour le développement de applications desktop
+    Convertisseur de notations pour les algorithmes de compression de données
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de la santé
+    Outil de génération de code pour la mise en place de notifications web
+    Convertisseur de formats de fichiers pour les données vidéo
+    Calculateur de coûts pour la mise en œuvre d'un système de gestion de la qualité
+
+        Un convertisseur de code
+    Un comparateur de frameworks de développement
+    Un générateur de code
+    Une bibliothèque de codes sources
+    Un testeur de performances de code
+    Un débogueur en ligne
+    Un convertisseur de syntaxe
+    Un testeur de compatibilité de navigateur
+    Un générateur de documentation de code
+    Une base de données de design patterns
+    Un générateur de modèles d'application
+    Un analyseur de code statique
+    Un éditeur de code en ligne
+    Un simulateur de débogage de code
+    Un générateur de diagrammes de classes UML
+    Un générateur de diagrammes de séquences UML
+    Un générateur de diagrammes d'états UML
+    Un générateur de diagrammes de cas d'utilisation UML
+    Un convertisseur de JSON à YAML
+    Un convertisseur de YAML à JSON
+    Un générateur de schéma de base de données
+    Un convertisseur de commandes SQL
+    Un générateur de scripts SQL
+    Un simulateur de requêtes SQL
+    Un analyseur de requêtes SQL
+    Un générateur de code de création de table
+    Un générateur de code d'insertion de données
+    Un générateur de code de sélection de données
+    Un générateur de code de mise à jour de données
+    Un générateur de code de suppression de données

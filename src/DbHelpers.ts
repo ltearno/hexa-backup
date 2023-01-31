@@ -101,12 +101,14 @@ export async function insertObjectHierarchy(client, sourceId: string, parentSha:
     }
 
     let fileName = file.name.replace('\\', '/')
+    let mimeTypeType = mimeType.split('/')[0]
+    let mimeTypeSubType = mimeType.split('/')[1]
 
     log.dbg(`insert object_hierarchy ${file.contentSha}`)
 
     await dbQuery(client, {
-        text: 'INSERT INTO objects_hierarchy(sourceId, parentSha, sha, size, lastWrite, name, mimeType) VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING',
-        values: [sourceId, parentSha, file.contentSha, file.size, file.lastWrite, fileName, mimeType],
+        text: 'INSERT INTO objects_hierarchy(sourceId, parentSha, sha, size, lastWrite, name, mimeTypeType, mimeTypeSubType) VALUES($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING',
+        values: [sourceId, parentSha, file.contentSha, file.size, file.lastWrite, fileName, mimeTypeType, mimeTypeSubType],
     })
 }
 

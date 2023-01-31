@@ -62,7 +62,7 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                         lastWrite: 0,
                         name: '',
                         size: 0
-                    }, 'application/x-hexa-backup-directory')
+                    }, 'hexa-backup/x-hexa-backup-directory')
 
                     log(`commit ${commitSha} indexed`)
 
@@ -74,7 +74,7 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                 // index audio files
                 {
                     const cursorClient = await DbHelpers.createClient(dbParams, "findUnindexedAudioFiles")
-                    let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_audio_tags oat ON oh.sha=oat.sha where mimeType LIKE 'audio/%' AND oat.sha IS NULL AND oh.sourceId='${source}';`)
+                    let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_audio_tags oat ON oh.sha=oat.sha where mimeTypeType = 'audio' AND oat.sha IS NULL AND oh.sourceId='${source}';`)
                     while (true) {
                         try {
                             let rows = await cursor.read(100)
@@ -101,7 +101,7 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                 // index image files
                 {
                     const cursorClient = await DbHelpers.createClient(dbParams, "findUnindexedImageFiles")
-                    let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_exifs oe ON oh.sha=oe.sha where mimeType='image/jpeg' AND oe.sha IS NULL AND oh.sourceId='${source}';`)
+                    let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_exifs oe ON oh.sha=oe.sha where mimeTypeType='image' and mimeTypeSubType='jpeg' AND oe.sha IS NULL AND oh.sourceId='${source}';`)
                     while (true) {
                         try {
                             let rows = await cursor.read(100)
@@ -222,7 +222,7 @@ async function recPushDir(client, store: HexaBackupStore, basePath: string, dire
 
 function getFileMimeType(file: Model.FileDescriptor): string {
     if (file.isDirectory)
-        return 'application/x-hexa-backup-directory'
+        return 'hexa-backup/x-hexa-backup-directory'
 
     let pos = file.name.lastIndexOf('.')
     if (pos >= 0) {
@@ -405,6 +405,7 @@ export async function updateMimeShaList(sourceId: string, mimeType: string, stor
 
     log(`connected to database`)
 
+    // TODO update after splitted mimeType into mimeTypeType and mimeTypeSubType
     const query = `select sha, min(distinct name) as name, min(size) as size, min(lastWrite) as lastWrite, min(mimeType) as mimeType from objects_hierarchy where size>100000 and mimeType ilike '${mimeType}/%' group by sha order by min(lastWrite);`
 
     const cursor = await DbHelpers.createCursor(client, query)

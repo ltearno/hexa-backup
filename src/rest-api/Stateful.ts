@@ -66,6 +66,110 @@ export class Stateful {
         }
     }
 
+    private async searchAudio(authorizedRefs: string, names: string[]) {
+        const offset = 0
+        const limit = 162
+        const client = await DbHelpers.createClient(this.databaseParams, "searchaudio")
+
+        try {
+            let conditions: string[] = [`o.sourceId in (${authorizedRefs})`]
+            names.forEach(name => {
+                conditions.push(`o.footprint ilike '%${name}%'`)
+            })
+
+            // find in directories
+            let query = `select o.sha, o.name, o.parentSha as parentSha, o.name, o.mimeTypeType, o.mimeTypeSubType from objects_hierarchy o where o.sourceId in (${authorizedRefs}) and mimeTypeType='hexa-backup' and mimeTypeSubType='x-hexa-backup-directory' and (${names.map(n => `o.name ilike '%${n}%'`).join(' and ')}) order by (${names.map(n => `similarity(o.name, '${n}')`).join(' + ')}) desc limit ${limit} offset ${offset};`
+            log(query)
+            let queryResult: any = await DbHelpers.dbQuery(client, query)
+            let directories = queryResult.rows.map(row => {
+                return {
+                    sha: row.sha,
+                    name: row.name,
+                    mimeType: row.mimetypetype.trim() + '/' + row.mimetypesubtype.trim(),
+                    score: 0,
+                    parentSha: row.parentsha
+                }
+            })
+            log(directories)
+
+            // find audio_objects
+            query = `select o.sha, o.name, o.parentSha as parentSha, o.name, o.mimeTypeType, o.mimeTypeSubType from audio_objects o where o.sourceId in (${authorizedRefs}) and (${names.map(n => `o.footprint ilike '%${n}%'`).join(' and ')}) order by (${names.map(n => `similarity(o.footprint, '${n}')`).join(' + ')}) desc limit ${limit} offset ${offset};`
+            log(query)
+            queryResult = await DbHelpers.dbQuery(client, query)
+            let files = queryResult.rows.map(row => {
+                return {
+                    sha: row.sha,
+                    name: row.name,
+                    mimeType: row.mimetypetype.trim() + '/' + row.mimetypesubtype.trim(),
+                    score: 0,
+                    parentSha: row.parentsha
+                }
+            })
+            log(files)
+
+            let directoryMentions = {}
+            files.forEach(f => {
+                if (!directoryMentions[f.parentSha])
+                    directoryMentions[f.parentSha] = 0
+                directoryMentions[f.parentSha]++
+            })
+
+            directories.forEach(d => directoryMentions[d.sha] = true)
+            //files = files.filter(f => !directoryMentions[f.sha])
+
+            // add directories which are mentionned more than x times as file's parent
+            const mentionTrigger = 2
+            let directoryShasToAdd = []
+            // if a directory has more than mentionTrigger mentions, it is added to the resultDirectories and corresponding files are removed from resultFiles
+            Object.keys(directoryMentions).forEach(sha => {
+                if (directoryMentions[sha] >= mentionTrigger) {
+                    //resultFiles = resultFiles.filter(f => f.parentSha != sha)
+                    directoryShasToAdd.push(sha)
+                }
+            })
+            if (directoryShasToAdd.length > 0) {
+                let query = `select sha, name, mimeTypeType, mimeTypeSubType, parentSha from objects_hierarchy where sha in ('${directoryShasToAdd.join("','")}')`
+                log(`sql - 1:${query}`)
+                let queryResult: any = await DbHelpers.dbQuery(client, query)
+                let directoriesToAdd = queryResult.rows.map(row => {
+                    return {
+                        sha: row.sha,
+                        name: row.name,
+                        mimeType: row.mimetypetype.trim() + '/' + row.mimetypesubtype.trim(),
+                        parentSha: row.parentsha,
+                    }
+                })
+                log("added directories" + directoriesToAdd)
+                directories = directories.concat(directoriesToAdd)
+            }
+
+            // remove duplicate directories and files
+            directories = directories.filter((d, i) => directories.findIndex(d2 => d2.sha == d.sha) == i)
+            files = files.filter((f, i) => files.findIndex(f2 => f2.sha == f.sha) == i)
+
+            // remove directories which have no audio inside
+            let directoryShas = directories.map(d => d.sha)
+            query = `select parentSha from objects_hierarchy where mimeTypeType = 'audio' and parentSha in ('${directoryShas.join("','")}') group by parentSha`
+            log(`sql - 2:${query}`)
+            queryResult = await DbHelpers.dbQuery(client, query)
+            let directoryShasWithAudio = queryResult.rows.map(row => row.parentsha)
+            directories = directories.filter(d => directoryShasWithAudio.find(sha => sha == d.sha))
+
+            // sort by name
+            directories.sort((a, b) => a.name.localeCompare(b.name))
+            files.sort((a, b) => a.name.localeCompare(b.name))
+
+            return { directories, files }
+        }
+        catch (err) {
+            log.err(`exception during searchAudio: ${err}`)
+            return { error: `see server logs !` }
+        }
+        finally {
+            DbHelpers.closeClient(client)
+        }
+    }
+
     addEnpointsToApp(app: any) {
         app.post('/indices/update', async (req, res) => {
             res.set('Content-Type', 'application/json')
@@ -183,8 +287,9 @@ export class Stateful {
                 queryResult.rows.forEach(row => {
                     if (!info.names.includes(row.name))
                         info.names.push(row.name)
-                    if (!info.mimeTypes.includes(row.mimetype))
-                        info.mimeTypes.push(row.mimetype)
+                    const mimeType = row.mimetypetype + '/' + row.mimetypesubtype
+                    if (!info.mimeTypes.includes(mimeType))
+                        info.mimeTypes.push(mimeType)
                     if (!info.writeDates.includes(row.lastwrite))
                         info.writeDates.push(row.lastwrite)
                     if (!info.sizes.includes(row.size))
@@ -290,17 +395,17 @@ export class Stateful {
         })
 
         app.post('/search', async (req, res) => {
+            let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequestAsSql(req, this.store)
+            if (!authorizedRefs) {
+                res.send(JSON.stringify({ directories: [], files: [] }))
+                return
+            }
+
             const client = await DbHelpers.createClient(this.databaseParams, "search")
 
             let query = '-'
             res.set('Content-Type', 'application/json')
             try {
-                let authorizedRefs = await Authorization.getAuthorizedRefsFromHttpRequestAsSql(req, this.store)
-                if (!authorizedRefs) {
-                    res.send(JSON.stringify({ resultDirectories: [], resultFilesddd: [] }))
-                    return
-                }
-
                 let {
                     name,
                     mimeType,
@@ -309,12 +414,18 @@ export class Stateful {
                     dateMax,
                     offset,
                     limit,
-                    noDirectory
                 } = req.body
 
-                let selects: string[] = ['o.sha', 'o.name', 'o.mimeType', 'o.parentSha as parentSha']
+                let names = (name || '').split(' ').map(n => n.trim()).filter(n => n != '')
+
+                if (mimeType.startsWith("audio/")) {
+                    let results = await this.searchAudio(authorizedRefs, names)
+                    res.send(JSON.stringify(results))
+                    return
+                }
+
+                let selects: string[] = ['o.sha', 'o.name', 'o.mimeTypeType', 'o.mimeTypeSubType', 'o.parentSha as parentSha']
                 let whereConditions: string[] = [`o.sourceId in (${authorizedRefs})`]
-                let groups: string[] = ['o.sha', 'o.name', 'o.mimeType', 'o.parentSha']
                 let froms: string[] = ['objects_hierarchy o']
                 let orders: string[] = []
 
@@ -328,7 +439,6 @@ export class Stateful {
                     selects.push(`cast(oe.exif ->> 'GPSLatitude' as float) as latitude, cast(oe.exif ->> 'GPSLongitude' as float) as longitude`)
                     froms.push(`inner join object_exifs oe on o.sha=oe.sha`)
                     whereConditions.push(`cast(exif ->> 'GPSLatitude' as float)>=${latMin} and cast(exif ->> 'GPSLatitude' as float)<=${latMax} and cast(exif ->> 'GPSLongitude' as float)>=${lngMin} and cast(exif ->> 'GPSLongitude' as float)<=${lngMax}`)
-                    groups.push(`cast(oe.exif ->> 'GPSLatitude' as float), cast(oe.exif ->> 'GPSLongitude' as float)`)
 
                     if (dateMin)
                         whereConditions.push(`o.lastWrite>=${dateMin}`)
@@ -342,13 +452,10 @@ export class Stateful {
                 if (name != '') {
                     if (mimeType && mimeType.startsWith('audio/')) {
                         froms.push(`left join object_audio_tags oat on o.sha=oat.sha`)
-                        groups.push(`oat.footprint`)
-                        
-                        let names = name.split(' ')
 
-                        whereConditions.push(`(${names.map(name=>`(o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%')`).join(' AND ')})`)
+                        whereConditions.push(`(${names.map(name => `(o.name ilike '%${name}%' OR oat.footprint ilike '%${name}%')`).join(' AND ')})`)
 
-                        let similarities = names.map(name=>`similarity(o.name, '${name}') + similarity(oat.footprint, '${name}')`).join(' + ')
+                        let similarities = names.map(name => `similarity(o.name, '${name}') + similarity(oat.footprint, '${name}')`).join(' + ')
                         orders.push(`order by (${similarities}) desc`)
                         selects.push(`(${similarities}) as score`)
                     }
@@ -359,10 +466,8 @@ export class Stateful {
                     }
                 }
 
-                if (noDirectory)
-                    whereConditions.push(`o.mimeType like '${mimeType}'`)
-                else
-                    whereConditions.push(`o.mimeType = 'application/x-hexa-backup-directory' or o.mimeType like '${mimeType}'`)
+                // TODO not only audio !!!
+                whereConditions.push(`(o.mimeTypeType = 'hexa-backup' and o.mimeTypeSubType = 'x-hexa-backup-directory') or o.mimeTypeType = 'audio'`)
 
                 if (!offset || offset < 0)
                     offset = 0
@@ -372,29 +477,31 @@ export class Stateful {
                 if (!limit || limit < 1 || limit > SQL_RESULT_LIMIT)
                     limit = SQL_RESULT_LIMIT
 
-                query = `select ${selects.join(', ')} from ${froms.join(' ')} where ${whereConditions.map(c => `(${c})`).join(' and ')} group by ${groups.join(', ')} ${orders.join(', ')} limit ${limit} offset ${offset};`
+                query = `select ${selects.join(', ')} from ${froms.join(' ')} where ${whereConditions.map(c => `(${c})`).join(' and ')} ${orders.join(', ')} limit ${limit} offset ${offset};`
 
                 log(`sql:${query}`)
 
                 let queryResult: any = await DbHelpers.dbQuery(client, query)
 
-                const items = queryResult.rows.map(row => ({
-                    sha: row.sha,
-                    name: row.name,
-                    mimeType: row.mimetype,
-                    score: row.score * 1,
-                    parentSha: row.parentsha,
+                const items = queryResult.rows.map(row => {
+                    return {
+                        sha: row.sha,
+                        name: row.name,
+                        mimeType: row.mimetypetype.trim() + '/' + row.mimetypesubtype.trim(),
+                        score: row.score * 1,
+                        parentSha: row.parentsha,
 
-                    lat: row.latitude * 1,
-                    lng: row.longitude * 1,
+                        lat: row.latitude * 1,
+                        lng: row.longitude * 1,
 
-                    title: row.title,
-                    artist: row.artist,
-                    album: row.album,
-                }))
+                        title: row.title,
+                        artist: row.artist,
+                        album: row.album,
+                    }
+                })
 
-                let resultDirectories = items.filter(i => i.mimeType == 'application/x-hexa-backup-directory').map(({ sha, name }) => ({ sha, name }))
-                let resultFiles = items.filter(i => i.mimeType != 'application/x-hexa-backup-directory')
+                let resultDirectories = items.filter(i => i.mimeType == 'hexa-backup/x-hexa-backup-directory').map(({ sha, name }) => ({ sha, name }))
+                let resultFiles = items.filter(i => i.mimeType != 'hexa-backup/x-hexa-backup-directory')
 
                 // remove files which are child of a directory
                 resultFiles = resultFiles.filter(f => !resultDirectories.find(d => f.parentSha == d.sha))
@@ -418,23 +525,25 @@ export class Stateful {
                 })
                 //log(`directoryShasToAdd:${JSON.stringify(directoryShasToAdd)}`)
                 if (directoryShasToAdd.length > 0) {
-                    let query = `select sha, name, mimeType, parentSha from objects_hierarchy where sha in ('${directoryShasToAdd.join("','")}')`
+                    let query = `select sha, name, mimeTypeType, mimeTypeSubType, parentSha from objects_hierarchy where sha in ('${directoryShasToAdd.join("','")}')`
                     log(`sql - 1:${query}`)
                     let queryResult: any = await DbHelpers.dbQuery(client, query)
-                    let directoriesToAdd = queryResult.rows.map(row => ({
-                        sha: row.sha,
-                        name: row.name,
-                        mimeType: row.mimetype,
-                        score: row.score * 1,
-                        parentSha: row.parentsha,
+                    let directoriesToAdd = queryResult.rows.map(row => {
+                        return {
+                            sha: row.sha,
+                            name: row.name,
+                            mimeType: row.mimetypetype.trim() + '/' + row.mimetypesubtype.trim(),
+                            score: row.score * 1,
+                            parentSha: row.parentsha,
 
-                        lat: row.latitude * 1,
-                        lng: row.longitude * 1,
+                            lat: row.latitude * 1,
+                            lng: row.longitude * 1,
 
-                        title: row.title,
-                        artist: row.artist,
-                        album: row.album,
-                    }))
+                            title: row.title,
+                            artist: row.artist,
+                            album: row.album,
+                        }
+                    })
                     //log(directoriesToAdd)
                     resultDirectories = resultDirectories.concat(directoriesToAdd)
                 }
@@ -447,21 +556,22 @@ export class Stateful {
                 // remove directories which have no audio inside
                 if (mimeType && mimeType.startsWith('audio/')) {
                     let directoryShas = resultDirectories.map(d => d.sha)
-                    let query = `select parentSha from objects_hierarchy where mimeType like 'audio/%' and parentSha in ('${directoryShas.join("','")}') group by parentSha`
+                    let query = `select parentSha from objects_hierarchy where mimeTypeType = 'audio' and parentSha in ('${directoryShas.join("','")}') group by parentSha`
                     log(`sql - 2:${query}`)
                     let queryResult: any = await DbHelpers.dbQuery(client, query)
                     let directoryShasWithAudio = queryResult.rows.map(row => row.parentsha)
                     resultDirectories = resultDirectories.filter(d => directoryShasWithAudio.find(sha => sha == d.sha))
                 }
 
-                res.send(JSON.stringify({ resultDirectories, resultFilesddd: resultFiles, items:[], query: '' }))
+                res.send(JSON.stringify({ directories: resultDirectories, files: resultFiles, items: [], query: '' }))
             }
             catch (err) {
                 log.err(err)
                 res.send(JSON.stringify({ error: err, query }))
             }
-
-            DbHelpers.closeClient(client)
+            finally {
+                DbHelpers.closeClient(client)
+            }
         })
     }
 }
