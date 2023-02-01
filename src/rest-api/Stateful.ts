@@ -170,6 +170,23 @@ export class Stateful {
         }
     }
 
+    private async enumeratePathsToSha(client: any, sha: string) {
+        let query = `select o.sourceId, o.name, o.parentSha from objects_hierarchy o where o.sha = '${sha}'`
+        let queryResult: any = await DbHelpers.dbQuery(client, query)
+        let result = []
+        for (let row of queryResult.rows) {
+            const parentSha = row.parentsha.trim()
+            result.push({
+                name: row.name,
+                parentSha,
+                sourceId: row.sourceid,
+                parents: await this.enumeratePathsToSha(client, parentSha)
+            })
+        }
+
+        return result
+    }
+
     addEnpointsToApp(app: any) {
         app.post('/indices/update', async (req, res) => {
             res.set('Content-Type', 'application/json')
@@ -275,12 +292,37 @@ export class Stateful {
                 sources: [],
                 exifs: [],
                 audioMetadata: [],
-                errors: []
+                errors: [],
+                paths: [],
+            }
+
+            try {
+                info.paths = await this.enumeratePathsToSha(client, sha)
+
+                function printPaths(paths, parts: string[]) {
+                    if (paths.length) {
+                        paths.forEach(path => {
+                            //log(`path: ${path.name} ${path.sourceId} ${path.parentSha}`)
+                            let subParts = parts.slice()
+                            subParts.push(path.name)
+                            if (!path.parents.length)
+                                subParts.push(path.sourceId)
+                            printPaths(path.parents, subParts)
+                        })
+                    } else {
+                        log(`path: ${parts.reverse().join("/")}`)
+                    }
+                }
+
+                printPaths(info.paths, [])
+            }
+            catch (err) {
+                info.errors.push(err)
             }
 
             try {
                 let queryResult: any = await DbHelpers.dbQuery(client, {
-                    text: `select * from objects_hierarchy where sha=$1`,
+                    text: `select * from objects_hierarchy where sha=$1 and sourceId in (${authorizedRefs})`,
                     values: [sha]
                 })
 
@@ -302,7 +344,7 @@ export class Stateful {
 
             try {
                 let queryResult = await DbHelpers.dbQuery(client, {
-                    text: `select parentsha from objects_hierarchy where sha=$1`,
+                    text: `select parentsha from objects_hierarchy where sha=$1 and sourceId in (${authorizedRefs})`,
                     values: [sha]
                 })
 
@@ -317,7 +359,7 @@ export class Stateful {
 
             try {
                 let queryResult = await DbHelpers.dbQuery(client, {
-                    text: `select sourceId from objects_hierarchy where sha=$1`,
+                    text: `select sourceId from objects_hierarchy where sha=$1 and sourceId in (${authorizedRefs})`,
                     values: [sha]
                 })
 
