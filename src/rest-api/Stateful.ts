@@ -302,7 +302,7 @@ export class Stateful {
 
             try {
                 let queryResult = await DbHelpers.dbQuery(client, {
-                    text: `select parentsha from objects_hiearchy where sha=$1`,
+                    text: `select parentsha from objects_hierarchy where sha=$1`,
                     values: [sha]
                 })
 
@@ -351,6 +351,8 @@ export class Stateful {
                 })
 
                 queryResult.rows.forEach(row => {
+                    if (row.tags)
+                        delete row.tags['quality']
                     info.audioMetadata.push(row.tags)
                 })
             }

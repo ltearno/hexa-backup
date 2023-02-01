@@ -130,6 +130,8 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                 log.err(`source ${source} had an error: ${err}, continuing`)
             }
         }
+
+        await DbHelpers.dbQuery(client, `refresh materialized view audio_objects`)
     }
     catch (err) {
         console.error(err)
