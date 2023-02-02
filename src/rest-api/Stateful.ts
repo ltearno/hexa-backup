@@ -1,15 +1,71 @@
-import { HexaBackupStore } from '../HexaBackupStore.js'
 import { LoggerBuilder } from '@ltearno/hexa-js'
+import * as http from 'http'
 import * as Authorization from '../Authorization.js'
+import * as BackgroundJobs from '../BackgroundJobs.js'
 import * as DbHelpers from '../DbHelpers.js'
 import * as DbIndexation from '../DbIndexation.js'
-import * as BackgroundJobs from '../BackgroundJobs.js'
+import { HexaBackupStore } from '../HexaBackupStore.js'
 import * as SourceState from '../SourceState.js'
-import * as http from 'http'
 
 const log = LoggerBuilder.buildLogger('stateful-server')
 
 const SQL_RESULT_LIMIT = 162
+
+interface EnumeratedPath {
+    name: string
+    sha: string
+    parentSha: string
+    sourceId: string
+    parents: EnumeratedPath[]
+}
+
+async function browsePathsToSha(client: any, authorizedRefs: string, sha: string): Promise<EnumeratedPath[]> {
+    let query = `select o.sourceId, o.sha, o.name, o.parentSha from objects_hierarchy o where o.sourceId in (${authorizedRefs}) and o.sha = '${sha}'`
+    let queryResult: any = await DbHelpers.dbQuery(client, query)
+    let result = []
+    for (let row of queryResult.rows) {
+        const parentSha = row.parentsha.trim()
+        result.push({
+            name: row.name,
+            sha: row.sha,
+            parentSha,
+            sourceId: row.sourceid,
+            parents: await browsePathsToSha(client, authorizedRefs, parentSha)
+        })
+    }
+
+    return result
+}
+
+interface PartInfo {
+    name: string
+    sha: string
+}
+interface PathInfo {
+    sourceId: string
+    parts: PartInfo[]
+}
+
+async function enumeratePathsToShaInternal(paths: EnumeratedPath[], parts: PartInfo[], pathInfos: PathInfo[]) {
+    paths.forEach(path => {
+        let subParts = parts.slice()
+        if (!path.parents.length) {
+            pathInfos.push({
+                sourceId: path.sourceId,
+                parts: subParts.reverse().map(a => ({ name: a.name, sha: a.sha }))
+            })
+        } else {
+            subParts.push(path)
+            enumeratePathsToShaInternal(path.parents, subParts, pathInfos)
+        }
+    })
+}
+
+async function enumeratePathsToSha(client: any, authorizedRefs: string, sha: string): Promise<PathInfo[]> {
+    let infos = []
+    await enumeratePathsToShaInternal(await browsePathsToSha(client, authorizedRefs, sha), [], infos)
+    return infos
+}
 
 export class Stateful {
     private backgroundJobs: BackgroundJobs.BackgroundJobClientApi
@@ -170,23 +226,6 @@ export class Stateful {
         }
     }
 
-    private async enumeratePathsToSha(client: any, sha: string) {
-        let query = `select o.sourceId, o.name, o.parentSha from objects_hierarchy o where o.sha = '${sha}'`
-        let queryResult: any = await DbHelpers.dbQuery(client, query)
-        let result = []
-        for (let row of queryResult.rows) {
-            const parentSha = row.parentsha.trim()
-            result.push({
-                name: row.name,
-                parentSha,
-                sourceId: row.sourceid,
-                parents: await this.enumeratePathsToSha(client, parentSha)
-            })
-        }
-
-        return result
-    }
-
     addEnpointsToApp(app: any) {
         app.post('/indices/update', async (req, res) => {
             res.set('Content-Type', 'application/json')
@@ -297,24 +336,7 @@ export class Stateful {
             }
 
             try {
-                info.paths = await this.enumeratePathsToSha(client, sha)
-
-                function printPaths(paths, parts: string[]) {
-                    if (paths.length) {
-                        paths.forEach(path => {
-                            //log(`path: ${path.name} ${path.sourceId} ${path.parentSha}`)
-                            let subParts = parts.slice()
-                            subParts.push(path.name)
-                            if (!path.parents.length)
-                                subParts.push(path.sourceId)
-                            printPaths(path.parents, subParts)
-                        })
-                    } else {
-                        log(`path: ${parts.reverse().join("/")}`)
-                    }
-                }
-
-                printPaths(info.paths, [])
+                info.paths = await enumeratePathsToSha(client, authorizedRefs, sha)
             }
             catch (err) {
                 info.errors.push(err)
