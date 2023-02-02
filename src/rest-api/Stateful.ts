@@ -124,7 +124,7 @@ export class Stateful {
 
     private async searchAudio(authorizedRefs: string, names: string[]) {
         const offset = 0
-        const limit = 162
+        const limit = SQL_RESULT_LIMIT
         const client = await DbHelpers.createClient(this.databaseParams, "searchaudio")
 
         try {
