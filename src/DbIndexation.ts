@@ -101,7 +101,7 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                 // index image files
                 {
                     const cursorClient = await DbHelpers.createClient(dbParams, "findUnindexedImageFiles")
-                    let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha from objects_hierarchy oh LEFT JOIN object_exifs oe ON oh.sha=oe.sha where mimeTypeType='image' and mimeTypeSubType='jpeg' AND oe.sha IS NULL AND oh.sourceId='${source}';`)
+                    let cursor = await DbHelpers.createCursor(cursorClient, `select distinct(oh.sha) as sha, mimeTypeSubType, lastWrite from objects_hierarchy oh LEFT JOIN object_exifs oe ON oh.sha=oe.sha where mimeTypeType='image' AND oh.size>0 AND oe.sha IS NULL AND oh.sourceId='${source}';`)
                     while (true) {
                         try {
                             let rows = await cursor.read(100)
@@ -112,7 +112,7 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
                             log(`we have ${rows.length} rows`)
 
                             for (let row of rows) {
-                                let err = await processObjectExifForSha(store, client, row.sha)
+                                let err = await processObjectExifForSha(store, client, row.sha, row.mimetypesubtype, row.lastwrite)
                                 if (err)
                                     log.err(err)
                             }
@@ -213,11 +213,11 @@ async function recPushDir(client, store: HexaBackupStore, basePath: string, dire
         if (false) {
             /* DELETED let err = await updateObjectAudioForSha(store, client, file, mimeType)
             if (err)
-                log.err(err)*/
+                log.err(err)
             let err = await updateObjectExifForSha(store, client, file, mimeType)
             if (err)
                 log.err(err)
-            await updateObjectFootprintForSha(client, file, mimeType)
+            await updateObjectFootprintForSha(client, file, mimeType)*/
         }
     }
 }
@@ -337,64 +337,141 @@ async function processObjectAudioForSha(store: HexaBackupStore, client: any, sha
     return null
 }
 
-async function processObjectExifForSha(store: HexaBackupStore, client: any, sha: string): Promise<string> {
+function parseDate(line) {
     try {
-        if (!exifParserBuilder) {
-            const m = await import('exif-parser')
-            exifParserBuilder = m
-            if (!exifParserBuilder)
-                throw `cannot require/load module 'exif-parser'`
+        line = line.trim()
+        line = line.replace(/[^\x00-\x7F]/g, "")
+
+        if (line.length == 0)
+            return null
+
+        // test if line has only digits
+        if (line.match(/^\d+$/)) {
+            let timestamp = parseInt(line)
+            if (timestamp < 315532990) {
+                return null
+            }
+            if (Math.abs(Date.now() - timestamp) < Math.abs(Date.now() - timestamp * 1000)) {
+                //console.log(`ms ${timestamp}`);
+            } else {
+                //console.log(`s ${timestamp}`);
+                timestamp *= 1000
+            }
+            if (timestamp > Date.now()) {
+                return null
+            }
+
+            let date = new Date(timestamp)
+            if ("" + date != "Invalid Date") {
+                return date
+            }
         }
 
-        let size = await store.hasOneShaBytes(sha)
+        if (line.length == 10 && line[4] == ':' && line[7] == ':') {
+            if (line.substring(0, 2) == "01")
+                line = "20" + line.substring(2)
+            return new Date(line.substring(0, 4), line.substring(5, 7) - 1, line.substring(8))
+        }
 
-        let buffer = await store.readShaBytes(sha, 0, Math.min(size, 65635))
-        if (!buffer)
-            throw `cannot read 65kb from sha ${sha}`
+        if (line.length > 10 && line[4] == ':' && line[7] == ':') {
+            try {
+                if (line.substring(0, 2) == "01")
+                    line = "20" + line.substring(2)
+                let hours = JSON.parse(line.substring(10))
+                if (hours && hours.length == 3) {
+                    return new Date(line.substring(0, 4), line.substring(5, 7) - 1, line.substring(8, 10), hours[0], hours[1], hours[2])
+                }
+            } catch (e) {
+            }
+        }
 
-        let exifParser = exifParserBuilder.create(buffer)
-        let exif = exifParser.parse()
+        let d = new Date(line)
+        // test invalid date
+        if ("" + d != "Invalid Date") {
+            return d
+        }
 
-        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
-        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
-        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+        var dateParts = line.split(/[:\s]+/);
+        if (dateParts.length == 6) {
+            let dd = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], dateParts[3], dateParts[4], dateParts[5])
+            if ("" + dd != "Invalid Date") {
+                //console.log(`parsed ${line}: ${dd}`)
+                return dd
+            }
+        }
 
-        await DbHelpers.insertObjectExif(client, sha, exif.tags)
+        if (dateParts.length == 5) {
+            let dd = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], dateParts[3], dateParts[4], 0)
+            if ("" + dd != "Invalid Date") {
+                //console.log(`parsed ${line}: ${dd}`)
+                return dd
+            }
+        }
+
+        return null
     }
-    catch (err) {
-        await DbHelpers.insertObjectExif(client, sha, { error: err.toString() })
-        return `error processing image exif ${sha} : ${err}`
+    catch (e) {
+        return null
     }
-
-    return null
 }
 
-async function updateObjectExifForSha(store: HexaBackupStore, client: any, o: Model.FileDescriptor, mimeType: string): Promise<string> {
-    if (o.size < 65535 || !mimeType.startsWith('image/jpeg'))
-        return null
+async function processObjectExifForSha(store: HexaBackupStore, client: any, sha: string, mimeTypeSubType: string, lastWrite: string): Promise<string> {
+    if (mimeTypeSubType == 'jpeg') {
+        try {
+            if (!exifParserBuilder) {
+                const m = await import('exif-parser')
+                exifParserBuilder = m
+                if (!exifParserBuilder)
+                    throw `cannot require/load module 'exif-parser'`
+            }
 
-    try {
-        if (!exifParserBuilder)
-            exifParserBuilder = require('exif-parser')
+            let size = await store.hasOneShaBytes(sha)
 
-        // insert an empty object in case the job stales, so it does not come up again...
-        await DbHelpers.insertObjectExif(client, o.contentSha, {})
+            let buffer = await store.readShaBytes(sha, 0, Math.min(size, 65635))
+            if (!buffer)
+                throw `cannot read 65kb from sha ${sha}`
 
-        let buffer = await store.readShaBytes(o.contentSha, 0, 65635)
-        if (!buffer)
-            throw `cannot read 65kb from sha ${o.contentSha}`
+            let exifParser = exifParserBuilder.create(buffer)
+            let exif = exifParser.parse()
 
-        let exifParser = exifParserBuilder.create(buffer)
-        let exif = exifParser.parse()
+            log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
+            log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
+            log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
 
-        log.dbg(`image size : ${JSON.stringify(exif.getImageSize())}`)
-        log.dbg(`exif tags : ${JSON.stringify(exif.tags)}`)
-        log.dbg(`exif thumbnail ? ${exif.hasThumbnail() ? 'yes' : 'no'}`)
+            let dates = [
+                lastWrite,
+                `${exif.tags.CreateDate}`,
+                `${exif.tags.DateTimeOriginal}`,
+                `${exif.tags.GPSDateStamp || ''} ${exif.tags.GPSTimeStamp || ''}`,
+            ].map(parseDate).filter(d => d != null).sort((a, b) => a.getTime() - b.getTime())
 
-        await DbHelpers.insertObjectExif(client, o.contentSha, exif.tags)
-    }
-    catch (err) {
-        return `error processing image ${o.contentSha} : ${err}`
+            // model + maker
+            let model = (exif?.tags?.Model || '').trim()
+            let maker = (exif?.tags?.Make || '').trim()
+            if (!model.startsWith(maker))
+                model = maker + ' ' + model
+            let owner = (exif?.tags?.OwnerName || '').trim()
+            if (owner.length > 0)
+                model = model + ' (' + owner + ')'
+
+            // width and height
+            let height = exif?.tags?.ExifImageHeight || exif?.tags?.ImageHeight || null
+            let width = exif?.tags?.ExifImageWidth || exif?.tags?.ImageWidth || null
+
+            // latitude, latitude ref, longitude and longitude ref
+            let latitude = exif?.tags?.GPSLatitude || null
+            let latitudeRef = exif?.tags?.GPSLatitudeRef || null
+            let longitude = exif?.tags?.GPSLongitude || null
+            let longitudeRef = exif?.tags?.GPSLongitudeRef || null
+
+            await DbHelpers.insertObjectExif(client, sha, exif.tags, mimeTypeSubType, dates.length ? dates[0] : null, model, height, width, latitude, latitudeRef, longitude, longitudeRef)
+        }
+        catch (err) {
+            await DbHelpers.insertObjectExif(client, sha, { error: err.toString() }, mimeTypeSubType, parseDate(lastWrite), null, null, null, null, null, null, null)
+            return `error processing image exif ${sha} : ${err}`
+        }
+    } else {
+        await DbHelpers.insertObjectExif(client, sha, {}, mimeTypeSubType, parseDate(lastWrite), null, null, null, null, null, null, null)
     }
 
     return null

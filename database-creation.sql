@@ -14,7 +14,7 @@ CREATE index idx_objects_hierarchy_sourceId_mime on objects_hierarchy USING btre
 /* content related metadata */
 create table object_audio_tags (sha char(64), tags jsonb, footprint text, primary key (sha));
 create index idx_object_audio_tags_footprints ON object_audio_tags USING gin (footprint gin_trgm_ops);
-create table object_exifs (sha char(64), exif jsonb, primary key (sha));
+create table object_exifs (sha char(64), exif jsonb, type text, date timestamp, model text, height int, width int, latitude float, latitudeRef text, longitude float, longitudeRef text, primary key (sha));
 
 create materialized view audio_objects as select o.sourceId, o.parentSha, o.sha, o.name, o.mimeTypeType, o.mimeTypeSubType, concat(o.name, ' ', oat.footprint) as footprint from objects_hierarchy o left join object_audio_tags oat on o.sha = oat.sha where o.mimeTypeType = 'audio';
 CREATE INDEX idx_audio_objects_footprint ON audio_objects USING gin (footprint gin_trgm_ops);

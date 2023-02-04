@@ -146,13 +146,24 @@ export async function insertObjectAudioTags(client, sha: string, tags: object, f
     })
 }
 
-export async function insertObjectExif(client, sha: string, exif: object) {
+export async function insertObjectExif(client, sha: string, exif: object, type: string, date: Date, model, height, width, latitude, latitudeRef, longitude, longitudeRef) {
     if (!sha || !exif)
         return
 
     await dbQuery(client, {
-        text: `INSERT INTO object_exifs(sha, exif) VALUES($1, $2) ON CONFLICT (sha) DO UPDATE SET exif=$2;`,
-        values: [sha, JSON.stringify(exif)],
+        text: `INSERT INTO object_exifs(sha, exif, type, date, model, height, width, latitude, latitudeRef, longitude, longitudeRef) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (sha) DO UPDATE SET exif=$2, type=$3, date=$4, model=$5, height=$6, width=$7, latitude=$8, latitudeRef=$9, longitude=$10, longitudeRef=$11;`,
+        values: [
+            sha,
+            JSON.stringify(exif),
+            type,
+            date ? date.toISOString().slice(0, 16).replace('T', ' ') : null,
+            model,
+            height,
+            width,
+            latitude,
+            latitudeRef,
+            longitude,
+            longitudeRef],
     })
 }
 
