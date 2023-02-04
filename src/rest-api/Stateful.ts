@@ -512,6 +512,14 @@ export class Stateful {
                         whereConditions.push(`o.lastWrite<=${dateMax}`)
                 }
 
+                if (mimeType && mimeType.startsWith('image/') && dateMin && dateMax) {
+                    froms.push(`inner join object_exifs oe on o.sha=oe.sha`)
+                    if (dateMin)
+                        whereConditions.push(`oe.date>='${new Date(dateMin).toISOString().slice(0, 16).replace('T', ' ')}'`)
+                    if (dateMax)
+                        whereConditions.push(`oe.date<='${new Date(dateMax).toISOString().slice(0, 16).replace('T', ' ')}'`)
+                }
+
                 if (!name)
                     name = ''
                 name = name.trim()
@@ -533,7 +541,9 @@ export class Stateful {
                 }
 
                 // TODO not only audio !!!
-                whereConditions.push(`(o.mimeTypeType = 'hexa-backup' and o.mimeTypeSubType = 'x-hexa-backup-directory') or o.mimeTypeType = 'audio'`)
+                if (mimeType && mimeType.startsWith('audio/')) {
+                    whereConditions.push(`(o.mimeTypeType = 'hexa-backup' and o.mimeTypeSubType = 'x-hexa-backup-directory') or o.mimeTypeType = 'audio'`)
+                }
 
                 if (!offset || offset < 0)
                     offset = 0
