@@ -116,7 +116,6 @@ export class DirectoryBrowser {
                 const walkPath = '/' + fsPath.relative(this.rootPath, fileName)
 
                 //let relative = fsPath.basename(fileName)
-                log(`testing '${walkPath}' against ignore expressions`)
                 let ignoringExpression = ignoreExpressions.find(expression => expression.regExp.test(walkPath))
                 if (ignoringExpression) {
                     log(`ignored ${fileName} (${walkPath}), because of expression '${ignoringExpression.userExpression}' @ '${ignoringExpression.definitionLocation}' (regExp: ${ignoringExpression.regExp})`)
