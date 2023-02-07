@@ -131,6 +131,7 @@ export async function updateObjectsIndex(store: HexaBackupStore, dbParams: DbCon
             }
         }
 
+        await DbHelpers.dbQuery(client, `delete from object_exifs where sha in (select oe.sha from object_exifs oe left join objects_hierarchy o on oe.sha=o.sha where o.sha is null)`)
         await DbHelpers.dbQuery(client, `refresh materialized view audio_objects`)
     }
     catch (err) {
