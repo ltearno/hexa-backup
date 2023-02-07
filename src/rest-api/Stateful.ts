@@ -122,6 +122,34 @@ export class Stateful {
         }
     }
 
+    private async searchImages(offset: number | null, limit: number | null) {
+        const client = await DbHelpers.createClient(this.databaseParams, "searchimages")
+        offset = offset || 0
+        limit = limit || SQL_RESULT_LIMIT
+
+        try {
+            let count = (await DbHelpers.dbQuery(client, `select count(*) as total from object_exifs`)).rows[0].total * 1
+            let res = await DbHelpers.dbQuery(client, `select oe.sha, oe.date, oe.model from object_exifs oe order by oe.date, oe.model, oe.sha offset ${offset} limit ${limit}`)
+
+            return {
+                count: count,
+                items: res.rows.map(row => ({
+                    sha: row.sha,
+                    date: row.date,
+                    model: row.model
+                }))
+            }
+        }
+        catch (e) {
+            return { error: e }
+        }
+        finally {
+            DbHelpers.closeClient(client)
+        }
+
+        return { error: "unknown request" }
+    }
+
     private async searchAudio(authorizedRefs: string, names: string[]) {
         const offset = 0
         const limit = SQL_RESULT_LIMIT
@@ -480,7 +508,14 @@ export class Stateful {
                     dateMax,
                     offset,
                     limit,
+                    type,
                 } = req.body
+
+                if (type == 'image') {
+                    let results = await this.searchImages(offset, limit)
+                    res.send(JSON.stringify(results))
+                    return
+                }
 
                 let names = (name || '').split(' ').map(n => n.trim()).filter(n => n != '')
 
