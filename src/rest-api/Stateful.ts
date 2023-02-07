@@ -129,14 +129,15 @@ export class Stateful {
 
         try {
             let count = (await DbHelpers.dbQuery(client, `select count(*) as total from object_exifs`)).rows[0].total * 1
-            let res = await DbHelpers.dbQuery(client, `select oe.sha, oe.date, oe.model from object_exifs oe order by oe.date, oe.model, oe.sha offset ${offset} limit ${limit}`)
+            let res = await DbHelpers.dbQuery(client, `select oe.sha, oe.date, oe.model, oe.type from object_exifs oe order by oe.date, oe.model, oe.sha offset ${offset} limit ${limit}`)
 
             return {
                 count: count,
                 items: res.rows.map(row => ({
                     sha: row.sha,
                     date: row.date,
-                    model: row.model
+                    model: row.model,
+                    type: row.type
                 }))
             }
         }
