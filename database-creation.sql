@@ -21,6 +21,7 @@ create index idx_object_exifs_type on object_exifs USING btree (type);
 create index idx_object_exifs_date_height on object_exifs USING btree (date, height);
 create index idx_object_exifs_height_date on object_exifs USING btree (height, date);
 create index idx_object_exifs_date_model_sha on object_exifs USING btree (date, model, sha);
+create index idx_object_exifs_model_date_sha on object_exifs USING btree (model, date, sha);
 
 create materialized view audio_objects as select o.sourceId, o.parentSha, o.sha, o.name, o.mimeTypeType, o.mimeTypeSubType, concat(o.name, ' ', oat.footprint) as footprint from objects_hierarchy o left join object_audio_tags oat on o.sha = oat.sha where o.mimeTypeType = 'audio';
 CREATE INDEX idx_audio_objects_footprint ON audio_objects USING gin (footprint gin_trgm_ops);

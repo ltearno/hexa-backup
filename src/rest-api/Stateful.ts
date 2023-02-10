@@ -128,8 +128,8 @@ export class Stateful {
         limit = limit || SQL_RESULT_LIMIT
 
         try {
-            let count = (await DbHelpers.dbQuery(client, `select count(*) as total from object_exifs`)).rows[0].total * 1
-            let res = await DbHelpers.dbQuery(client, `select oe.sha, oe.date, oe.model, oe.type from object_exifs oe order by oe.date, oe.model, oe.sha offset ${offset} limit ${limit}`)
+            let count = (await DbHelpers.dbQuery(client, `select count(*) as total from object_exifs where model <> ''`)).rows[0].total * 1
+            let res = await DbHelpers.dbQuery(client, `select oe.sha, oe.date, oe.model, oe.type, oe.width, oe.height from object_exifs oe where model <> '' order by oe.date, oe.model, oe.sha offset ${offset} limit ${limit}`)
 
             return {
                 count: count,
@@ -137,7 +137,9 @@ export class Stateful {
                     sha: row.sha,
                     date: row.date,
                     model: row.model,
-                    type: row.type
+                    mimeType: `image/${row.type}`,
+                    width: row.width * 1,
+                    height: row.height * 1
                 }))
             }
         }
