@@ -13,7 +13,7 @@ const log = LoggerBuilder.buildLogger('plugins-youtube')
 const uuid = () => HashTools.hashStringSync(`${Date.now()}-${Math.random()}-${Math.random()}`)
 
 // yt-dlp working version: https://github.com/yt-dlp/yt-dlp/releases/download/2021.10.22/yt-dlp
-const YoutubeDownloadExecutable = 'yt-dlp' // 'youtube-dl'
+const YoutubeDownloadExecutable = '/hexa-backup/yt-dlp' // 'youtube-dl'
 
 interface YoutubeFetchRequest {
     url: string
